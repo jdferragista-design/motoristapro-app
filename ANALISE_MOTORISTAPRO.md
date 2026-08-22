@@ -146,6 +146,7 @@ Correções P0 entregues:
 | 4 | PWA real: `manifest.json`, `sw.js` (cache-first), `icon-192/512.png` e banner `pwaInstallBanner` (referenciado pelo JS e antes inexistente) | `www/` |
 | 5 | "Último abastecimento" determinado por data, não por posição no array | `getLastFuelInfo()`, `renderExpensesList()` |
 | 6 | Repo sem zip de 18 MB: fonte commitado direto (`www/`, `android/`, `package*.json`, `capacitor.config.json`), `.gitignore` (node_modules, .gradle, zips), CI reescrito para `npm ci` + `cap sync` + Gradle direto do repo, `android/assets/public` ressincronizado | raiz + `.github/workflows/build.yml` |
+| 7 | **Novo visual** seguindo dashboard de referência do proprietário: paleta dark-violet (#0a0a14 + gradientes violeta→ciano), KPIs com sparklines reais e pills de tendência semanal, divisão por app em donut chart, gráfico 7 dias em área-chart suave (Bruto × Líquido), ícones regenerados. Fluxo de lançamento inalterado | `www/index.html`, `www/icon-*.png` |
 
 Permanecem em aberto (P1/P2 das seções 2–5): filtro por período/mês, validação de schema no restore, CSV Excel-BR, toasts no lugar de `alert()`, Drive real, km/L por tanque, GNV etc.
 
