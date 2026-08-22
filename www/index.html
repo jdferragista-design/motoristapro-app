@@ -747,6 +747,7 @@
 
       <!-- Seletor de Período do Painel -->
       <div class="period-switch" role="tablist" aria-label="Período do painel">
+        <button class="period-btn" onclick="setDashPeriod('day', this)">Hoje</button>
         <button class="period-btn" onclick="setDashPeriod('7', this)">7 dias</button>
         <button class="period-btn active" onclick="setDashPeriod('month', this)">Este mês</button>
         <button class="period-btn" onclick="setDashPeriod('30', this)">30 dias</button>
@@ -791,6 +792,17 @@
             <div class="kpi-spark" id="sparkNet"></div>
           </div>
         </div>
+      </div>
+
+      <!-- Resumo do Dia -->
+      <div class="card" style="border-color: rgba(34, 211, 238, 0.25);">
+        <div class="card-title">
+          📅 Resumo do Dia
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: capitalize;" id="todayDateLabel"></span>
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;" id="todaySubtitle">Sua atividade de hoje, em tempo real</div>
+        <div class="grid grid-4" id="todayGrid"></div>
+        <div id="todayAppsRow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;"></div>
       </div>
 
       <!-- KPI Operational Grid -->
@@ -1872,6 +1884,7 @@
     function inPeriod(dateStr) {
       if (dashPeriod === 'all') return true;
       if (!dateStr) return false;
+      if (dashPeriod === 'day') return dateStr === getTodayString();
       const now = new Date();
       if (dashPeriod === 'month') return dateStr.startsWith(getTodayString().slice(0, 7));
       const days = dashPeriod === '7' ? 7 : 30;
@@ -2651,7 +2664,7 @@
       // Aggregates — escopadas pelo período selecionado no painel
       const pShifts = state.shifts.filter(s => inPeriod(s.date));
       const pExpenses = state.expenses.filter(e => inPeriod(e.date));
-      const periodLabels = { '7': 'últimos 7 dias', '30': 'últimos 30 dias', month: 'este mês', all: 'todo o histórico' };
+      const periodLabels = { day: 'hoje', '7': 'últimos 7 dias', '30': 'últimos 30 dias', month: 'este mês', all: 'todo o histórico' };
       const periodLabelEl = document.getElementById('dashPeriodLabel');
       if (periodLabelEl) periodLabelEl.innerText = `Faturamento Bruto vs Lucro Líquido Real • Período: ${periodLabels[dashPeriod]}`;
 
@@ -2716,6 +2729,61 @@
         } else {
           outsidePill.style.display = 'none';
         }
+      }
+
+      // ---------- Resumo do Dia ----------
+      const rr = state.vehicle.maintenanceReservePerKm || 0.18;
+      const todayKey = getTodayString();
+      const tShifts = state.shifts.filter(s => s.date === todayKey);
+      const tGross = tShifts.reduce((a, s) => a + getShiftTotalGross(s), 0);
+      const tTrips = tShifts.reduce((a, s) => a + getShiftTotalTrips(s), 0);
+      const tKm = tShifts.reduce((a, s) => a + (s.km || 0), 0);
+      const tHours = tShifts.reduce((a, s) => a + (s.hours || 0), 0);
+      const tFuel = tShifts.reduce((a, s) => a + (s.fuelCost || 0), 0);
+      const tNet = tGross - tFuel - tKm * rr;
+      const tFora = tShifts.reduce((a, s) => a + (getKmFora(s) || 0), 0);
+      const tExpDay = state.expenses.filter(e => e.date === todayKey).reduce((a, e) => a + (e.amount || 0), 0);
+
+      document.getElementById('todayDateLabel').innerText =
+        new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
+
+      const todayGrid = document.getElementById('todayGrid');
+      const todayAppsRow = document.getElementById('todayAppsRow');
+      if (tShifts.length === 0) {
+        todayGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 14px; background: rgba(0,0,0,0.25); border-radius: 10px;">Nenhum turno lançado hoje ainda. Toque em “Lançar Turno” para começar. 🚀</div>';
+        todayAppsRow.innerHTML = '';
+      } else {
+        todayGrid.innerHTML = `
+          <div class="metric-box">
+            <div class="metric-label">Bruto Hoje</div>
+            <div class="metric-val val-violet">${formatBRL(tGross)}</div>
+            <div class="metric-sub">${tTrips} corridas</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">KM Hoje</div>
+            <div class="metric-val">${tKm.toFixed(1)}</div>
+            <div class="metric-sub">${tFora > 0 ? `+${tFora.toFixed(0)} km fora do trabalho` : 'somente turnos'}</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Horas Hoje</div>
+            <div class="metric-val val-sky">${tHours.toFixed(1)}h</div>
+            <div class="metric-sub">${tHours > 0 ? formatBRL(tGross / tHours) + '/h' : '—'}</div>
+          </div>
+          <div class="metric-box" style="border-color: rgba(52, 211, 153, 0.4);">
+            <div class="metric-label" style="color: #a7f3d0;">Líquido Hoje</div>
+            <div class="metric-val val-emerald">${formatBRL(tNet)}</div>
+            <div class="metric-sub">combustível: -${formatBRL(tFuel)}${tExpDay > 0 ? ` • outras despesas: -${formatBRL(tExpDay)}` : ''}</div>
+          </div>`;
+
+        const tApps = {};
+        tShifts.forEach(s => (Array.isArray(s.apps) ? s.apps : []).forEach(a => {
+          if (!tApps[a.name]) tApps[a.name] = { name: a.name, badgeClass: a.badgeClass || 'badge-uber', total: 0, trips: 0 };
+          tApps[a.name].total += (a.gross || 0) + (a.tips || 0);
+          tApps[a.name].trips += (a.trips || 0);
+        }));
+        todayAppsRow.innerHTML = Object.values(tApps).map(a =>
+          `<span class="badge ${a.badgeClass}">${esc(a.name)}: ${formatBRL(a.total)} (${a.trips} v.)</span>`
+        ).join(' ');
       }
 
       // Platform Breakdown — donut + legenda (visual novo)
