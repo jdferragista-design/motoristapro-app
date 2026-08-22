@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#090d16" />
+  <meta name="theme-color" content="#0a0a14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="MotoristaPro" />
@@ -12,17 +12,17 @@
   <title>MotoristaPro - Controle de Ganhos, Gastos & Google Drive</title>
   <style>
     :root {
-      --bg: #090d16;
-      --card-bg: #111827;
-      --card-sub: #162032;
-      --border: #1f293d;
-      --border-sub: #27354f;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --primary: #10b981;
-      --primary-hover: #059669;
-      --primary-light: rgba(16, 185, 129, 0.15);
+      --bg: #0a0a14;
+      --card-bg: #12121f;
+      --card-sub: #191930;
+      --border: #23233a;
+      --border-sub: #2e2e4f;
+      --text: #f5f5fb;
+      --text-muted: #a0a0bd;
+      --text-dim: #6d6d8f;
+      --primary: #8b5cf6;
+      --primary-hover: #7c3aed;
+      --primary-light: rgba(139, 92, 246, 0.16);
       --danger: #f43f5e;
       --danger-light: rgba(244, 63, 94, 0.15);
       --warning: #f59e0b;
@@ -31,7 +31,9 @@
       --info-light: rgba(56, 189, 248, 0.15);
       --indigo: #6366f1;
       --indigo-light: rgba(99, 102, 241, 0.15);
-      --radius: 16px;
+      --violet: #a855f7;
+      --cyan: #22d3ee;
+      --radius: 18px;
     }
 
     * {
@@ -44,6 +46,8 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg);
+      background-image: radial-gradient(1100px 500px at 85% -10%, rgba(139, 92, 246, 0.09), transparent 60%),
+                        radial-gradient(900px 420px at -10% 0%, rgba(34, 211, 238, 0.06), transparent 60%);
       color: var(--text);
       line-height: 1.5;
       padding-bottom: 84px;
@@ -74,7 +78,7 @@
       position: sticky;
       top: 0;
       z-index: 40;
-      background: rgba(9, 13, 22, 0.94);
+      background: rgba(10, 10, 20, 0.9);
       backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
     }
@@ -95,12 +99,12 @@
       width: 38px;
       height: 38px;
       border-radius: 12px;
-      background: linear-gradient(135deg, #10b981, #059669);
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #090d16;
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
     }
     .brand-title {
       font-size: 17px;
@@ -137,17 +141,17 @@
     }
     .btn:active { transform: scale(0.97); }
     .btn-primary {
-      background: var(--primary);
-      color: #090d16;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
-    }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-danger {
-      background: var(--danger);
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
       color: #fff;
-      box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25);
+      box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
     }
-    .btn-danger:hover { background: #e11d48; }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-danger {
+      background: linear-gradient(135deg, #f43f5e, #e11d48);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(244, 63, 94, 0.3);
+    }
+    .btn-danger:hover { filter: brightness(1.1); }
     .btn-secondary {
       background: var(--card-bg);
       border-color: var(--border);
@@ -155,11 +159,11 @@
     }
     .btn-secondary:hover { background: var(--card-sub); border-color: var(--border-sub); }
     .btn-accent {
-      background: #0284c7;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
       color: #fff;
-      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+      box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
     }
-    .btn-accent:hover { background: #0369a1; }
+    .btn-accent:hover { filter: brightness(1.1); }
     .btn-gdrive {
       background: linear-gradient(135deg, #1a73e8, #174ea6);
       color: #fff;
@@ -194,15 +198,15 @@
       border-color: rgba(244, 63, 94, 0.3);
     }
     .action-btn-edit:hover {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-      border-color: rgba(56, 189, 248, 0.3);
+      background: rgba(139, 92, 246, 0.15);
+      color: #c4b5fd;
+      border-color: rgba(139, 92, 246, 0.3);
     }
 
     /* Desktop Navigation */
     .desktop-nav {
       display: none;
-      background: rgba(17, 24, 39, 0.7);
+      background: rgba(18, 18, 31, 0.7);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 63px;
@@ -238,9 +242,9 @@
       background: var(--card-sub);
     }
     .nav-tab.active {
-      color: var(--primary);
+      color: #c4b5fd;
       background: var(--primary-light);
-      border-color: rgba(16, 185, 129, 0.3);
+      border-color: rgba(139, 92, 246, 0.35);
     }
 
     /* Mobile Bottom Navigation */
@@ -250,7 +254,7 @@
       left: 0;
       right: 0;
       z-index: 50;
-      background: rgba(9, 13, 22, 0.96);
+      background: rgba(10, 10, 20, 0.96);
       backdrop-filter: blur(16px);
       border-top: 1px solid var(--border);
       display: flex;
@@ -283,7 +287,7 @@
 
     /* Cards */
     .card {
-      background: var(--card-bg);
+      background: linear-gradient(165deg, rgba(139, 92, 246, 0.05), transparent 40%), var(--card-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 18px;
@@ -322,10 +326,16 @@
 
     /* Metrics Box */
     .metric-box {
-      background: var(--card-sub);
+      background: linear-gradient(160deg, #1c1c33, #151527);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 14px;
+    }
+    .metric-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
     }
     .metric-label {
       font-size: 11px;
@@ -345,11 +355,27 @@
       font-size: 11px;
       color: var(--text-dim);
     }
-    .val-emerald { color: var(--primary); }
+    .val-emerald { color: #34d399; }
     .val-rose { color: var(--danger); }
     .val-amber { color: var(--warning); }
     .val-indigo { color: var(--indigo); }
     .val-sky { color: var(--info); }
+    .val-violet { color: #c4b5fd; }
+
+    /* Trend pills (7d vs 7d anterior) */
+    .trend-pill {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+    .trend-up { color: #34d399; background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .trend-down { color: #fb7185; background: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.3); }
+    .trend-flat { color: var(--text-muted); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); }
+
+    .kpi-spark { margin-top: 8px; }
+    .kpi-spark svg { width: 100%; height: 36px; display: block; }
 
     /* Progress Bar */
     .progress-bar-bg {
@@ -372,12 +398,12 @@
       align-items: center;
       gap: 4px;
       padding: 3px 8px;
-      border-radius: 6px;
+      border-radius: 99px;
       font-size: 11px;
       font-weight: 700;
       border: 1px solid transparent;
     }
-    .badge-uber { background: #000; color: #fff; border-color: #333; }
+    .badge-uber { background: rgba(255,255,255,0.06); color: #fff; border-color: #3a3a55; }
     .badge-99 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); }
     .badge-indrive { background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4); }
     .badge-part { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
@@ -398,7 +424,7 @@
       margin-bottom: 10px;
       font-size: 12px;
       font-weight: 800;
-      color: #38bdf8;
+      color: #c4b5fd;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
@@ -431,8 +457,8 @@
 
     /* PWA & Cloud Banner */
     .pwa-banner {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(56, 189, 248, 0.15));
-      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.16), rgba(34, 211, 238, 0.12));
+      border: 1px solid rgba(139, 92, 246, 0.4);
       border-radius: var(--radius);
       padding: 14px 18px;
       margin-bottom: 16px;
@@ -443,7 +469,7 @@
     }
 
     .cloud-box {
-      background: linear-gradient(145deg, rgba(26, 115, 232, 0.1), rgba(17, 24, 39, 0.9));
+      background: linear-gradient(145deg, rgba(26, 115, 232, 0.1), rgba(18, 18, 31, 0.9));
       border: 1px solid rgba(26, 115, 232, 0.35);
       border-radius: var(--radius);
       padding: 18px;
@@ -461,7 +487,7 @@
     }
     .form-control {
       width: 100%;
-      background: #090d16;
+      background: #0a0a14;
       border: 1px solid var(--border-sub);
       border-radius: 10px;
       padding: 9px 12px;
@@ -472,6 +498,7 @@
     }
     .form-control:focus {
       border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
     }
 
     /* Modal Overlay */
@@ -479,7 +506,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(5, 5, 12, 0.85);
       backdrop-filter: blur(8px);
       z-index: 100;
       align-items: center;
@@ -490,11 +517,11 @@
     .modal-overlay.open { display: flex; }
     .modal-card {
       background: var(--card-bg);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-sub);
       border-radius: 20px;
       width: 100%;
       max-width: 580px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(139, 92, 246, 0.08);
       overflow: hidden;
       animation: modalIn 0.2s ease-out;
       max-height: 92vh;
@@ -524,7 +551,7 @@
       display: flex;
       gap: 10px;
       flex-shrink: 0;
-      background: rgba(9, 13, 22, 0.5);
+      background: rgba(10, 10, 20, 0.5);
     }
 
     /* List Item */
@@ -540,7 +567,7 @@
     }
     .list-item:hover { border-color: var(--border-sub); }
 
-    /* Chart */
+    /* Charts */
     .chart-container {
       display: flex;
       align-items: flex-end;
@@ -548,6 +575,12 @@
       height: 140px;
       padding-top: 20px;
       border-bottom: 1px solid var(--border);
+    }
+    .chart-container.chart-area {
+      display: block;
+      height: auto;
+      padding-top: 4px;
+      border-bottom: none;
     }
     .chart-col {
       flex: 1;
@@ -562,13 +595,13 @@
       width: 100%;
       max-width: 32px;
       border-radius: 6px 6px 0 0;
-      background: linear-gradient(to top, #1e293b, #475569);
+      background: linear-gradient(to top, #6d28d9, #38bdf8);
       transition: all 0.3s ease;
       min-height: 6px;
     }
     .chart-bar.highlight {
-      background: linear-gradient(to top, #10b981, #34d399);
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+      background: linear-gradient(to top, #8b5cf6, #22d3ee);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.45);
     }
     .chart-label {
       font-size: 10px;
@@ -576,10 +609,22 @@
       margin-top: 6px;
       text-align: center;
     }
+    .chart-xlabels { display: flex; gap: 8px; margin-top: 6px; }
+    .chart-xlabels span { flex: 1; text-align: center; font-size: 10px; color: var(--text-muted); }
+    .chart-legend { display: flex; gap: 14px; margin: 8px 0 10px; }
+    .legend-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); font-weight: 700; }
+    .legend-chip i { width: 10px; height: 10px; border-radius: 99px; display: inline-block; }
+
+    /* Donut (divisão por app) */
+    .donut-flex { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .donut-legend { flex: 1; min-width: 210px; display: flex; flex-direction: column; gap: 8px; }
+    .legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .legend-name { color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .highlight-pill {
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.3);
       padding: 8px 12px;
       border-radius: 10px;
       display: flex;
@@ -669,7 +714,7 @@
       </div>
 
       <!-- Top Overview Card -->
-      <div class="card" style="background: linear-gradient(135deg, #111827 0%, #162032 100%);">
+      <div class="card" style="background: linear-gradient(135deg, #151528 0%, #1c1c36 100%); border-color: rgba(139, 92, 246, 0.25);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
             <div class="card-title">Resumo Financeiro Consolidado</div>
@@ -680,19 +725,30 @@
 
         <div class="grid grid-3">
           <div class="metric-box">
-            <div class="metric-label">Faturamento Bruto (Apps)</div>
+            <div class="metric-head">
+              <div class="metric-label">Faturamento Bruto (Apps)</div>
+              <span id="trendGross"></span>
+            </div>
             <div class="metric-val" id="dashGross">R$ 1.700,50</div>
             <div class="metric-sub" id="dashGrossSub">72 corridas • 730,0 km</div>
+            <div class="kpi-spark" id="sparkGross"></div>
           </div>
           <div class="metric-box">
-            <div class="metric-label">Gastos + Desgaste (CPK)</div>
+            <div class="metric-head">
+              <div class="metric-label">Gastos + Desgaste (CPK)</div>
+            </div>
             <div class="metric-val val-rose" id="dashExpenses">R$ 537,70</div>
             <div class="metric-sub" id="dashExpensesSub">Combustível + Provisão</div>
+            <div class="kpi-spark" id="sparkExp"></div>
           </div>
-          <div class="metric-box" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);">
-            <div class="metric-label" style="color: #34d399;">Lucro Líquido Real</div>
+          <div class="metric-box" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6));">
+            <div class="metric-head">
+              <div class="metric-label" style="color: #c4b5fd;">Lucro Líquido Real</div>
+              <span id="trendNet"></span>
+            </div>
             <div class="metric-val val-emerald" id="dashNet">R$ 1.162,80</div>
             <div class="metric-sub" style="color: #a7f3d0;">100% livre no seu bolso</div>
+            <div class="kpi-spark" id="sparkNet"></div>
           </div>
         </div>
       </div>
@@ -734,8 +790,8 @@
         <div class="card-title">Divisão de Faturamento por Aplicativo</div>
         <div class="card-subtitle" style="margin-bottom: 14px;">Total acumulado gerado em cada plataforma</div>
 
-        <div class="grid grid-4" id="platformBreakdownGrid">
-          <!-- Dynamically populated -->
+        <div id="platformBreakdownGrid">
+          <!-- Dynamically populated (donut + legenda) -->
         </div>
       </div>
 
@@ -753,7 +809,7 @@
               <span class="val-emerald" id="goalPercent">24%</span>
             </div>
             <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="goalFill" style="width: 24%; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+              <div class="progress-bar-fill" id="goalFill" style="width: 24%; background: linear-gradient(90deg, #8b5cf6, #22d3ee);"></div>
             </div>
           </div>
           <div style="font-size: 12px; color: var(--text-muted);">
@@ -761,12 +817,18 @@
           </div>
         </div>
 
-        <!-- 7 Days Bar Chart -->
+        <!-- 7 Days Area Chart -->
         <div class="card">
-          <div class="card-title">Histórico Recente (Ganhos por Turno)</div>
-          <div class="chart-container" id="dashChart">
+          <div class="card-title">Ganhos dos Últimos 7 Dias</div>
+          <div class="card-subtitle">Faturamento bruto × lucro líquido por dia</div>
+          <div class="chart-legend">
+            <span class="legend-chip"><i style="background: #8b5cf6;"></i>Bruto</span>
+            <span class="legend-chip"><i style="background: #22d3ee;"></i>Líquido</span>
+          </div>
+          <div class="chart-container chart-area" id="dashChart">
             <!-- Dynamically populated -->
           </div>
+          <div class="chart-xlabels" id="dashChartLabels"></div>
         </div>
       </div>
 
@@ -1023,7 +1085,7 @@
         </div>
         <div class="card-subtitle" style="margin-bottom: 12px;">Texto formatado com emojis pronto para colar no WhatsApp</div>
 
-        <pre id="whatsappBox" style="background: #090d16; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: monospace; font-size: 12px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.6;"></pre>
+        <pre id="whatsappBox" style="background: #0b0b16; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: monospace; font-size: 12px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.6;"></pre>
       </div>
 
       <!-- LOCAL BACKUP & EXPORT -->
@@ -1599,6 +1661,94 @@
       return String(str ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }[c]));
+    }
+
+    // ---------- Helpers de visualização (donut / área / sparkline) ----------
+    const DONUT_COLORS = ['#38bdf8', '#8b5cf6', '#6366f1', '#a855f7', '#22d3ee', '#f472b6', '#f59e0b', '#34d399'];
+
+    function smoothPath(pts) {
+      if (!pts.length) return '';
+      let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+      for (let i = 1; i < pts.length; i++) {
+        const mx = ((pts[i - 1].x + pts[i].x) / 2).toFixed(1);
+        d += ` C ${mx} ${pts[i - 1].y.toFixed(1)}, ${mx} ${pts[i].y.toFixed(1)}, ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+      }
+      return d;
+    }
+
+    function sparkSVG(values, color, gradId) {
+      const W = 140, H = 36, P = 2;
+      const max = Math.max(...values, 1);
+      const min = Math.min(...values, 0);
+      const xs = i => P + i * ((W - 2 * P) / (values.length - 1 || 1));
+      const ys = v => H - 4 - ((v - min) / ((max - min) || 1)) * (H - 10);
+      const line = smoothPath(values.map((v, i) => ({ x: xs(i), y: ys(v) })));
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="${color}" stop-opacity="0.35"/>
+          <stop offset="1" stop-color="${color}" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="${line} L ${W - P} ${H} L ${P} ${H} Z" fill="url(#${gradId})"/>
+        <path d="${line}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      </svg>`;
+    }
+
+    function areaChartSVG(perDay) {
+      const W = 640, H = 170, P = 12;
+      const maxV = Math.max(...perDay.map(d => Math.max(d.gross, d.net)), 1);
+      const xs = i => P + i * ((W - 2 * P) / (perDay.length - 1 || 1));
+      const ys = v => H - 12 - (v / maxV) * (H - 34);
+      const mk = key => perDay.map((d, i) => ({ x: xs(i), y: ys(d[key]) }));
+      const gPts = mk('gross'), nPts = mk('net');
+      const gLine = smoothPath(gPts), nLine = smoothPath(nPts);
+      const base = H - 12;
+      const dots = perDay.map((d, i) => `
+        <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Bruto: ${formatBRL(d.gross)} • Líquido: ${formatBRL(d.net)}</title></circle>
+        <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Líquido: ${formatBRL(d.net)}</title></circle>`).join('');
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:170px;display:block;">
+        <defs>
+          <linearGradient id="areaG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.35"/>
+            <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="areaN" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#22d3ee" stop-opacity="0.25"/>
+            <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="${gLine} L ${W - P} ${base} L ${P} ${base} Z" fill="url(#areaG)"/>
+        <path d="${nLine} L ${W - P} ${base} L ${P} ${base} Z" fill="url(#areaN)"/>
+        <path d="${gLine}" fill="none" stroke="#8b5cf6" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+        <path d="${nLine}" fill="none" stroke="#22d3ee" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        ${dots}
+      </svg>`;
+    }
+
+    function donutSVG(items, total, centerTop, centerBottom) {
+      const R = 62, C = 2 * Math.PI * R;
+      let cum = 0;
+      let circles = '';
+      items.forEach((it, i) => {
+        const len = total > 0 ? (it.total / total) * C : 0;
+        const seg = Math.max(len - 2.5, 0.6);
+        circles += `<circle r="${R}" cx="80" cy="80" fill="none" stroke="${DONUT_COLORS[i % DONUT_COLORS.length]}" stroke-width="22" stroke-dasharray="${seg} ${C - seg}" stroke-dashoffset="${(-cum).toFixed(2)}"/>`;
+        cum += len;
+      });
+      return `<svg viewBox="0 0 160 160" style="width:172px;height:172px;transform:rotate(-90deg);flex-shrink:0;">
+        <circle r="${R}" cx="80" cy="80" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="22"/>
+        ${circles}
+        <g transform="rotate(90 80 80)">
+          <text x="80" y="77" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="900">${centerTop}</text>
+          <text x="80" y="94" text-anchor="middle" fill="#a0a0bd" font-size="8.5">${centerBottom}</text>
+        </g>
+      </svg>`;
+    }
+
+    function trendPillHTML(cur, prev) {
+      if (!prev) return '<span class="trend-pill trend-flat">—</span>';
+      const pct = ((cur - prev) / prev) * 100;
+      const cls = pct >= 0 ? 'trend-up' : 'trend-down';
+      return `<span class="trend-pill ${cls}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%</span>`;
     }
 
     function formatDate(dStr) {
@@ -2371,26 +2521,26 @@
       document.getElementById('dashAvgTrip').innerText = formatBRL(totalTrips > 0 ? totalGross / totalTrips : 0);
       document.getElementById('dashAvgTripSub').innerText = `${totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0.0'} km por viagem`;
 
-      // Platform Breakdown Cards
+      // Platform Breakdown — donut + legenda (visual novo)
       const pbGrid = document.getElementById('platformBreakdownGrid');
-      pbGrid.innerHTML = '';
-      
       const appKeys = Object.keys(appTotals);
       if (appKeys.length === 0) {
-        pbGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 10px;">Nenhum ganho registrado por app.</div>';
+        pbGrid.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 10px;">Nenhum ganho registrado por app.</div>';
       } else {
-        appKeys.forEach(k => {
-          const item = appTotals[k];
+        const items = appKeys.map(k => appTotals[k]).sort((a, b) => b.total - a.total);
+        const legend = items.map((item, i) => {
           const pct = totalGross > 0 ? ((item.total / totalGross) * 100).toFixed(0) : 0;
-          const box = document.createElement('div');
-          box.className = 'metric-box';
-          box.innerHTML = `
-            <span class="badge ${item.badgeClass}" style="margin-bottom: 6px;">${esc(item.name)}</span>
-            <div class="metric-val">${formatBRL(item.total)}</div>
-            <div class="metric-sub">${pct}% do faturamento</div>
-          `;
-          pbGrid.appendChild(box);
-        });
+          return `<div class="legend-row">
+            <span class="legend-dot" style="background: ${DONUT_COLORS[i % DONUT_COLORS.length]};"></span>
+            <span class="legend-name">${esc(item.name)}</span>
+            <strong style="color: #fff;">${formatBRL(item.total)}</strong>
+            <span style="color: var(--text-dim); font-size: 11px; min-width: 34px; text-align: right;">${pct}%</span>
+          </div>`;
+        }).join('');
+        pbGrid.innerHTML = `<div class="donut-flex">
+          ${donutSVG(items, totalGross, formatBRL(totalGross), 'Faturamento total')}
+          <div class="donut-legend">${legend}</div>
+        </div>`;
       }
 
       // Goal
@@ -2401,33 +2551,40 @@
       document.getElementById('goalFill').style.width = `${goalPct}%`;
       document.getElementById('goalRemaining').innerText = formatBRL(Math.max(0, goal - totalGross));
 
-      // 7-day chart (dados reais: soma dos ganhos dos turnos por dia)
-      const chartEl = document.getElementById('dashChart');
-      chartEl.innerHTML = '';
+      // Últimos 7 dias (dados reais) — área chart + sparklines + tendência semanal
       const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-      const dayTotals = [];
+      const reserveRate = state.vehicle.maintenanceReservePerKm || 0.18;
+      const dayKeyOf = (offset) => {
+        const d = new Date();
+        d.setDate(d.getDate() - offset);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+      const perDay = [];
       for (let i = 6; i >= 0; i--) {
+        const key = dayKeyOf(i);
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        const dayGross = state.shifts
-          .filter(s => s.date === key)
-          .reduce((acc, s) => acc + getShiftTotalGross(s), 0);
-        dayTotals.push({ label: i === 0 ? 'Hoje' : dayNames[d.getDay()], value: dayGross });
+        const dayShifts = state.shifts.filter(s => s.date === key);
+        const gross = dayShifts.reduce((acc, s) => acc + getShiftTotalGross(s), 0);
+        const fuel = dayShifts.reduce((acc, s) => acc + (s.fuelCost || 0), 0);
+        const km = dayShifts.reduce((acc, s) => acc + (s.km || 0), 0);
+        const exp = state.expenses.filter(e => e.date === key).reduce((acc, e) => acc + (e.amount || 0), 0);
+        perDay.push({ label: i === 0 ? 'Hoje' : dayNames[d.getDay()], gross, net: gross - fuel - km * reserveRate, exp });
       }
-      const maxAmt = Math.max(...dayTotals.map(x => x.value), 1);
+      const grossOf = k => state.shifts.filter(s => s.date === k).reduce((a, s) => a + getShiftTotalGross(s), 0);
+      const netOf = k => state.shifts.filter(s => s.date === k).reduce((a, s) => a + getShiftTotalGross(s) - (s.fuelCost || 0) - (s.km || 0) * reserveRate, 0);
+      const sumRange = (from, to, fn) => { let t = 0; for (let i = from; i <= to; i++) t += fn(dayKeyOf(i)); return t; };
+      const curGross = sumRange(0, 6, grossOf), prevGross = sumRange(7, 13, grossOf);
+      const curNet = sumRange(0, 6, netOf), prevNet = sumRange(7, 13, netOf);
 
-      dayTotals.forEach((day, idx) => {
-        const pct = (day.value / maxAmt) * 100;
-        const col = document.createElement('div');
-        col.className = 'chart-col';
-        col.title = `${day.label}: ${formatBRL(day.value)}`;
-        col.innerHTML = `
-          <div class="chart-bar ${idx === 6 ? 'highlight' : ''}" style="height: ${day.value > 0 ? Math.max(10, pct) : 4}%;${day.value === 0 ? ' opacity: 0.35;' : ''}"></div>
-          <div class="chart-label">${day.label}</div>
-        `;
-        chartEl.appendChild(col);
-      });
+      document.getElementById('trendGross').innerHTML = trendPillHTML(curGross, prevGross);
+      document.getElementById('trendNet').innerHTML = trendPillHTML(curNet, prevNet);
+      document.getElementById('sparkGross').innerHTML = sparkSVG(perDay.map(x => x.gross), '#8b5cf6', 'sgGross');
+      document.getElementById('sparkExp').innerHTML = sparkSVG(perDay.map(x => x.exp), '#f43f5e', 'sgExp');
+      document.getElementById('sparkNet').innerHTML = sparkSVG(perDay.map(x => x.net), '#22d3ee', 'sgNet');
+
+      document.getElementById('dashChart').innerHTML = areaChartSVG(perDay);
+      document.getElementById('dashChartLabels').innerHTML = perDay.map(d => `<span>${d.label}</span>`).join('');
 
       // Shifts list
       renderShiftsList();
@@ -2511,7 +2668,7 @@
           </div>
 
           <!-- Apps list in shift -->
-          <div style="display: flex; flex-wrap: wrap; gap: 6px; background: #090d16; padding: 8px; border-radius: 10px; border: 1px solid var(--border-sub);">
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; background: #0b0b16; padding: 8px; border-radius: 10px; border: 1px solid var(--border-sub);">
             ${appBadgesHtml || '<span style="font-size:11px; color:var(--text-dim);">Nenhum app específico listado</span>'}
           </div>
 
