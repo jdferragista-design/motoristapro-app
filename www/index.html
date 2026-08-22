@@ -1,0 +1,2888 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#090d16" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MotoristaPro" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <title>MotoristaPro - Controle de Ganhos, Gastos & Google Drive</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-sub: #162032;
+      --border: #1f293d;
+      --border-sub: #27354f;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --primary-light: rgba(16, 185, 129, 0.15);
+      --danger: #f43f5e;
+      --danger-light: rgba(244, 63, 94, 0.15);
+      --warning: #f59e0b;
+      --warning-light: rgba(245, 158, 11, 0.15);
+      --info: #38bdf8;
+      --info-light: rgba(56, 189, 248, 0.15);
+      --indigo: #6366f1;
+      --indigo-light: rgba(99, 102, 241, 0.15);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 84px;
+    }
+
+    .icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      stroke-width: 2;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vertical-align: middle;
+    }
+    .icon-sm { width: 14px; height: 14px; }
+    .icon-lg { width: 22px; height: 22px; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    /* Header */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(9, 13, 22, 0.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #090d16;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+    .brand-title {
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+    .brand-title span { color: var(--primary); }
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: var(--primary);
+      color: #090d16;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25);
+    }
+    .btn-danger:hover { background: #e11d48; }
+    .btn-secondary {
+      background: var(--card-bg);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: var(--card-sub); border-color: var(--border-sub); }
+    .btn-accent {
+      background: #0284c7;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+    .btn-accent:hover { background: #0369a1; }
+    .btn-gdrive {
+      background: linear-gradient(135deg, #1a73e8, #174ea6);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+    }
+    .btn-gdrive:hover { background: #1557b0; }
+    .btn-sm { padding: 5px 10px; font-size: 11px; border-radius: 8px; }
+    .btn-icon { width: 38px; height: 38px; padding: 0; border-radius: 12px; }
+
+    .action-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 5px 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-color: var(--border-sub);
+    }
+    .action-btn-danger:hover {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fb7185;
+      border-color: rgba(244, 63, 94, 0.3);
+    }
+    .action-btn-edit:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    /* Desktop Navigation */
+    .desktop-nav {
+      display: none;
+      background: rgba(17, 24, 39, 0.7);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 63px;
+      z-index: 30;
+      backdrop-filter: blur(10px);
+    }
+    .desktop-nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+    }
+    .nav-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .nav-tab:hover {
+      color: #fff;
+      background: var(--card-sub);
+    }
+    .nav-tab.active {
+      color: var(--primary);
+      background: var(--primary-light);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    /* Mobile Bottom Navigation */
+    .mobile-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      background: rgba(9, 13, 22, 0.96);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 6px 4px 10px;
+    }
+    .mob-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px;
+      flex: 1;
+      transition: all 0.2s;
+    }
+    .mob-tab.active {
+      color: var(--primary);
+      font-weight: 800;
+    }
+    .mob-tab.active .icon {
+      transform: scale(1.15);
+      stroke: var(--primary);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Grid Layouts */
+    .grid { display: grid; gap: 12px; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+    @media (max-width: 768px) {
+      .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .desktop-nav { display: none !important; }
+    }
+    @media (min-width: 769px) {
+      .desktop-nav { display: block; }
+      .mobile-nav { display: none; }
+      body { padding-bottom: 24px; }
+    }
+
+    /* Metrics Box */
+    .metric-box {
+      background: var(--card-sub);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .metric-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .metric-val {
+      font-size: 22px;
+      font-weight: 900;
+      color: #fff;
+      margin: 4px 0 2px;
+      letter-spacing: -0.5px;
+    }
+    .metric-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .val-emerald { color: var(--primary); }
+    .val-rose { color: var(--danger); }
+    .val-amber { color: var(--warning); }
+    .val-indigo { color: var(--indigo); }
+    .val-sky { color: var(--info); }
+
+    /* Progress Bar */
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      margin: 8px 0 4px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+    .badge-uber { background: #000; color: #fff; border-color: #333; }
+    .badge-99 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); }
+    .badge-indrive { background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4); }
+    .badge-part { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
+    .badge-other { background: rgba(168, 85, 247, 0.2); color: #c084fc; border-color: rgba(168, 85, 247, 0.4); }
+
+    /* Step / Section Box */
+    .step-box {
+      background: var(--bg);
+      border: 1px solid var(--border-sub);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .added-app-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-sub);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Dynamic Fuel Selector Card */
+    .fuel-dynamic-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    /* PWA & Cloud Banner */
+    .pwa-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(56, 189, 248, 0.15));
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .cloud-box {
+      background: linear-gradient(145deg, rgba(26, 115, 232, 0.1), rgba(17, 24, 39, 0.9));
+      border: 1px solid rgba(26, 115, 232, 0.35);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    /* Form Controls */
+    .form-group { margin-bottom: 12px; }
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .form-control {
+      width: 100%;
+      background: #090d16;
+      border: 1px solid var(--border-sub);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: #fff;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .form-control:focus {
+      border-color: var(--primary);
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 580px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+      animation: modalIn 0.2s ease-out;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .modal-body {
+      padding: 18px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+      background: rgba(9, 13, 22, 0.5);
+    }
+
+    /* List Item */
+    .list-item {
+      background: var(--card-sub);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 15px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .list-item:hover { border-color: var(--border-sub); }
+
+    /* Chart */
+    .chart-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 140px;
+      padding-top: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .chart-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+      position: relative;
+    }
+    .chart-bar {
+      width: 100%;
+      max-width: 32px;
+      border-radius: 6px 6px 0 0;
+      background: linear-gradient(to top, #1e293b, #475569);
+      transition: all 0.3s ease;
+      min-height: 6px;
+    }
+    .chart-bar.highlight {
+      background: linear-gradient(to top, #10b981, #34d399);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+    .chart-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    .highlight-pill {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 8px 12px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navbar -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><path d="M9 17h6"></path><circle cx="17" cy="17" r="2"></circle></svg>
+        </div>
+        <div>
+          <div class="brand-title">Motorista<span>Pro</span></div>
+          <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Google Drive)</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-primary btn-sm" onclick="openCreateShiftModal()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Lançar Turno</span>
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="openCreateExpenseModal()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+          <span>Despesa</span>
+        </button>
+        <button class="btn btn-secondary btn-icon" onclick="openModal('modalSettings')" title="Configurações & Metas">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Desktop Navigation Bar -->
+  <nav class="desktop-nav">
+    <div class="desktop-nav-inner">
+      <button class="nav-tab active" onclick="switchTab('dashboard')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+        <span>Painel Geral</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('shifts')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <span>Turnos Unificados</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('expenses')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+        <span>Gastos & Combustível</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('health')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+        <span>Saúde do Carro (Drivvo)</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('calc')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
+        <span>Calculadoras & Simulador</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('reports')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+        <span>Relatórios & Google Drive</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- VIEW 1: DASHBOARD -->
+    <div id="viewDashboard">
+
+      <!-- PWA Install Banner (aparece quando o navegador oferece instalação) -->
+      <div class="pwa-banner" id="pwaInstallBanner" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📲</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 800; color: #fff;">Instalar o MotoristaPro</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Use direto da tela inicial, 100% offline.</div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="promptInstallPWA()">Instalar</button>
+      </div>
+
+      <!-- Top Overview Card -->
+      <div class="card" style="background: linear-gradient(135deg, #111827 0%, #162032 100%);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <div class="card-title">Resumo Financeiro Consolidado</div>
+            <div class="card-subtitle">Faturamento Bruto de Todos os Apps vs Lucro Líquido Real</div>
+          </div>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);" id="dashMargin">68% Margem</span>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="metric-box">
+            <div class="metric-label">Faturamento Bruto (Apps)</div>
+            <div class="metric-val" id="dashGross">R$ 1.700,50</div>
+            <div class="metric-sub" id="dashGrossSub">72 corridas • 730,0 km</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Gastos + Desgaste (CPK)</div>
+            <div class="metric-val val-rose" id="dashExpenses">R$ 537,70</div>
+            <div class="metric-sub" id="dashExpensesSub">Combustível + Provisão</div>
+          </div>
+          <div class="metric-box" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);">
+            <div class="metric-label" style="color: #34d399;">Lucro Líquido Real</div>
+            <div class="metric-val val-emerald" id="dashNet">R$ 1.162,80</div>
+            <div class="metric-sub" style="color: #a7f3d0;">100% livre no seu bolso</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Operational Grid -->
+      <div class="card">
+        <div class="card-title">
+          <svg class="icon val-amber" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          Métricas de Eficiência Operacional do Turno
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Quilometragem e horas unificadas em todos os aplicativos</div>
+
+        <div class="grid grid-4">
+          <div class="metric-box">
+            <div class="metric-label">Faturamento / KM</div>
+            <div class="metric-val val-emerald" id="dashRateKm">R$ 2,33</div>
+            <div class="metric-sub" id="dashRateKmSub">Meta: R$ 2,20/km ✅</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Faturamento / Hora</div>
+            <div class="metric-val val-emerald" id="dashRateHour">R$ 45,10</div>
+            <div class="metric-sub" id="dashRateHourSub">Meta: R$ 35,00/h ✅</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Custo Real / KM (CPK)</div>
+            <div class="metric-val val-rose" id="dashCpk">R$ 0,74</div>
+            <div class="metric-sub">Combustível + Desgaste</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Média por Viagem</div>
+            <div class="metric-val val-sky" id="dashAvgTrip">R$ 23,60</div>
+            <div class="metric-sub" id="dashAvgTripSub">10,1 km por viagem</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Platform Breakdown Cards -->
+      <div class="card">
+        <div class="card-title">Divisão de Faturamento por Aplicativo</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Total acumulado gerado em cada plataforma</div>
+
+        <div class="grid grid-4" id="platformBreakdownGrid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Goal & 7-Day Chart Grid -->
+      <div class="grid grid-2">
+        <!-- Goal Progress -->
+        <div class="card">
+          <div class="card-title">
+            <svg class="icon val-emerald" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            Progresso da Meta Mensal
+          </div>
+          <div style="margin: 14px 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700;">
+              <span id="goalLabel">R$ 1.700,50 de R$ 7.000,00</span>
+              <span class="val-emerald" id="goalPercent">24%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="goalFill" style="width: 24%; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Faltam <strong class="val-amber" id="goalRemaining">R$ 5.299,50</strong> para atingir sua meta do mês.
+          </div>
+        </div>
+
+        <!-- 7 Days Bar Chart -->
+        <div class="card">
+          <div class="card-title">Histórico Recente (Ganhos por Turno)</div>
+          <div class="chart-container" id="dashChart">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: SHIFTS -->
+    <div id="viewShifts" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900;">Histórico de Turnos Unificados</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Edite ou exclua qualquer turno lançado a qualquer momento</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateShiftModal()">+ Lançar Turno</button>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <input type="text" id="shiftSearchInput" placeholder="🔍 Buscar por data ou observação..." class="form-control" oninput="renderShiftsList()" />
+      </div>
+
+      <div id="shiftsListContainer">
+        <!-- Rendered unified shifts -->
+      </div>
+    </div>
+
+    <!-- VIEW 3: EXPENSES -->
+    <div id="viewExpenses" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900;">Despesas & Abastecimentos</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Edite ou exclua qualquer gasto, abastecimento ou manutenção</p>
+        </div>
+        <button class="btn btn-danger" onclick="openCreateExpenseModal()">+ Lançar Despesa</button>
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom: 14px;">
+        <div class="metric-box">
+          <div class="metric-label">Total Gasto</div>
+          <div class="metric-val val-rose" id="expTotal">R$ 537,70</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Combustível</div>
+          <div class="metric-val val-amber" id="expFuel">R$ 320,50</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Litros Abastecidos</div>
+          <div class="metric-val" id="expLiters">68,0 L</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Preço Médio / L</div>
+          <div class="metric-val val-sky" id="expAvgPrice">R$ 4,71/L</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <input type="text" id="expenseSearchInput" placeholder="🔍 Buscar por descrição ou posto..." class="form-control" oninput="renderExpensesList()" />
+      </div>
+
+      <div id="expensesListContainer">
+        <!-- Rendered expenses -->
+      </div>
+    </div>
+
+    <!-- VIEW 4: VEHICLE HEALTH (DRIVVO) -->
+    <div id="viewHealth" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900;">Saúde do Carro & Manutenção Preventiva</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Monitore, adicione, edite ou exclua itens de revisão periódica</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openCreateMaintenanceModal()">+ Novo Item de Revisão</button>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom: 16px;">
+        <div class="metric-box">
+          <div class="metric-label">Odômetro Atual</div>
+          <div class="metric-val" id="healthOdo">64.850 km</div>
+          <div class="metric-sub"><a href="#" onclick="openModal('modalSettings'); return false;" style="color: #38bdf8; text-decoration: none;">Atualizar odômetro</a></div>
+        </div>
+        <div class="metric-box" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.05);">
+          <div class="metric-label" style="color: #818cf8;">Fundo de Reserva (R$ 0,18/km)</div>
+          <div class="metric-val val-indigo" id="healthReserve">R$ 131,40</div>
+          <div class="metric-sub">Saldo acumulado p/ peças</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Investido em Manutenções</div>
+          <div class="metric-val val-rose" id="healthSpent">R$ 110,00</div>
+          <div class="metric-sub">Total de revisões feitas</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Itens de Revisão Periódica</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Acompanhamento visual por quilometragem e registro de trocas</div>
+
+        <div id="maintenanceItemsContainer" class="grid grid-2">
+          <!-- Rendered maintenance items -->
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: CALCULATORS -->
+    <div id="viewCalc" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <h2 style="font-size: 18px; font-weight: 900;">Calculadoras & Simulador Inteligente</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">Tome decisões lucrativas em menos de 5 segundos</p>
+      </div>
+
+      <!-- Simulator Card -->
+      <div class="card" style="border-color: rgba(245, 158, 11, 0.4);">
+        <div class="card-title" style="color: #fbbf24;">
+          <svg class="icon val-amber" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          Simulador "Aceitar ou Recusar Corrida?" (Tempo Real)
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Digite os dados que tocaram na tela do aplicativo</div>
+
+        <div class="grid grid-2">
+          <div>
+            <div class="form-group">
+              <label class="form-label">Valor Oferecido pelo App (R$)</label>
+              <input type="text" id="simOffer" class="form-control" value="28.50" oninput="calculateTripSim()" />
+            </div>
+            <div class="grid grid-2">
+              <div class="form-group">
+                <label class="form-label">Busca Pax (KM)</label>
+                <input type="text" id="simPickup" class="form-control" value="2.0" oninput="calculateTripSim()" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Viagem Pax (KM)</label>
+                <input type="text" id="simTrip" class="form-control" value="8.5" oninput="calculateTripSim()" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tempo Total Estimado (Minutos)</label>
+              <input type="number" id="simMinutes" class="form-control" value="22" oninput="calculateTripSim()" />
+            </div>
+          </div>
+
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div id="simVerdictBox" style="padding: 10px; border-radius: 10px; font-weight: 800; font-size: 13px; text-align: center; margin-bottom: 10px;">
+              🔥 CORRIDA EXCELENTE! (Super Lucro)
+            </div>
+
+            <div class="grid grid-3" style="text-align: center; margin-bottom: 10px;">
+              <div>
+                <span style="font-size: 10px; color: var(--text-muted);">R$ / KM</span>
+                <div class="val-emerald" style="font-size: 16px; font-weight: 900;" id="simRateKm">R$ 2,71/km</div>
+              </div>
+              <div>
+                <span style="font-size: 10px; color: var(--text-muted);">R$ / Hora</span>
+                <div class="val-emerald" style="font-size: 16px; font-weight: 900;" id="simRateHour">R$ 77,70/h</div>
+              </div>
+              <div>
+                <span style="font-size: 10px; color: var(--text-muted);">Lucro Líquido</span>
+                <div class="val-emerald" style="font-size: 16px; font-weight: 900;" id="simNet">R$ 21,30</div>
+              </div>
+            </div>
+
+            <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px;">
+              *Descontados combustível estimado e reserva de desgaste do carro.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fuel Arbitrage Card -->
+      <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="card-title">
+          <svg class="icon val-emerald" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+          Calculadora de Paridade (Etanol x Gasolina) - Médias Oficiais
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">As médias e preços definidos aqui são usados automaticamente no cálculo de combustível dos seus turnos</div>
+
+        <div class="grid grid-2">
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Preço Gasolina (R$/L)</label>
+              <input type="text" id="fuelGasPrice" class="form-control" value="5.89" oninput="calcFuel()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Média Gasolina (km/L)</label>
+              <input type="text" id="fuelGasKml" class="form-control" value="11.5" oninput="calcFuel()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Preço Etanol (R$/L)</label>
+              <input type="text" id="fuelEthPrice" class="form-control" value="3.89" oninput="calcFuel()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Média Etanol (km/L)</label>
+              <input type="text" id="fuelEthKml" class="form-control" value="8.2" oninput="calcFuel()" />
+            </div>
+          </div>
+
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
+            <div id="fuelVerdict" style="font-size: 14px; font-weight: 800; color: #34d399; margin-bottom: 8px;">
+              🏆 Abasteça com ETANOL!
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;" id="fuelParityText">
+              Paridade real: 66.0% da gasolina (Abaixo de 70% compensa no seu carro).
+            </p>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
+              <span>Custo Etanol: <strong id="costEth">R$ 0,47/km</strong></span>
+              <span>Custo Gasolina: <strong id="costGas">R$ 0,51/km</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 6: REPORTS, WHATSAPP & GOOGLE DRIVE -->
+    <div id="viewReports" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <h2 style="font-size: 18px; font-weight: 900;">Relatórios, WhatsApp & Google Drive</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">Sincronização na nuvem com seu Google Drive pessoal e relatórios diários</p>
+      </div>
+
+      <!-- GOOGLE DRIVE CLOUD SYNC CARD -->
+      <div class="cloud-box">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">☁️</span>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Sincronização com Google Drive</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Mantenha seus dados seguros na sua conta Google para nunca perder nada</div>
+            </div>
+          </div>
+          <span class="badge" style="background: rgba(26,115,232,0.2); color:#60a5fa; border-color: rgba(26,115,232,0.4);">
+            Drive Sync
+          </span>
+        </div>
+
+        <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 14px;">
+          Salve o backup do banco de dados na sua nuvem pessoal do <strong>Google Drive</strong>. Ao trocar de celular ou reinstalar o aplicativo, basta restaurar o arquivo em 1 segundo.
+        </p>
+
+        <div class="grid grid-2">
+          <button class="btn btn-gdrive" onclick="saveToGoogleDrive()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            ☁️ Salvar Backup no Google Drive
+          </button>
+          
+          <button class="btn btn-secondary" onclick="triggerRestoreFromGoogleDrive()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            📥 Restaurar do Google Drive / Arquivo
+          </button>
+        </div>
+        <input type="file" id="gdriveFileInput" accept=".json" style="display: none;" onchange="handleRestoreFile(event)" />
+      </div>
+
+      <!-- WHATSAPP CLOSING -->
+      <div class="card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Fechamento Consolidado para WhatsApp</span>
+          <button class="btn btn-primary btn-sm" onclick="copyWhatsAppSummary()">Copiar Texto</button>
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 12px;">Texto formatado com emojis pronto para colar no WhatsApp</div>
+
+        <pre id="whatsappBox" style="background: #090d16; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: monospace; font-size: 12px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.6;"></pre>
+      </div>
+
+      <!-- LOCAL BACKUP & EXPORT -->
+      <div class="card">
+        <div class="card-title">Outras Opções de Exportação & Limpeza</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Exporte planilhas ou gerencie os dados gravados no aparelho</div>
+
+        <div class="grid grid-2">
+          <button class="btn btn-secondary" onclick="exportCSV()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Exportar Planilha Excel (CSV)
+          </button>
+          <button class="btn btn-secondary" onclick="exportJSONBackup()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Exportar Backup Completo (JSON)
+          </button>
+        </div>
+      </div>
+
+      <!-- DANGER ZONE -->
+      <div class="card" style="border-color: rgba(244, 63, 94, 0.35);">
+        <div class="card-title" style="color: #fb7185;">⚠️ Zona de Perigo</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Ações irreversíveis — faça um backup antes de continuar</div>
+        <div class="grid grid-2">
+          <button class="btn btn-secondary" onclick="resetToDemo()">
+            ♻️ Restaurar Dados de Demonstração
+          </button>
+          <button class="btn btn-danger" onclick="clearAllData()">
+            🗑️ Limpar Todos os Dados
+          </button>
+        </div>
+      </div>
+
+    </div>
+    <!-- FIM VIEW 6: REPORTS -->
+
+  </main>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="mobile-nav">
+    <button class="mob-tab active" onclick="switchTab('dashboard')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+      <span>Início</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('shifts')">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <span>Turnos</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('expenses')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+      <span>Gastos</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('health')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+      <span>Carro</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('calc')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line></svg>
+      <span>Cálculos</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('reports')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      <span>Relatórios</span>
+    </button>
+  </nav>
+
+  <!-- MODAL 1: LANÇAR / EDITAR TURNO -->
+  <div class="modal-overlay" id="modalShift">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div style="font-size: 16px; font-weight: 900; color: #fff;" id="modalShiftTitle">Lançar Turno do Dia</div>
+          <div style="font-size: 11px; color: var(--text-muted);">1º Escolha o app e salve os ganhos ➔ 2º Informe KM e Horas</div>
+        </div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalShift')">✕</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Shift Date & Shift Period -->
+        <div class="grid grid-2" style="margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Data do Turno</label>
+            <input type="date" id="shiftDate" class="form-control" required />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Período / Turno</label>
+            <select id="shiftPeriod" class="form-control">
+              <option value="Integral">Dia Completo / Integral</option>
+              <option value="Manhã">Manhã</option>
+              <option value="Tarde">Tarde</option>
+              <option value="Noite">Noite / Madrugada</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- ETAPA 1: CAIXA DE SELEÇÃO DE APLICATIVO -->
+        <div class="step-box">
+          <div class="step-header">
+            <span>📱 1. Caixa de Seleção de Aplicativo</span>
+            <span class="badge" style="background: rgba(16,185,129,0.15); color: #34d399;" id="stagedAppsCount">0 apps salvos</span>
+          </div>
+
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
+            <!-- Select Dropdown -->
+            <div class="form-group">
+              <label class="form-label">Escolha o Aplicativo na Caixa de Seleção:</label>
+              <select id="currentAppSelect" class="form-control" style="border-color: #38bdf8; font-weight: 700;">
+                <option value="uber">🚗 Uber</option>
+                <option value="pop">🚕 99Pop</option>
+                <option value="indrive">🚙 InDrive</option>
+                <option value="part">⭐ Corridas Particulares / Extras</option>
+                <option value="ifood">📦 iFood / Entregas</option>
+                <option value="lalamove">🚚 Lalamove / Frete</option>
+                <option value="custom">➕ Outro Aplicativo...</option>
+              </select>
+            </div>
+
+            <!-- Custom App Name -->
+            <div class="form-group" id="customAppNameBox" style="display: none;">
+              <label class="form-label">Nome do Outro App:</label>
+              <input type="text" id="customAppNameInput" class="form-control" placeholder="Ex: Maxim, Mobizap, Buser" />
+            </div>
+
+            <!-- Inputs for Selected App -->
+            <div class="grid grid-3">
+              <div>
+                <label class="form-label">Ganhos (R$) *</label>
+                <input type="text" id="appGrossInput" class="form-control" placeholder="Ex: 285.50" />
+              </div>
+              <div>
+                <label class="form-label">Qtd. Viagens</label>
+                <input type="number" id="appTripsInput" class="form-control" placeholder="Ex: 14" />
+              </div>
+              <div>
+                <label class="form-label">Gorjetas (R$)</label>
+                <input type="text" id="appTipsInput" class="form-control" placeholder="0.00" />
+              </div>
+            </div>
+
+            <!-- Button to save this app into the shift staging list -->
+            <div style="margin-top: 10px;">
+              <button type="button" class="btn btn-accent" style="width: 100%; font-size: 12px;" onclick="addCurrentAppToStaging()">
+                💾 Salvar Este App e Ir para o Próximo ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- Staged Apps List in current shift -->
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">
+              Aplicativos Salvos neste Turno:
+            </div>
+            <div id="stagedAppsList">
+              <!-- Dynamically populated -->
+            </div>
+            <div class="highlight-pill" style="margin-top: 8px;">
+              <span style="font-size: 12px; font-weight: 700; color: #fff;">Faturamento Total dos Apps:</span>
+              <span class="val-emerald" style="font-size: 15px; font-weight: 900;" id="stagedGrossTotal">R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ETAPA 2: QUILOMETRAGEM & HORAS (INÍCIO / FIM -> TOTAL VISÍVEL) -->
+        <div class="step-box">
+          <div class="step-header">
+            <span>🚗 2. Quilometragem & Horas Trabalhadas</span>
+            <span style="color: var(--text-muted); font-size: 10px;">Carro na Rua</span>
+          </div>
+
+          <!-- Horas Início e Fim com Total Visível -->
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
+            <div class="grid grid-2">
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">Hora Início do Turno</label>
+                <input type="time" id="shiftTimeStart" class="form-control" value="07:00" oninput="calculateShiftHoursAuto()" />
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">Hora Fim do Turno</label>
+                <input type="time" id="shiftTimeEnd" class="form-control" value="16:00" oninput="calculateShiftHoursAuto()" />
+              </div>
+            </div>
+
+            <!-- Visor do Total de Horas Calculadas -->
+            <div class="highlight-pill" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+              <div>
+                <span style="font-size: 11px; color: var(--text-muted); display: block;">Tempo Total Calculado:</span>
+                <span class="val-emerald" style="font-size: 16px; font-weight: 900;" id="calculatedHoursDisplay">9h 00min (9.0 horas)</span>
+              </div>
+              <input type="hidden" id="finalHoursValue" value="9.0" />
+            </div>
+          </div>
+
+          <!-- COMBUSTÍVEL DINÂMICO BASEADO NO ÚLTIMO ABASTECIMENTO E PARIDADE -->
+          <div class="fuel-dynamic-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 11px; font-weight: 800; color: #fbbf24; display: flex; align-items: center; gap: 4px;">
+                ⛽ Média de Combustível Ativa (Calculadora de Paridade):
+              </div>
+              <select id="shiftFuelOverrideSelect" class="form-control" style="width: auto; padding: 4px 8px; font-size: 11px; height: auto;" onchange="updateShiftFuelRateSelection()">
+                <option value="auto">⚡ Auto (Último Abastecimento)</option>
+                <option value="gasolina">Gasolina</option>
+                <option value="etanol">Etanol</option>
+              </select>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text); display: flex; justify-content: space-between; align-items: center;" id="shiftFuelDetailsDisplay">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Quilometragem Rodada -->
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+            <div class="grid grid-2">
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">KM Total Rodado no Turno *</label>
+                <input type="text" id="shiftKmTotal" class="form-control" placeholder="Ex: 168.4" required oninput="recalcShiftLive()" />
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">Gasto Combustível Calculado (R$)</label>
+                <input type="text" id="shiftFuelCost" class="form-control" placeholder="0.00" oninput="recalcShiftLive()" />
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Observações (opcional)</label>
+              <input type="text" id="shiftNotes" class="form-control" placeholder="Ex: Manhã no centro, dinâmico à tarde" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ETAPA 3: PERFORMANCE INSTANTÂNEA DO TURNO -->
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+            <span>Resumo de Fechamento do Turno:</span>
+            <span class="val-emerald" id="liveShiftGross">R$ 0,00</span>
+          </div>
+          <div class="grid grid-3" style="text-align: center; font-size: 11px;">
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <span style="color: var(--text-muted); display: block;">R$/KM Geral</span>
+              <strong class="val-emerald" id="liveShiftRateKm">R$ 0,00/km</strong>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <span style="color: var(--text-muted); display: block;">R$/Hora Geral</span>
+              <strong class="val-emerald" id="liveShiftRateHour">R$ 0,00/h</strong>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <span style="color: var(--text-muted); display: block;">Lucro Líquido Real</span>
+              <strong class="val-emerald" id="liveShiftNet">R$ 0,00</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalShift')">Cancelar</button>
+        <button type="button" class="btn btn-primary" style="flex:1;" onclick="saveFinalShift()" id="btnSaveShiftSubmit">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Salvar Turno Completo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: LANÇAR / EDITAR DESPESA -->
+  <div class="modal-overlay" id="modalExpense">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalExpenseTitle">Lançar Despesa / Abastecimento</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalExpense')">✕</button>
+      </div>
+      <form onsubmit="saveExpense(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Categoria</label>
+            <select id="expCat" class="form-control" onchange="toggleFuelFields()">
+              <option value="combustivel">⛽ Combustível (Abastecimento)</option>
+              <option value="manutencao">🔧 Manutenção e Peças</option>
+              <option value="fixo">🛡️ Custo Fixo (Seguro, MEI, Parcela)</option>
+              <option value="alimentacao">🍔 Alimentação na Rua</option>
+              <option value="lavagem">✨ Lavagem</option>
+              <option value="pedagio">📍 Pedágio / Estacionamento</option>
+            </select>
+          </div>
+
+          <div id="fuelTypeRow" class="form-group" style="display: block;">
+            <label class="form-label">Tipo de Combustível Abastecido</label>
+            <div class="grid grid-2">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; background: var(--bg); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-sub); cursor: pointer;">
+                <input type="radio" name="expFuelRadio" value="Etanol" id="expRadioEthanol" checked />
+                <span>🌿 Etanol</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; background: var(--bg); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-sub); cursor: pointer;">
+                <input type="radio" name="expFuelRadio" value="Gasolina" id="expRadioGasoline" />
+                <span>⛽ Gasolina</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Data</label>
+              <input type="date" id="expDate" class="form-control" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Valor Total Pago (R$)</label>
+              <input type="text" id="expAmount" class="form-control" placeholder="0.00" required oninput="autoCalcPricePerLiter()" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Título / Descrição</label>
+            <input type="text" id="expTitle" class="form-control" placeholder="Ex: Abastecimento Etanol Posto Shell" required />
+          </div>
+
+          <div id="fuelFieldsBox" class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Litros Abastecidos</label>
+              <input type="text" id="expLitersInput" class="form-control" placeholder="Ex: 30.5" oninput="autoCalcPricePerLiter()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Odômetro no Posto (KM)</label>
+              <input type="number" id="expOdoInput" class="form-control" placeholder="Ex: 64850" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalExpense')">Cancelar</button>
+          <button type="submit" class="btn btn-danger" style="flex:1;" id="btnSaveExpenseSubmit">Salvar Gasto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: CONFIGURAÇÕES -->
+  <div class="modal-overlay" id="modalSettings">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;">Configurações do Veículo & Metas</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalSettings')">✕</button>
+      </div>
+      <form onsubmit="saveSettings(event)">
+        <div class="modal-body">
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Modelo do Carro</label>
+              <input type="text" id="cfgModel" class="form-control" value="Chevrolet Onix Plus 1.0" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Placa</label>
+              <input type="text" id="cfgPlate" class="form-control" value="BRA-2E19" />
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Odômetro Atual (KM)</label>
+              <input type="number" id="cfgOdo" class="form-control" value="64850" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reserva Manutenção (R$/KM)</label>
+              <input type="text" id="cfgReserve" class="form-control" value="0.18" required />
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Meta Bruta Mensal (R$)</label>
+              <input type="number" id="cfgMonthlyGoal" class="form-control" value="7000" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Meta R$/KM Mínima</label>
+              <input type="text" id="cfgTargetKm" class="form-control" value="2.20" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalSettings')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Ajustes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: ADICIONAR / EDITAR ITEM DE MANUTENÇÃO PREVENTIVA -->
+  <div class="modal-overlay" id="modalMaintItem">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalMaintTitle">Item de Manutenção Preventiva</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalMaintItem')">✕</button>
+      </div>
+      <form onsubmit="saveMaintenanceItem(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nome da Revisão / Peça</label>
+            <input type="text" id="maintNameInput" class="form-control" placeholder="Ex: Troca de Fluido de Freio DOT4" required />
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Intervalo de Troca (a cada X km)</label>
+              <input type="number" id="maintIntervalInput" class="form-control" placeholder="Ex: 10000" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Custo Médio Estimado (R$)</label>
+              <input type="text" id="maintCostInput" class="form-control" placeholder="Ex: 150.00" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Odômetro da Última Troca (KM)</label>
+            <input type="number" id="maintLastKmInput" class="form-control" placeholder="Ex: 60000" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalMaintItem')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;" id="btnSaveMaintSubmit">Salvar Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Initial State with Parity Calculator Fuel Settings
+    const defaultData = {
+      vehicle: {
+        model: 'Chevrolet Onix Plus 1.0 Flex',
+        plate: 'BRA-2E19',
+        odometer: 64850,
+        maintenanceReservePerKm: 0.18,
+        monthlyGoal: 7000,
+        targetKmRate: 2.20,
+        targetHourlyRate: 35.00
+      },
+      fuelSettings: {
+        gasolinePrice: 5.89,
+        gasolineKmPerL: 11.5,
+        ethanolPrice: 3.89,
+        ethanolKmPerL: 8.2
+      },
+      shifts: [
+        {
+          id: 1,
+          date: '2026-08-19',
+          period: 'Integral',
+          apps: [
+            { id: 'uber_1', appKey: 'uber', name: '🚗 Uber', gross: 285.50, trips: 14, tips: 15.00, badgeClass: 'badge-uber' },
+            { id: 'pop_1', appKey: 'pop', name: '🚕 99Pop', gross: 110.00, trips: 6, tips: 5.00, badgeClass: 'badge-99' }
+          ],
+          km: 168.4,
+          hours: 9.0,
+          timeStart: '07:00',
+          timeEnd: '16:00',
+          fuelCost: 79.88,
+          fuelTypeUsed: 'Etanol',
+          notes: 'Manhã no centro e tarde com dinâmico 99'
+        },
+        {
+          id: 2,
+          date: '2026-08-18',
+          period: 'Integral',
+          apps: [
+            { id: 'uber_2', appKey: 'uber', name: '🚗 Uber', gross: 340.00, trips: 16, tips: 20.00, badgeClass: 'badge-uber' },
+            { id: 'part_2', appKey: 'part', name: '⭐ Particulares', gross: 90.00, trips: 1, tips: 0, badgeClass: 'badge-part' }
+          ],
+          km: 180.0,
+          hours: 9.2,
+          timeStart: '07:30',
+          timeEnd: '16:45',
+          fuelCost: 85.39,
+          fuelTypeUsed: 'Etanol',
+          notes: 'Chuva fim de tarde + corrida particular'
+        },
+        {
+          id: 3,
+          date: '2026-08-17',
+          period: 'Integral',
+          apps: [
+            { id: 'uber_3', appKey: 'uber', name: '🚗 Uber', gross: 295.00, trips: 13, tips: 10.00, badgeClass: 'badge-uber' },
+            { id: 'pop_3', appKey: 'pop', name: '🚕 99Pop / 99', gross: 75.00, trips: 4, tips: 0, badgeClass: 'badge-99' }
+          ],
+          km: 165.0,
+          hours: 9.0,
+          timeStart: '08:00',
+          timeEnd: '17:00',
+          fuelCost: 78.27,
+          fuelTypeUsed: 'Etanol',
+          notes: 'Corridas de bairro'
+        },
+        {
+          id: 4,
+          date: '2026-08-16',
+          period: 'Tarde/Noite',
+          apps: [
+            { id: 'indrive_4', appKey: 'indrive', name: '🚙 InDrive', gross: 165.00, trips: 6, tips: 10.00, badgeClass: 'badge-indrive' }
+          ],
+          km: 68.0,
+          hours: 3.5,
+          timeStart: '16:00',
+          timeEnd: '19:30',
+          fuelCost: 32.26,
+          fuelTypeUsed: 'Etanol',
+          notes: 'Focado em InDrive com ótima margem'
+        },
+        {
+          id: 5,
+          date: '2026-08-15',
+          period: 'Integral',
+          apps: [
+            { id: 'uber_5', appKey: 'uber', name: '🚗 Uber', gross: 410.00, trips: 18, tips: 30.00, badgeClass: 'badge-uber' }
+          ],
+          km: 175.0,
+          hours: 9.5,
+          timeStart: '08:00',
+          timeEnd: '17:30',
+          fuelCost: 83.02,
+          fuelTypeUsed: 'Etanol',
+          notes: 'Sexta-feira movimentada'
+        }
+      ],
+      expenses: [
+        { id: 1, date: '2026-08-19', category: 'combustivel', fuelType: 'Gasolina', title: 'Abastecimento Gasolina Comum', amount: 175.50, liters: 30.0, pricePerLiter: 5.85, odo: 64800 },
+        { id: 2, date: '2026-08-19', category: 'alimentacao', title: 'Almoço e café na rua', amount: 28.50 },
+        { id: 3, date: '2026-08-17', category: 'lavagem', title: 'Lavagem completa + cera', amount: 45.00 },
+        { id: 4, date: '2026-08-16', category: 'combustivel', fuelType: 'Etanol', title: 'Abastecimento Etanol', amount: 145.00, liters: 38.0, pricePerLiter: 3.82, odo: 64450 },
+        { id: 5, date: '2026-08-10', category: 'manutencao', title: 'Alinhamento 3D + Balanceamento', amount: 110.00, odo: 63900 },
+        { id: 6, date: '2026-08-05', category: 'fixo', title: 'Seguro Auto Especial App', amount: 210.00 }
+      ],
+      maintenance: [
+        { id: 1, name: 'Troca de Óleo e Filtro (5W30)', lastKm: 60000, interval: 10000, cost: 220 },
+        { id: 2, name: 'Pastilhas de Freio Dianteiras', lastKm: 45000, interval: 20000, cost: 180 },
+        { id: 3, name: 'Rodízio de Pneus e Alinhamento', lastKm: 55000, interval: 10000, cost: 110 },
+        { id: 4, name: 'Filtro de Ar e Cabine (A/C)', lastKm: 50000, interval: 15000, cost: 95 }
+      ]
+    };
+
+    let state = JSON.parse(JSON.stringify(defaultData));
+
+    // Staging and Edit Tracking State
+    let stagedShiftApps = [];
+    let editingShiftId = null;
+    let editingExpenseId = null;
+    let editingMaintId = null;
+    let deferredPWAEvent = null;
+
+    // Load from local storage
+    if (localStorage.getItem('mp_html_state_v8')) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('mp_html_state_v8'));
+        if (saved && saved.vehicle) {
+          state = saved;
+          if (!state.fuelSettings) state.fuelSettings = defaultData.fuelSettings;
+        }
+      } catch(e){}
+    }
+
+    function saveState() {
+      localStorage.setItem('mp_html_state_v8', JSON.stringify(state));
+      render();
+    }
+
+    function parseVal(val) {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      if (!val) return 0;
+      const clean = val.toString().replace(',', '.').trim();
+      const n = parseFloat(clean);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function formatBRL(val) {
+      const num = parseVal(val);
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+    }
+
+    // Escapa texto do usuário antes de interpolá-lo em innerHTML (evita injeção de HTML/XSS)
+    function esc(str) {
+      return String(str ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function formatDate(dStr) {
+      if(!dStr) return '';
+      const parts = dStr.split('-');
+      if(parts.length !== 3) return dStr;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    function getTodayString() {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getShiftTotalGross(s) {
+      if (s.totalGross !== undefined) return s.totalGross;
+      let total = 0;
+      if (Array.isArray(s.apps)) {
+        s.apps.forEach(app => {
+          total += (app.gross || 0) + (app.tips || 0);
+        });
+      } else if (s.apps && typeof s.apps === 'object') {
+        Object.values(s.apps).forEach(app => {
+          total += (app.gross || 0) + (app.tips || 0);
+        });
+      } else if (s.gross !== undefined) {
+        total = (s.gross || 0) + (s.tips || 0);
+      }
+      return total;
+    }
+
+    function getShiftTotalTrips(s) {
+      if (s.totalTrips !== undefined) return s.totalTrips;
+      let total = 0;
+      if (Array.isArray(s.apps)) {
+        s.apps.forEach(app => {
+          total += (app.trips || 0);
+        });
+      } else if (s.apps && typeof s.apps === 'object') {
+        Object.values(s.apps).forEach(app => {
+          total += (app.trips || 0);
+        });
+      } else if (s.trips !== undefined) {
+        total = (s.trips || 0);
+      }
+      return total;
+    }
+
+    // ==============================================================
+    // FUNÇÃO QUE PUXA A MÉDIA DA PARIDADE + ÚLTIMO ABASTECIMENTO
+    // ==============================================================
+    function getLastFuelInfo() {
+      // Ordena por data (mais recente primeiro) para não depender da ordem do array
+      const fuelExpenses = state.expenses
+        .filter(e => e.category === 'combustivel')
+        .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+      let lastFuelType = 'Etanol';
+      let lastPricePerLiter = state.fuelSettings.ethanolPrice || 3.89;
+      let lastDate = 'N/A';
+
+      if (fuelExpenses.length > 0) {
+        const lastExp = fuelExpenses[0];
+        lastDate = formatDate(lastExp.date);
+
+        if (lastExp.fuelType) {
+          lastFuelType = lastExp.fuelType;
+        } else if (lastExp.title && lastExp.title.toLowerCase().includes('gasolina')) {
+          lastFuelType = 'Gasolina';
+        } else if (lastExp.title && lastExp.title.toLowerCase().includes('etanol')) {
+          lastFuelType = 'Etanol';
+        }
+
+        if (lastExp.pricePerLiter && lastExp.pricePerLiter > 0) {
+          lastPricePerLiter = lastExp.pricePerLiter;
+        } else if (lastExp.amount && lastExp.liters && lastExp.liters > 0) {
+          lastPricePerLiter = lastExp.amount / lastExp.liters;
+        } else {
+          lastPricePerLiter = (lastFuelType === 'Gasolina') ? state.fuelSettings.gasolinePrice : state.fuelSettings.ethanolPrice;
+        }
+      }
+
+      const isGas = lastFuelType.toLowerCase().includes('gasolina');
+      const avgKml = isGas ? (state.fuelSettings.gasolineKmPerL || 11.5) : (state.fuelSettings.ethanolKmPerL || 8.2);
+      const priceL = isGas ? (state.fuelSettings.gasolinePrice || 5.89) : (state.fuelSettings.ethanolPrice || 3.89);
+      const costPerKm = avgKml > 0 ? (priceL / avgKml) : 0.48;
+
+      return {
+        fuelType: isGas ? 'Gasolina' : 'Etanol',
+        avgKml,
+        priceL,
+        costPerKm,
+        lastDate
+      };
+    }
+
+    // PWA Install Prompt Listener
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPWAEvent = e;
+      const banner = document.getElementById('pwaInstallBanner');
+      if (banner) banner.style.display = 'flex';
+    });
+
+    function promptInstallPWA() {
+      if (deferredPWAEvent) {
+        deferredPWAEvent.prompt();
+        deferredPWAEvent.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            document.getElementById('pwaInstallBanner').style.display = 'none';
+          }
+          deferredPWAEvent = null;
+        });
+      } else {
+        alert('Para instalar este app no seu celular:\n\n📱 No Android (Chrome): Toque nos 3 pontinhos no canto superior e selecione "Adicionar à tela inicial" ou "Instalar aplicativo".\n\n🍎 No iPhone (Safari): Toque no botão de Compartilhar (quadrado com seta) e escolha "Adicionar à Tela de Início".');
+      }
+    }
+
+    // Register Service Worker for 100% offline support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          console.log('✅ ServiceWorker registrado com sucesso:', reg.scope);
+        }).catch((err) => {
+          console.log('ServiceWorker falhou:', err);
+        });
+      });
+    }
+
+    // Switch tab
+    function switchTab(tabId) {
+      const views = ['dashboard', 'shifts', 'expenses', 'health', 'calc', 'reports'];
+      views.forEach(v => {
+        const el = document.getElementById('view' + v.charAt(0).toUpperCase() + v.slice(1));
+        if(el) el.style.display = (v === tabId) ? 'block' : 'none';
+      });
+
+      document.querySelectorAll('.desktop-nav .nav-tab').forEach((el, idx) => {
+        el.classList.toggle('active', views[idx] === tabId);
+      });
+      document.querySelectorAll('.mobile-nav .mob-tab').forEach((el, idx) => {
+        el.classList.toggle('active', views[idx] === tabId);
+      });
+
+      if (tabId === 'calc') {
+        calculateTripSim();
+        calcFuel();
+      }
+    }
+
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if(modal) modal.classList.add('open');
+    }
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if(modal) modal.classList.remove('open');
+    }
+
+    function toggleFuelFields() {
+      const cat = document.getElementById('expCat').value;
+      const isFuel = (cat === 'combustivel');
+      document.getElementById('fuelFieldsBox').style.display = isFuel ? 'grid' : 'none';
+      document.getElementById('fuelTypeRow').style.display = isFuel ? 'block' : 'none';
+    }
+
+    function autoCalcPricePerLiter() {
+      const amt = parseVal(document.getElementById('expAmount').value);
+      const liters = parseVal(document.getElementById('expLitersInput').value);
+      if (amt > 0 && liters > 0) {
+        const pL = amt / liters;
+        const isGas = document.getElementById('expRadioGasoline').checked;
+        if (isGas) {
+          state.fuelSettings.gasolinePrice = pL;
+          document.getElementById('fuelGasPrice').value = pL.toFixed(2);
+        } else {
+          state.fuelSettings.ethanolPrice = pL;
+          document.getElementById('fuelEthPrice').value = pL.toFixed(2);
+        }
+      }
+    }
+
+    // Dropdown custom app handler
+    document.addEventListener('DOMContentLoaded', () => {
+      const appSelect = document.getElementById('currentAppSelect');
+      if (appSelect) {
+        appSelect.addEventListener('change', (e) => {
+          const isCustom = e.target.value === 'custom';
+          document.getElementById('customAppNameBox').style.display = isCustom ? 'block' : 'none';
+        });
+      }
+    });
+
+    // ==============================================================
+    // AÇÕES DE TURNOS: CRIAR, EDITAR, DELETAR
+    // ==============================================================
+    function openCreateShiftModal() {
+      editingShiftId = null;
+      document.getElementById('modalShiftTitle').innerText = 'Lançar Turno do Dia';
+      document.getElementById('btnSaveShiftSubmit').innerText = 'Salvar Turno Completo';
+      document.getElementById('shiftDate').value = getTodayString();
+      document.getElementById('shiftPeriod').value = 'Integral';
+      document.getElementById('shiftTimeStart').value = '07:00';
+      document.getElementById('shiftTimeEnd').value = '16:00';
+      document.getElementById('shiftKmTotal').value = '';
+      document.getElementById('shiftFuelCost').value = '';
+      document.getElementById('shiftNotes').value = '';
+      document.getElementById('shiftFuelOverrideSelect').value = 'auto';
+
+      stagedShiftApps = [];
+      renderStagedApps();
+      calculateShiftHoursAuto();
+      updateShiftFuelRateSelection();
+      openModal('modalShift');
+    }
+
+    function openEditShiftModal(id) {
+      const shift = state.shifts.find(s => s.id === id);
+      if (!shift) return;
+
+      editingShiftId = id;
+      document.getElementById('modalShiftTitle').innerText = 'Editar Turno';
+      document.getElementById('btnSaveShiftSubmit').innerText = 'Salvar Alterações';
+
+      document.getElementById('shiftDate').value = shift.date || getTodayString();
+      document.getElementById('shiftPeriod').value = shift.period || 'Integral';
+      document.getElementById('shiftTimeStart').value = shift.timeStart || '07:00';
+      document.getElementById('shiftTimeEnd').value = shift.timeEnd || '16:00';
+      document.getElementById('shiftKmTotal').value = shift.km || '';
+      document.getElementById('shiftFuelCost').value = shift.fuelCost || '';
+      document.getElementById('shiftNotes').value = shift.notes || '';
+
+      if (shift.fuelTypeUsed) {
+        document.getElementById('shiftFuelOverrideSelect').value = shift.fuelTypeUsed.toLowerCase();
+      } else {
+        document.getElementById('shiftFuelOverrideSelect').value = 'auto';
+      }
+
+      stagedShiftApps = Array.isArray(shift.apps) ? JSON.parse(JSON.stringify(shift.apps)) : [];
+      renderStagedApps();
+      calculateShiftHoursAuto();
+      updateShiftFuelRateSelection();
+      openModal('modalShift');
+    }
+
+    function updateShiftFuelRateSelection() {
+      const override = document.getElementById('shiftFuelOverrideSelect').value;
+      const lastFuel = getLastFuelInfo();
+
+      let activeFuelType = lastFuel.fuelType;
+      let activeKml = lastFuel.avgKml;
+      let activePrice = lastFuel.priceL;
+      let activeCostKm = lastFuel.costPerKm;
+
+      if (override === 'gasolina') {
+        activeFuelType = 'Gasolina';
+        activeKml = state.fuelSettings.gasolineKmPerL || 11.5;
+        activePrice = state.fuelSettings.gasolinePrice || 5.89;
+        activeCostKm = activePrice / activeKml;
+      } else if (override === 'etanol') {
+        activeFuelType = 'Etanol';
+        activeKml = state.fuelSettings.ethanolKmPerL || 8.2;
+        activePrice = state.fuelSettings.ethanolPrice || 3.89;
+        activeCostKm = activePrice / activeKml;
+      }
+
+      document.getElementById('shiftFuelDetailsDisplay').innerHTML = `
+        <div>
+          <span>Combustível do Carro: <strong>${activeFuelType}</strong></span>
+          <span style="color: var(--text-muted); font-size: 11px;"> (${activeKml.toFixed(1)} km/L @ ${formatBRL(activePrice)}/L)</span>
+        </div>
+        <span class="badge" style="background: rgba(16,185,129,0.15); color: #34d399; font-weight: 800;">
+          Custo: ${formatBRL(activeCostKm)}/km
+        </span>
+      `;
+
+      recalcShiftLive();
+    }
+
+    function addCurrentAppToStaging() {
+      const appSelect = document.getElementById('currentAppSelect');
+      const selectedVal = appSelect.value;
+      let appName = appSelect.options[appSelect.selectedIndex].text;
+      let badgeClass = 'badge-uber';
+
+      if (selectedVal === 'custom') {
+        const customName = document.getElementById('customAppNameInput').value.trim();
+        if (!customName) {
+          alert('Por favor, informe o nome do aplicativo.');
+          return;
+        }
+        appName = '📱 ' + customName;
+        badgeClass = 'badge-other';
+      } else if (selectedVal === 'pop') {
+        badgeClass = 'badge-99';
+      } else if (selectedVal === 'indrive') {
+        badgeClass = 'badge-indrive';
+      } else if (selectedVal === 'part') {
+        badgeClass = 'badge-part';
+      } else if (selectedVal === 'ifood' || selectedVal === 'lalamove') {
+        badgeClass = 'badge-other';
+      }
+
+      const gross = parseVal(document.getElementById('appGrossInput').value);
+      const trips = parseInt(document.getElementById('appTripsInput').value) || 0;
+      const tips = parseVal(document.getElementById('appTipsInput').value);
+
+      if (gross <= 0 && trips <= 0) {
+        alert('Por favor, informe o valor dos ganhos ou as corridas deste app antes de salvar.');
+        return;
+      }
+
+      stagedShiftApps.push({
+        id: selectedVal + '_' + Date.now(),
+        appKey: selectedVal,
+        name: appName,
+        badgeClass,
+        gross,
+        trips,
+        tips
+      });
+
+      document.getElementById('appGrossInput').value = '';
+      document.getElementById('appTripsInput').value = '';
+      document.getElementById('appTipsInput').value = '';
+      document.getElementById('customAppNameInput').value = '';
+
+      if (selectedVal === 'uber') appSelect.value = 'pop';
+      else if (selectedVal === 'pop') appSelect.value = 'indrive';
+      else if (selectedVal === 'indrive') appSelect.value = 'part';
+      else appSelect.value = 'uber';
+      document.getElementById('customAppNameBox').style.display = 'none';
+
+      renderStagedApps();
+      recalcShiftLive();
+    }
+
+    function removeStagedApp(index) {
+      stagedShiftApps.splice(index, 1);
+      renderStagedApps();
+      recalcShiftLive();
+    }
+
+    function renderStagedApps() {
+      const container = document.getElementById('stagedAppsList');
+      container.innerHTML = '';
+
+      if (stagedShiftApps.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; color: var(--text-dim); font-size: 11px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            Nenhum app salvo ainda. Escolha o app acima, preencha os ganhos e clique em "Salvar Este App".
+          </div>
+        `;
+        document.getElementById('stagedAppsCount').innerText = '0 apps salvos';
+        document.getElementById('stagedGrossTotal').innerText = 'R$ 0,00';
+        return;
+      }
+
+      let sumGross = 0;
+      stagedShiftApps.forEach((item, idx) => {
+        const itemSum = item.gross + item.tips;
+        sumGross += itemSum;
+
+        const row = document.createElement('div');
+        row.className = 'added-app-row';
+        row.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge ${item.badgeClass}">${esc(item.name)}</span>
+            <span style="font-size: 11px; color: var(--text-muted);">${item.trips} viagens ${item.tips > 0 ? `(+${formatBRL(item.tips)} gorjeta)` : ''}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <strong style="color: #fff; font-size: 13px;">${formatBRL(itemSum)}</strong>
+            <button type="button" onclick="removeStagedApp(${idx})" style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 2px;" title="Remover">✕</button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      document.getElementById('stagedAppsCount').innerText = `${stagedShiftApps.length} apps salvos`;
+      document.getElementById('stagedGrossTotal').innerText = formatBRL(sumGross);
+    }
+
+    function calculateShiftHoursAuto() {
+      const start = document.getElementById('shiftTimeStart').value;
+      const end = document.getElementById('shiftTimeEnd').value;
+
+      if (!start || !end) {
+        document.getElementById('calculatedHoursDisplay').innerText = '0h 00min (0.0 horas)';
+        document.getElementById('finalHoursValue').value = '0';
+        return;
+      }
+
+      const [startH, startM] = start.split(':').map(Number);
+      const [endH, endM] = end.split(':').map(Number);
+
+      let startMin = startH * 60 + startM;
+      let endMin = endH * 60 + endM;
+
+      if (endMin < startMin) {
+        endMin += 24 * 60;
+      }
+
+      const diffMin = endMin - startMin;
+      const hours = Math.floor(diffMin / 60);
+      const minutes = diffMin % 60;
+      const decimalHours = (diffMin / 60);
+
+      document.getElementById('calculatedHoursDisplay').innerText = `⏱️ ${hours}h ${String(minutes).padStart(2, '0')}min (${decimalHours.toFixed(1)} horas)`;
+      document.getElementById('finalHoursValue').value = decimalHours.toFixed(2);
+
+      recalcShiftLive();
+    }
+
+    function recalcShiftLive() {
+      let totalShiftGross = 0;
+      stagedShiftApps.forEach(a => {
+        totalShiftGross += (a.gross + a.tips);
+      });
+
+      const km = parseVal(document.getElementById('shiftKmTotal').value);
+      const hours = parseVal(document.getElementById('finalHoursValue').value);
+
+      // Dynamic fuel calculation based on parity and last fillup
+      const override = document.getElementById('shiftFuelOverrideSelect')?.value || 'auto';
+      const lastFuel = getLastFuelInfo();
+
+      let activeCostKm = lastFuel.costPerKm;
+      if (override === 'gasolina') {
+        activeCostKm = (state.fuelSettings.gasolinePrice || 5.89) / (state.fuelSettings.gasolineKmPerL || 11.5);
+      } else if (override === 'etanol') {
+        activeCostKm = (state.fuelSettings.ethanolPrice || 3.89) / (state.fuelSettings.ethanolKmPerL || 8.2);
+      }
+
+      const autoCalculatedFuel = km * activeCostKm;
+      let fuelCost = parseVal(document.getElementById('shiftFuelCost').value);
+      if (!fuelCost && km > 0) {
+        fuelCost = autoCalculatedFuel;
+        document.getElementById('shiftFuelCost').value = autoCalculatedFuel.toFixed(2);
+      }
+
+      const rKm = km > 0 ? totalShiftGross / km : 0;
+      const rHour = hours > 0 ? totalShiftGross / hours : 0;
+      const reserve = km * (state.vehicle.maintenanceReservePerKm || 0.18);
+      const net = totalShiftGross - (fuelCost || autoCalculatedFuel) - reserve;
+
+      document.getElementById('liveShiftGross').innerText = formatBRL(totalShiftGross);
+      document.getElementById('liveShiftRateKm').innerText = `${formatBRL(rKm)}/km`;
+      document.getElementById('liveShiftRateHour').innerText = `${formatBRL(rHour)}/h`;
+      document.getElementById('liveShiftNet').innerText = formatBRL(net);
+    }
+
+    function saveFinalShift() {
+      const date = document.getElementById('shiftDate').value || getTodayString();
+      const period = document.getElementById('shiftPeriod').value;
+      const km = parseVal(document.getElementById('shiftKmTotal').value);
+      const hours = parseVal(document.getElementById('finalHoursValue').value);
+      const timeStart = document.getElementById('shiftTimeStart').value;
+      const timeEnd = document.getElementById('shiftTimeEnd').value;
+      const fuelCost = parseVal(document.getElementById('shiftFuelCost').value);
+      const notes = document.getElementById('shiftNotes').value;
+      const override = document.getElementById('shiftFuelOverrideSelect').value;
+      const fuelTypeUsed = (override === 'auto') ? getLastFuelInfo().fuelType : (override === 'gasolina' ? 'Gasolina' : 'Etanol');
+
+      if (stagedShiftApps.length === 0 && km === 0) {
+        alert('Por favor, adicione ao menos os ganhos de um aplicativo na caixa de seleção.');
+        return;
+      }
+      if (km <= 0) {
+        alert('Por favor, informe a quilometragem total rodada no turno.');
+        return;
+      }
+
+      if (editingShiftId) {
+        const idx = state.shifts.findIndex(s => s.id === editingShiftId);
+        if (idx !== -1) {
+          state.shifts[idx] = {
+            ...state.shifts[idx],
+            date,
+            period,
+            apps: [...stagedShiftApps],
+            km,
+            hours: hours > 0 ? hours : 8.0,
+            timeStart,
+            timeEnd,
+            fuelCost,
+            fuelTypeUsed,
+            notes
+          };
+        }
+      } else {
+        const newShift = {
+          id: Date.now(),
+          date,
+          period,
+          apps: [...stagedShiftApps],
+          km,
+          hours: hours > 0 ? hours : 8.0,
+          timeStart,
+          timeEnd,
+          fuelCost,
+          fuelTypeUsed,
+          notes
+        };
+        state.shifts.unshift(newShift);
+        // REGRA DE NEGÓCIO: o km do turno pertence à jornada de trabalho e NÃO
+        // altera o odômetro. O odômetro é atualizado apenas por abastecimentos
+        // (odômetro informado no posto) e manutenções.
+      }
+
+      saveState();
+      closeModal('modalShift');
+      editingShiftId = null;
+    }
+
+    function deleteShift(id) {
+      if(confirm('Deseja realmente excluir este registro de turno?')) {
+        state.shifts = state.shifts.filter(s => s.id !== id);
+        saveState();
+      }
+    }
+
+    // ==============================================================
+    // AÇÕES DE DESPESAS COM VÍNCULO AO ÚLTIMO ABASTECIMENTO
+    // ==============================================================
+    function openCreateExpenseModal() {
+      editingExpenseId = null;
+      document.getElementById('modalExpenseTitle').innerText = 'Lançar Despesa / Abastecimento';
+      document.getElementById('btnSaveExpenseSubmit').innerText = 'Salvar Gasto';
+      document.getElementById('expDate').value = getTodayString();
+      document.getElementById('expAmount').value = '';
+      document.getElementById('expTitle').value = '';
+      document.getElementById('expLitersInput').value = '';
+      document.getElementById('expOdoInput').value = '';
+      document.getElementById('expCat').value = 'combustivel';
+      document.getElementById('expRadioEthanol').checked = true;
+      toggleFuelFields();
+      openModal('modalExpense');
+    }
+
+    function openEditExpenseModal(id) {
+      const exp = state.expenses.find(e => e.id === id);
+      if (!exp) return;
+
+      editingExpenseId = id;
+      document.getElementById('modalExpenseTitle').innerText = 'Editar Despesa';
+      document.getElementById('btnSaveExpenseSubmit').innerText = 'Salvar Alterações';
+
+      document.getElementById('expCat').value = exp.category || 'combustivel';
+      document.getElementById('expDate').value = exp.date || getTodayString();
+      document.getElementById('expAmount').value = exp.amount || '';
+      document.getElementById('expTitle').value = exp.title || '';
+      document.getElementById('expLitersInput').value = exp.liters || '';
+      document.getElementById('expOdoInput').value = exp.odo || '';
+
+      if (exp.fuelType === 'Gasolina' || (exp.title && exp.title.toLowerCase().includes('gasolina'))) {
+        document.getElementById('expRadioGasoline').checked = true;
+      } else {
+        document.getElementById('expRadioEthanol').checked = true;
+      }
+
+      toggleFuelFields();
+      openModal('modalExpense');
+    }
+
+    function saveExpense(e) {
+      e.preventDefault();
+      const cat = document.getElementById('expCat').value;
+      const date = document.getElementById('expDate').value || getTodayString();
+      const amount = parseVal(document.getElementById('expAmount').value);
+      const title = document.getElementById('expTitle').value;
+      const liters = parseVal(document.getElementById('expLitersInput').value) || undefined;
+      const odo = parseVal(document.getElementById('expOdoInput').value) || undefined;
+
+      const isFuel = (cat === 'combustivel');
+      const fuelType = isFuel ? (document.getElementById('expRadioGasoline').checked ? 'Gasolina' : 'Etanol') : undefined;
+      const pricePerLiter = (isFuel && amount > 0 && liters > 0) ? (amount / liters) : undefined;
+
+      if (isFuel && pricePerLiter) {
+        if (fuelType === 'Gasolina') {
+          state.fuelSettings.gasolinePrice = pricePerLiter;
+        } else {
+          state.fuelSettings.ethanolPrice = pricePerLiter;
+        }
+      }
+
+      if (editingExpenseId) {
+        const idx = state.expenses.findIndex(exp => exp.id === editingExpenseId);
+        if (idx !== -1) {
+          state.expenses[idx] = {
+            ...state.expenses[idx],
+            date, category: cat, title, amount, liters, odo, fuelType, pricePerLiter
+          };
+        }
+      } else {
+        state.expenses.unshift({
+          id: Date.now(),
+          date, category: cat, title, amount, liters, odo, fuelType, pricePerLiter
+        });
+      }
+
+      // REGRA DE NEGÓCIO: odômetro é atualizado apenas por abastecimentos
+      // (e manutenções/configurações). Vale para criação e edição.
+      if (isFuel && odo && odo > (state.vehicle.odometer || 0)) {
+        state.vehicle.odometer = odo;
+      }
+
+      saveState();
+      closeModal('modalExpense');
+      editingExpenseId = null;
+    }
+
+    function deleteExpense(id) {
+      if(confirm('Deseja realmente excluir esta despesa?')) {
+        state.expenses = state.expenses.filter(e => e.id !== id);
+        saveState();
+      }
+    }
+
+    // ==============================================================
+    // AÇÕES DE MANUTENÇÃO PREVENTIVA
+    // ==============================================================
+    function openCreateMaintenanceModal() {
+      editingMaintId = null;
+      document.getElementById('modalMaintTitle').innerText = 'Novo Item de Revisão Preventiva';
+      document.getElementById('btnSaveMaintSubmit').innerText = 'Adicionar Item';
+      document.getElementById('maintNameInput').value = '';
+      document.getElementById('maintIntervalInput').value = '10000';
+      document.getElementById('maintCostInput').value = '150.00';
+      document.getElementById('maintLastKmInput').value = state.vehicle.odometer || 60000;
+      openModal('modalMaintItem');
+    }
+
+    function openEditMaintenanceModal(id) {
+      const item = state.maintenance.find(m => m.id === id);
+      if (!item) return;
+
+      editingMaintId = id;
+      document.getElementById('modalMaintTitle').innerText = 'Editar Item de Revisão';
+      document.getElementById('btnSaveMaintSubmit').innerText = 'Salvar Alterações';
+      document.getElementById('maintNameInput').value = item.name;
+      document.getElementById('maintIntervalInput').value = item.interval;
+      document.getElementById('maintCostInput').value = item.cost;
+      document.getElementById('maintLastKmInput').value = item.lastKm;
+      openModal('modalMaintItem');
+    }
+
+    function saveMaintenanceItem(e) {
+      e.preventDefault();
+      const name = document.getElementById('maintNameInput').value.trim();
+      const interval = parseInt(document.getElementById('maintIntervalInput').value) || 10000;
+      const cost = parseVal(document.getElementById('maintCostInput').value);
+      const lastKm = parseVal(document.getElementById('maintLastKmInput').value);
+
+      if (editingMaintId) {
+        const idx = state.maintenance.findIndex(m => m.id === editingMaintId);
+        if (idx !== -1) {
+          state.maintenance[idx] = {
+            ...state.maintenance[idx],
+            name, interval, cost, lastKm
+          };
+        }
+      } else {
+        state.maintenance.push({
+          id: Date.now(),
+          name, interval, cost, lastKm
+        });
+      }
+
+      saveState();
+      closeModal('modalMaintItem');
+      editingMaintId = null;
+    }
+
+    function deleteMaintenanceItem(id) {
+      if(confirm('Deseja realmente remover este item de monitoramento de revisão?')) {
+        state.maintenance = state.maintenance.filter(m => m.id !== id);
+        saveState();
+      }
+    }
+
+    function executeMaintenance(mId) {
+      const item = state.maintenance.find(m => m.id === mId);
+      if(!item) return;
+
+      const costInput = prompt(`Confirmar troca de "${item.name}"?\nDigite o valor pago (R$):`, item.cost);
+      if(costInput === null) return;
+      const cost = parseVal(costInput);
+
+      item.lastKm = state.vehicle.odometer;
+
+      state.expenses.unshift({
+        id: Date.now(),
+        date: getTodayString(),
+        category: 'manutencao',
+        title: item.name,
+        amount: cost,
+        odo: state.vehicle.odometer
+      });
+
+      saveState();
+      alert(`✅ Manutenção registrada com sucesso! Despesa de ${formatBRL(cost)} lançada no seu fluxo de caixa.`);
+    }
+
+    function saveSettings(e) {
+      e.preventDefault();
+      state.vehicle.model = document.getElementById('cfgModel').value;
+      state.vehicle.plate = document.getElementById('cfgPlate').value;
+      state.vehicle.odometer = parseVal(document.getElementById('cfgOdo').value) || 64850;
+      state.vehicle.maintenanceReservePerKm = parseVal(document.getElementById('cfgReserve').value) || 0.18;
+      state.vehicle.monthlyGoal = parseVal(document.getElementById('cfgMonthlyGoal').value) || 7000;
+      state.vehicle.targetKmRate = parseVal(document.getElementById('cfgTargetKm').value) || 2.20;
+
+      saveState();
+      closeModal('modalSettings');
+    }
+
+    function render() {
+      document.getElementById('topCarInfo').innerText = `${state.vehicle.model} • ${state.vehicle.plate} (100% Local + Google Drive)`;
+
+      // Aggregates
+      let totalGross = 0;
+      let totalTrips = 0;
+      const appTotals = {};
+
+      state.shifts.forEach(s => {
+        const sGross = getShiftTotalGross(s);
+        const sTrips = getShiftTotalTrips(s);
+        totalGross += sGross;
+        totalTrips += sTrips;
+
+        if (Array.isArray(s.apps)) {
+          s.apps.forEach(a => {
+            const k = a.name;
+            if (!appTotals[k]) {
+              appTotals[k] = { name: a.name, badgeClass: a.badgeClass || 'badge-uber', total: 0 };
+            }
+            appTotals[k].total += ((a.gross || 0) + (a.tips || 0));
+          });
+        }
+      });
+
+      const totalKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
+      const totalHours = state.shifts.reduce((a, s) => a + (s.hours || 0), 0);
+
+      const totalExpenses = state.expenses.reduce((a, e) => a + (e.amount || 0), 0);
+      const reserveAccrued = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
+      const netProfit = totalGross - totalExpenses - reserveAccrued;
+      const netMargin = totalGross > 0 ? (netProfit / totalGross) * 100 : 0;
+
+      const rateKm = totalKm > 0 ? totalGross / totalKm : 0;
+      const rateHour = totalHours > 0 ? totalGross / totalHours : 0;
+      const cpk = totalKm > 0 ? (totalExpenses + reserveAccrued) / totalKm : 0;
+
+      // Dashboard Fill
+      document.getElementById('dashGross').innerText = formatBRL(totalGross);
+      document.getElementById('dashGrossSub').innerText = `${totalTrips} corridas • ${totalKm.toFixed(1)} km`;
+      document.getElementById('dashExpenses').innerText = formatBRL(totalExpenses + reserveAccrued);
+      document.getElementById('dashNet').innerText = formatBRL(netProfit);
+      document.getElementById('dashMargin').innerText = `${netMargin.toFixed(0)}% Margem`;
+
+      document.getElementById('dashRateKm').innerText = formatBRL(rateKm) + '/km';
+      document.getElementById('dashRateKmSub').innerText = `Meta: ${formatBRL(state.vehicle.targetKmRate)}/km ${rateKm >= state.vehicle.targetKmRate ? '✅' : '⚠️'}`;
+
+      document.getElementById('dashRateHour').innerText = formatBRL(rateHour) + '/h';
+      document.getElementById('dashRateHourSub').innerText = `Meta: ${formatBRL(state.vehicle.targetHourlyRate)}/h ${rateHour >= state.vehicle.targetHourlyRate ? '✅' : '⚠️'}`;
+
+      document.getElementById('dashCpk').innerText = formatBRL(cpk) + '/km';
+      document.getElementById('dashAvgTrip').innerText = formatBRL(totalTrips > 0 ? totalGross / totalTrips : 0);
+      document.getElementById('dashAvgTripSub').innerText = `${totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0.0'} km por viagem`;
+
+      // Platform Breakdown Cards
+      const pbGrid = document.getElementById('platformBreakdownGrid');
+      pbGrid.innerHTML = '';
+      
+      const appKeys = Object.keys(appTotals);
+      if (appKeys.length === 0) {
+        pbGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 10px;">Nenhum ganho registrado por app.</div>';
+      } else {
+        appKeys.forEach(k => {
+          const item = appTotals[k];
+          const pct = totalGross > 0 ? ((item.total / totalGross) * 100).toFixed(0) : 0;
+          const box = document.createElement('div');
+          box.className = 'metric-box';
+          box.innerHTML = `
+            <span class="badge ${item.badgeClass}" style="margin-bottom: 6px;">${esc(item.name)}</span>
+            <div class="metric-val">${formatBRL(item.total)}</div>
+            <div class="metric-sub">${pct}% do faturamento</div>
+          `;
+          pbGrid.appendChild(box);
+        });
+      }
+
+      // Goal
+      const goal = state.vehicle.monthlyGoal || 7000;
+      const goalPct = Math.min(100, Math.round((totalGross / goal) * 100));
+      document.getElementById('goalLabel').innerText = `${formatBRL(totalGross)} de ${formatBRL(goal)}`;
+      document.getElementById('goalPercent').innerText = `${goalPct}%`;
+      document.getElementById('goalFill').style.width = `${goalPct}%`;
+      document.getElementById('goalRemaining').innerText = formatBRL(Math.max(0, goal - totalGross));
+
+      // 7-day chart (dados reais: soma dos ganhos dos turnos por dia)
+      const chartEl = document.getElementById('dashChart');
+      chartEl.innerHTML = '';
+      const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const dayTotals = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const dayGross = state.shifts
+          .filter(s => s.date === key)
+          .reduce((acc, s) => acc + getShiftTotalGross(s), 0);
+        dayTotals.push({ label: i === 0 ? 'Hoje' : dayNames[d.getDay()], value: dayGross });
+      }
+      const maxAmt = Math.max(...dayTotals.map(x => x.value), 1);
+
+      dayTotals.forEach((day, idx) => {
+        const pct = (day.value / maxAmt) * 100;
+        const col = document.createElement('div');
+        col.className = 'chart-col';
+        col.title = `${day.label}: ${formatBRL(day.value)}`;
+        col.innerHTML = `
+          <div class="chart-bar ${idx === 6 ? 'highlight' : ''}" style="height: ${day.value > 0 ? Math.max(10, pct) : 4}%;${day.value === 0 ? ' opacity: 0.35;' : ''}"></div>
+          <div class="chart-label">${day.label}</div>
+        `;
+        chartEl.appendChild(col);
+      });
+
+      // Shifts list
+      renderShiftsList();
+
+      // Expenses list
+      renderExpensesList();
+
+      // Health
+      document.getElementById('healthOdo').innerText = `${Math.round(state.vehicle.odometer).toLocaleString('pt-BR')} km`;
+      document.getElementById('healthReserve').innerText = formatBRL(reserveAccrued);
+      const maintSpent = state.expenses.filter(e => e.category === 'manutencao').reduce((a, b) => a + b.amount, 0);
+      document.getElementById('healthSpent').innerText = formatBRL(maintSpent);
+      renderMaintenance();
+
+      // Parity inputs fill
+      document.getElementById('fuelGasPrice').value = (state.fuelSettings.gasolinePrice || 5.89).toFixed(2);
+      document.getElementById('fuelGasKml').value = (state.fuelSettings.gasolineKmPerL || 11.5).toFixed(1);
+      document.getElementById('fuelEthPrice').value = (state.fuelSettings.ethanolPrice || 3.89).toFixed(2);
+      document.getElementById('fuelEthKml').value = (state.fuelSettings.ethanolKmPerL || 8.2).toFixed(1);
+      calcFuel();
+
+      // WhatsApp text
+      renderWhatsApp();
+    }
+
+    function renderShiftsList() {
+      const container = document.getElementById('shiftsListContainer');
+      container.innerHTML = '';
+
+      const query = (document.getElementById('shiftSearchInput')?.value || '').toLowerCase().trim();
+
+      let list = state.shifts;
+      if (query) {
+        list = list.filter(s => 
+          (s.notes && s.notes.toLowerCase().includes(query)) ||
+          (s.date && s.date.includes(query))
+        );
+      }
+
+      if(list.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 30px;">Nenhum turno registrado.</div>';
+        return;
+      }
+
+      list.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        const sGross = getShiftTotalGross(s);
+        const sTrips = getShiftTotalTrips(s);
+        const rKm = s.km > 0 ? sGross / s.km : 0;
+        const rH = s.hours > 0 ? sGross / s.hours : 0;
+        const reserve = s.km * (state.vehicle.maintenanceReservePerKm || 0.18);
+        const net = sGross - (s.fuelCost || 0) - reserve;
+
+        let appBadgesHtml = '';
+        if (Array.isArray(s.apps)) {
+          s.apps.forEach(a => {
+            const sum = (a.gross || 0) + (a.tips || 0);
+            if (sum > 0 || a.trips > 0) {
+              appBadgesHtml += `<span class="badge ${a.badgeClass || 'badge-uber'}">${esc(a.name)}: ${formatBRL(sum)} (${a.trips || 0} viagens)</span> `;
+            }
+          });
+        }
+
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge" style="background: rgba(16,185,129,0.2); color:#34d399; font-weight:800;">Turno ${esc(s.period || 'Integral')}</span>
+              <span style="font-size: 12px; color: var(--text-muted);">${formatDate(s.date)} ${s.timeStart ? `• ${esc(s.timeStart)} às ${esc(s.timeEnd)}` : ''}</span>
+              ${s.fuelTypeUsed ? `<span class="badge" style="background: rgba(245,158,11,0.15); color: #fbbf24; font-size: 10px;">⛽ ${esc(s.fuelTypeUsed)}</span>` : ''}
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="font-size: 16px; color: #fff;">${formatBRL(sGross)}</strong>
+              <button onclick="openEditShiftModal(${s.id})" class="action-btn action-btn-edit" title="Editar Turno">
+                ✏️ Editar
+              </button>
+              <button onclick="deleteShift(${s.id})" class="action-btn action-btn-danger" title="Excluir Turno">
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <!-- Apps list in shift -->
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; background: #090d16; padding: 8px; border-radius: 10px; border: 1px solid var(--border-sub);">
+            ${appBadgesHtml || '<span style="font-size:11px; color:var(--text-dim);">Nenhum app específico listado</span>'}
+          </div>
+
+          <!-- Unified Shift KPIs -->
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+            <span>${parseVal(s.km).toFixed(1)} km rodados • <strong>${parseVal(s.hours).toFixed(1)} horas de trabalho</strong> (${sTrips} corridas)</span>
+            <span class="val-emerald" style="font-weight: 700;">${formatBRL(rKm)}/km • ${formatBRL(rH)}/h • Líquido: ${formatBRL(net)}</span>
+          </div>
+          ${s.notes ? `<div style="font-size: 11px; color: var(--text-dim); font-style: italic;">"${esc(s.notes)}"</div>` : ''}
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function renderExpensesList() {
+      const container = document.getElementById('expensesListContainer');
+      container.innerHTML = '';
+
+      const query = (document.getElementById('expenseSearchInput')?.value || '').toLowerCase().trim();
+
+      let list = state.expenses;
+      if (query) {
+        list = list.filter(e => 
+          (e.title && e.title.toLowerCase().includes(query)) ||
+          (e.category && e.category.toLowerCase().includes(query)) ||
+          (e.date && e.date.includes(query))
+        );
+      }
+
+      if (list.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 30px;">Nenhuma despesa encontrada.</div>';
+      }
+
+      list.forEach((e, idx) => {
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        const isFuel = e.category === 'combustivel';
+        // "Último abastecimento" = o de data mais recente (independe da posição no array)
+        const latestFuel = state.expenses
+          .filter(x => x.category === 'combustivel')
+          .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0];
+        const isLatestFuel = isFuel && latestFuel && e.id === latestFuel.id;
+
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700; color: #fff;">${esc(e.title)}</span>
+                ${isLatestFuel ? '<span class="badge" style="background: rgba(16,185,129,0.2); color:#34d399; font-size:10px;">⭐ Último Abastecimento</span>' : ''}
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                ${formatDate(e.date)} • ${esc(e.category)} 
+                ${e.fuelType ? `[<strong>${esc(e.fuelType)}</strong>]` : ''} 
+                ${e.liters ? `• ${e.liters} Litros` : ''} 
+                ${e.pricePerLiter ? `(${formatBRL(e.pricePerLiter)}/L)` : ''} 
+                ${e.odo ? `• ${e.odo.toLocaleString('pt-BR')} km` : ''}
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong class="val-rose" style="font-size: 14px;">-${formatBRL(e.amount)}</strong>
+              <button onclick="openEditExpenseModal(${e.id})" class="action-btn action-btn-edit" title="Editar Despesa">
+                ✏️ Editar
+              </button>
+              <button onclick="deleteExpense(${e.id})" class="action-btn action-btn-danger" title="Excluir Despesa">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+
+      const totalExp = state.expenses.reduce((a, b) => a + (b.amount || 0), 0);
+      const fuelExp = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + (b.amount || 0), 0);
+      const liters = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + (b.liters || 0), 0);
+
+      document.getElementById('expTotal').innerText = formatBRL(totalExp);
+      document.getElementById('expFuel').innerText = formatBRL(fuelExp);
+      document.getElementById('expLiters').innerText = `${liters.toFixed(1)} L`;
+      document.getElementById('expAvgPrice').innerText = liters > 0 ? `${formatBRL(fuelExp / liters)}/L` : 'R$ 0,00/L';
+    }
+
+    function renderMaintenance() {
+      const container = document.getElementById('maintenanceItemsContainer');
+      container.innerHTML = '';
+
+      state.maintenance.forEach(m => {
+        const kmSince = Math.max(0, state.vehicle.odometer - m.lastKm);
+        const remaining = m.interval - kmSince;
+        const pct = m.interval > 0 ? Math.min(100, Math.max(0, (kmSince / m.interval) * 100)) : 100;
+        const isUrgent = remaining <= 1000;
+
+        const el = document.createElement('div');
+        el.className = 'metric-box';
+        el.style.borderColor = isUrgent ? 'rgba(244, 63, 94, 0.4)' : 'var(--border)';
+        el.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+            <div>
+              <strong style="font-size: 13px; color: #fff;">${esc(m.name)}</strong>
+              <div style="font-size: 11px; color: var(--text-muted);">A cada ${m.interval.toLocaleString('pt-BR')} km</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span class="badge" style="background: ${isUrgent ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; color: ${isUrgent ? '#fb7185' : '#34d399'};">
+                ${remaining <= 0 ? 'VENCIDO' : `Restam ${remaining.toLocaleString('pt-BR')} km`}
+              </span>
+              <button onclick="executeMaintenance(${m.id})" class="btn btn-secondary btn-sm" style="font-size: 10px; padding: 3px 6px;">Trocar</button>
+              <button onclick="openEditMaintenanceModal(${m.id})" class="action-btn action-btn-edit" style="padding: 2px 5px;" title="Editar">✏️</button>
+              <button onclick="deleteMaintenanceItem(${m.id})" class="action-btn action-btn-danger" style="padding: 2px 5px;" title="Excluir">🗑️</button>
+            </div>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: ${pct}%; background: ${isUrgent ? '#f43f5e' : '#10b981'};"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+            <span>Última: ${m.lastKm.toLocaleString('pt-BR')} km</span>
+            <span>Custo Est.: <strong>${formatBRL(m.cost)}</strong></span>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+    }
+
+    // Calculators
+    function calculateTripSim() {
+      const offer = parseVal(document.getElementById('simOffer').value);
+      const pickup = parseVal(document.getElementById('simPickup').value);
+      const trip = parseVal(document.getElementById('simTrip').value);
+      const minutes = parseVal(document.getElementById('simMinutes').value) || 1;
+
+      const totalKm = pickup + trip;
+      const hours = minutes / 60;
+
+      const rKm = totalKm > 0 ? offer / totalKm : 0;
+      const rHour = hours > 0 ? offer / hours : 0;
+
+      const fuelInfo = getLastFuelInfo();
+      const fuelCost = totalKm * fuelInfo.costPerKm;
+      const reserve = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
+      const net = offer - fuelCost - reserve;
+
+      document.getElementById('simRateKm').innerText = `${formatBRL(rKm)}/km`;
+      document.getElementById('simRateHour').innerText = `${formatBRL(rHour)}/h`;
+      document.getElementById('simNet').innerText = formatBRL(net);
+
+      const vBox = document.getElementById('simVerdictBox');
+      if (rKm >= 2.5 && rHour >= 45) {
+        vBox.innerText = '🔥 CORRIDA EXCELENTE! (Super Lucro)';
+        vBox.style.background = 'rgba(16, 185, 129, 0.2)';
+        vBox.style.color = '#34d399';
+      } else if (rKm < 1.9 || rHour < 28) {
+        vBox.innerText = '❌ CUIDADO! Prejuízo ou Margem Mínima';
+        vBox.style.background = 'rgba(244, 63, 94, 0.2)';
+        vBox.style.color = '#fb7185';
+      } else {
+        vBox.innerText = '⚠️ Corrida Aceitável / Regular';
+        vBox.style.background = 'rgba(245, 158, 11, 0.2)';
+        vBox.style.color = '#fbbf24';
+      }
+    }
+
+    function calcFuel() {
+      const gasP = parseVal(document.getElementById('fuelGasPrice').value) || 5.89;
+      const gasKml = parseVal(document.getElementById('fuelGasKml').value) || 11.5;
+      const ethP = parseVal(document.getElementById('fuelEthPrice').value) || 3.89;
+      const ethKml = parseVal(document.getElementById('fuelEthKml').value) || 8.2;
+
+      // Update state fuelSettings
+      state.fuelSettings.gasolinePrice = gasP;
+      state.fuelSettings.gasolineKmPerL = gasKml;
+      state.fuelSettings.ethanolPrice = ethP;
+      state.fuelSettings.ethanolKmPerL = ethKml;
+
+      const costGas = gasKml > 0 ? gasP / gasKml : 0;
+      const costEth = ethKml > 0 ? ethP / ethKml : 0;
+      const ratio = gasP > 0 ? (ethP / gasP) * 100 : 0;
+
+      document.getElementById('costGas').innerText = `${formatBRL(costGas)}/km`;
+      document.getElementById('costEth').innerText = `${formatBRL(costEth)}/km`;
+      document.getElementById('fuelParityText').innerText = `Paridade real: ${ratio.toFixed(1)}% do preço da gasolina.`;
+
+      const v = document.getElementById('fuelVerdict');
+      if(costEth < costGas) {
+        v.innerText = '🏆 Abasteça com ETANOL! É mais econômico por KM.';
+        v.style.color = '#34d399';
+      } else {
+        v.innerText = '🏆 Abasteça com GASOLINA! Mais vantajosa no seu carro.';
+        v.style.color = '#fbbf24';
+      }
+    }
+
+    // ==============================================================
+    // GOOGLE DRIVE SYNC & BACKUP LOGIC
+    // ==============================================================
+    async function saveToGoogleDrive() {
+      const fileName = `motoristapro_backup_${getTodayString()}.json`;
+      const jsonStr = JSON.stringify(state, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const file = new File([blob], fileName, { type: 'application/json' });
+
+      // If smartphone supports native Web Share (Android/iOS)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: 'Backup MotoristaPro',
+            text: `Backup completo do MotoristaPro gerado em ${formatDate(getTodayString())}`,
+            files: [file]
+          });
+          alert('✅ Selecione o "Google Drive" na tela para salvar na sua pasta!');
+          return;
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            console.log('Share error, falling back to download:', err);
+          }
+        }
+      }
+
+      // Fallback: Download file directly
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert(`📁 Arquivo de Backup "${fileName}" baixado com sucesso!\n\nPara guardar no Google Drive:\n1. Abra o app do Google Drive no seu celular ou computador;\n2. Toque em "+" e envie o arquivo baixado para sua pasta de backups.`);
+    }
+
+    function triggerRestoreFromGoogleDrive() {
+      document.getElementById('gdriveFileInput').click();
+    }
+
+    function handleRestoreFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && (imported.shifts || imported.vehicle)) {
+            if (confirm(`Restaurar backup com ${imported.shifts?.length || 0} turnos e ${imported.expenses?.length || 0} despesas? Isso substituirá os dados atuais.`)) {
+              state = imported;
+              saveState();
+              alert('🎉 Backup restaurado com 100% de sucesso! Todos os seus turnos e médias foram carregados.');
+            }
+          } else {
+            alert('❌ Arquivo de backup inválido.');
+          }
+        } catch (err) {
+          alert('❌ Erro ao ler o arquivo JSON: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function renderWhatsApp() {
+      let totalGross = 0;
+      let totalTrips = 0;
+      const appTotals = {};
+
+      state.shifts.forEach(s => {
+        const sGross = getShiftTotalGross(s);
+        totalGross += sGross;
+        totalTrips += getShiftTotalTrips(s);
+
+        if (Array.isArray(s.apps)) {
+          s.apps.forEach(a => {
+            const k = a.name;
+            if (!appTotals[k]) {
+              appTotals[k] = { name: a.name, total: 0 };
+            }
+            appTotals[k].total += ((a.gross || 0) + (a.tips || 0));
+          });
+        }
+      });
+
+      const totalKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
+      const totalHours = state.shifts.reduce((a, s) => a + (s.hours || 0), 0);
+      const totalExp = state.expenses.reduce((a, e) => a + (e.amount || 0), 0);
+      const reserve = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
+      const net = totalGross - totalExp - reserve;
+
+      let appLines = '';
+      Object.keys(appTotals).forEach(k => {
+        const item = appTotals[k];
+        appLines += `• ${item.name}: *${formatBRL(item.total)}*\n`;
+      });
+
+      const lastFuel = getLastFuelInfo();
+
+      const text = `📊 *FECHAMENTO CONSOLIDADO - MOTORISTAPRO*
+🚗 Veículo: ${state.vehicle.model} (${state.vehicle.plate})
+⛽ Combustível Ativo: *${lastFuel.fuelType}* (${lastFuel.avgKml.toFixed(1)} km/L @ ${formatBRL(lastFuel.priceL)}/L)
+
+💰 *GANHOS POR APLICATIVO:*
+${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${formatBRL(totalGross)}*
+
+📉 *DESPESAS & DESGASTE:*
+• Despesas do Período: *-${formatBRL(totalExp)}*
+• Provisão de Manutenção (${formatBRL(state.vehicle.maintenanceReservePerKm)}/km): *-${formatBRL(reserve)}*
+🟢 *LUCRO LÍQUIDO REAL: ${formatBRL(net)}*
+
+📈 *EFICIÊNCIA OPERACIONAL:*
+• Total de Corridas: *${totalTrips}*
+• KM Rodados na Rua: *${totalKm.toFixed(1)} km*
+• Horas Trabalhadas: *${totalHours.toFixed(1)}h*
+• Média por KM Geral: *${formatBRL(totalKm > 0 ? totalGross/totalKm : 0)}/km*
+• Média por Hora Geral: *${formatBRL(totalHours > 0 ? totalGross/totalHours : 0)}/h*
+
+📱 Fechamento Multi-App pelo *MotoristaPro*`;
+
+      document.getElementById('whatsappBox').innerText = text;
+    }
+
+    function copyWhatsAppSummary() {
+      const text = document.getElementById('whatsappBox').innerText;
+      navigator.clipboard.writeText(text);
+      alert('Resumo do fechamento copiado com sucesso! Agora é só colar no WhatsApp.');
+    }
+
+    function exportCSV() {
+      let csv = 'data:text/csv;charset=utf-8,Tipo,Data,Periodo,Combustivel,TotalBruto(R$),KM,Horas,Observacoes\n';
+      state.shifts.forEach(s => {
+        const total = getShiftTotalGross(s);
+        csv += `Turno,${s.date},${s.period||'Integral'},${s.fuelTypeUsed||'Etanol'},${total},${s.km},${s.hours},"${s.notes||''}"\n`;
+      });
+      state.expenses.forEach(e => {
+        csv += `Despesa,${e.date},${e.category},${e.fuelType||''},-${e.amount},${e.odo || ''},,"${e.title}"\n`;
+      });
+
+      const uri = encodeURI(csv);
+      const link = document.createElement('a');
+      link.setAttribute('href', uri);
+      link.setAttribute('download', `motoristapro_${getTodayString()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function exportJSONBackup() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const link = document.createElement('a');
+      link.setAttribute('href', dataStr);
+      link.setAttribute('download', `motoristapro_backup_${getTodayString()}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function resetToDemo() {
+      if (confirm('Deseja recarregar os dados de demonstração padrão?')) {
+        state = JSON.parse(JSON.stringify(defaultData));
+        saveState();
+        alert('Dados de demonstração restaurados!');
+      }
+    }
+
+    function clearAllData() {
+      if (confirm('⚠️ Tem certeza que deseja limpar TODOS os turnos e despesas para começar do zero?')) {
+        state.shifts = [];
+        state.expenses = [];
+        saveState();
+        alert('Dados limpos com sucesso! Agora você pode começar seu próprio controle.');
+      }
+    }
+
+    // Initialize
+    render();
+    calculateTripSim();
+  </script>
+</body>
+</html>

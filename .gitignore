@@ -1,0 +1,14 @@
+# Dependências e artefatos de build — nunca versionar
+node_modules/
+*.zip
+.gradle/
+android/.gradle/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+build/
+dist/
+
+# Cache/lixo de SO e editores
+.DS_Store
+Thumbs.db
+*.log
