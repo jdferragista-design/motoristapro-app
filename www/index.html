@@ -991,16 +991,16 @@
           <div>
             <div class="form-group">
               <label class="form-label">Valor Oferecido pelo App (R$)</label>
-              <input type="text" inputmode="decimal" id="simOffer" class="form-control" value="28.50" oninput="calculateTripSim()" />
+              <input type="text" inputmode="decimal" id="simOffer" class="form-control" value="28,50" />
             </div>
             <div class="grid grid-2">
               <div class="form-group">
                 <label class="form-label">Busca Pax (KM)</label>
-                <input type="text" inputmode="decimal" id="simPickup" class="form-control" value="2.0" oninput="calculateTripSim()" />
+                <input type="text" inputmode="decimal" id="simPickup" class="form-control" value="2,00" />
               </div>
               <div class="form-group">
                 <label class="form-label">Viagem Pax (KM)</label>
-                <input type="text" inputmode="decimal" id="simTrip" class="form-control" value="8.5" oninput="calculateTripSim()" />
+                <input type="text" inputmode="decimal" id="simTrip" class="form-control" value="8,50" />
               </div>
             </div>
             <div class="form-group">
@@ -1048,19 +1048,19 @@
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Preço Gasolina (R$/L)</label>
-              <input type="text" inputmode="decimal" id="fuelGasPrice" class="form-control" value="5.89" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelGasPrice" class="form-control" value="5,89" />
             </div>
             <div class="form-group">
               <label class="form-label">Média Gasolina (km/L)</label>
-              <input type="text" inputmode="decimal" id="fuelGasKml" class="form-control" value="11.5" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelGasKml" class="form-control" value="11,50" />
             </div>
             <div class="form-group">
               <label class="form-label">Preço Etanol (R$/L)</label>
-              <input type="text" inputmode="decimal" id="fuelEthPrice" class="form-control" value="3.89" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelEthPrice" class="form-control" value="3,89" />
             </div>
             <div class="form-group">
               <label class="form-label">Média Etanol (km/L)</label>
-              <input type="text" inputmode="decimal" id="fuelEthKml" class="form-control" value="8.2" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelEthKml" class="form-control" value="8,20" />
             </div>
           </div>
 
@@ -1252,7 +1252,7 @@
             <div class="grid grid-3">
               <div>
                 <label class="form-label">Ganhos (R$) *</label>
-                <input type="text" inputmode="decimal" id="appGrossInput" class="form-control" placeholder="Ex: 285.50" />
+                <input type="text" inputmode="decimal" id="appGrossInput" class="form-control" placeholder="Ex: 285,50" />
               </div>
               <div>
                 <label class="form-label">Qtd. Viagens</label>
@@ -1260,7 +1260,7 @@
               </div>
               <div>
                 <label class="form-label">Gorjetas (R$)</label>
-                <input type="text" inputmode="decimal" id="appTipsInput" class="form-control" placeholder="0.00" />
+                <input type="text" inputmode="decimal" id="appTipsInput" class="form-control" placeholder="0,00" />
               </div>
             </div>
 
@@ -1346,11 +1346,11 @@
             <div class="grid grid-2">
               <div class="form-group" style="margin-bottom: 6px;">
                 <label class="form-label">KM Total Rodado no Turno *</label>
-                <input type="text" inputmode="decimal" id="shiftKmTotal" class="form-control" placeholder="Ex: 168.4" required oninput="recalcShiftLive()" />
+                <input type="text" inputmode="decimal" id="shiftKmTotal" class="form-control" placeholder="Ex: 168,40" required />
               </div>
               <div class="form-group" style="margin-bottom: 6px;">
                 <label class="form-label">Gasto Combustível Calculado (R$)</label>
-                <input type="text" inputmode="decimal" id="shiftFuelCost" class="form-control" placeholder="0.00" oninput="recalcShiftLive()" />
+                <input type="text" inputmode="decimal" id="shiftFuelCost" class="form-control" placeholder="0,00" />
               </div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -1436,7 +1436,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Valor Total Pago (R$)</label>
-              <input type="text" inputmode="decimal" id="expAmount" class="form-control" placeholder="0.00" required oninput="autoCalcPricePerLiter()" />
+              <input type="text" inputmode="decimal" id="expAmount" class="form-control" placeholder="0,00" required />
             </div>
           </div>
 
@@ -1448,7 +1448,7 @@
           <div id="fuelFieldsBox" class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Litros Abastecidos</label>
-              <input type="text" inputmode="decimal" id="expLitersInput" class="form-control" placeholder="Ex: 30.5" oninput="autoCalcPricePerLiter()" />
+              <input type="text" inputmode="decimal" id="expLitersInput" class="form-control" placeholder="Ex: 30,50" />
             </div>
             <div class="form-group">
               <label class="form-label">Odômetro no Posto (KM)</label>
@@ -1490,7 +1490,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Reserva Manutenção (R$/KM)</label>
-              <input type="text" inputmode="decimal" id="cfgReserve" class="form-control" value="0.18" required />
+              <input type="text" inputmode="decimal" id="cfgReserve" class="form-control" value="0,18" required />
             </div>
           </div>
           <div class="grid grid-2">
@@ -1500,7 +1500,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Meta R$/KM Mínima</label>
-              <input type="text" inputmode="decimal" id="cfgTargetKm" class="form-control" value="2.20" />
+              <input type="text" inputmode="decimal" id="cfgTargetKm" class="form-control" value="2,20" />
             </div>
           </div>
         </div>
@@ -1532,7 +1532,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Custo Médio Estimado (R$)</label>
-              <input type="text" inputmode="decimal" id="maintCostInput" class="form-control" placeholder="Ex: 150.00" required />
+              <input type="text" inputmode="decimal" id="maintCostInput" class="form-control" placeholder="Ex: 150,00" required />
             </div>
           </div>
           <div class="form-group">
@@ -1702,6 +1702,45 @@
       return String(str ?? '').replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }[c]));
+    }
+
+    // ---------- Máscara decimal (2 casas) sem precisar digitar vírgula ----------
+    // Digita só números: "28550" -> "285,50" (modelo centavos, padrão apps de pagamento)
+    function fmt2(v) {
+      const n = parseVal(v);
+      return n ? n.toFixed(2).replace('.', ',') : '';
+    }
+    function maskCents(input) {
+      const digits = input.value.replace(/\D/g, '');
+      input.value = digits ? (parseInt(digits, 10) / 100).toFixed(2).replace('.', ',') : '';
+    }
+    const CENTS_MASK_IDS = ['appGrossInput', 'appTipsInput', 'shiftKmTotal', 'shiftFuelCost',
+      'expAmount', 'expLitersInput', 'simOffer', 'simPickup', 'simTrip',
+      'fuelGasPrice', 'fuelGasKml', 'fuelEthPrice', 'fuelEthKml',
+      'cfgReserve', 'cfgTargetKm', 'maintCostInput'];
+    const CALC_AFTER_MASK = {
+      shiftKmTotal: () => recalcShiftLive(),
+      shiftFuelCost: () => recalcShiftLive(),
+      expAmount: () => autoCalcPricePerLiter(),
+      expLitersInput: () => autoCalcPricePerLiter(),
+      simOffer: () => calculateTripSim(),
+      simPickup: () => calculateTripSim(),
+      simTrip: () => calculateTripSim(),
+      fuelGasPrice: () => calcFuel(),
+      fuelGasKml: () => calcFuel(),
+      fuelEthPrice: () => calcFuel(),
+      fuelEthKml: () => calcFuel()
+    };
+    function wireCentsMasks() {
+      CENTS_MASK_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', () => {
+          maskCents(el);
+          const fn = CALC_AFTER_MASK[id];
+          if (fn) fn();
+        });
+      });
     }
 
     // ---------- Helpers de visualização (donut / área / sparkline) ----------
@@ -2020,10 +2059,10 @@
         const isGas = document.getElementById('expRadioGasoline').checked;
         if (isGas) {
           state.fuelSettings.gasolinePrice = pL;
-          document.getElementById('fuelGasPrice').value = pL.toFixed(2);
+          document.getElementById('fuelGasPrice').value = pL.toFixed(2).replace('.', ',');
         } else {
           state.fuelSettings.ethanolPrice = pL;
-          document.getElementById('fuelEthPrice').value = pL.toFixed(2);
+          document.getElementById('fuelEthPrice').value = pL.toFixed(2).replace('.', ',');
         }
       }
     }
@@ -2085,7 +2124,7 @@
       document.getElementById('shiftTimeStart').value = shift.timeStart || '07:00';
       document.getElementById('shiftTimeEnd').value = shift.timeEnd || '16:00';
       document.getElementById('shiftKmTotal').value = shift.km || '';
-      document.getElementById('shiftFuelCost').value = shift.fuelCost || '';
+      document.getElementById('shiftFuelCost').value = fmt2(shift.fuelCost);
       document.getElementById('shiftNotes').value = shift.notes || '';
       document.getElementById('shiftOdoStart').value = shift.odoStart || '';
 
@@ -2295,7 +2334,7 @@
       let fuelCost = parseVal(document.getElementById('shiftFuelCost').value);
       if (!fuelCost && km > 0) {
         fuelCost = autoCalculatedFuel;
-        document.getElementById('shiftFuelCost').value = autoCalculatedFuel.toFixed(2);
+        document.getElementById('shiftFuelCost').value = autoCalculatedFuel.toFixed(2).replace('.', ',');
       }
 
       const rKm = km > 0 ? totalShiftGross / km : 0;
@@ -2439,9 +2478,9 @@
 
       document.getElementById('expCat').value = exp.category || 'combustivel';
       document.getElementById('expDate').value = exp.date || getTodayString();
-      document.getElementById('expAmount').value = exp.amount || '';
+      document.getElementById('expAmount').value = fmt2(exp.amount);
       document.getElementById('expTitle').value = exp.title || '';
-      document.getElementById('expLitersInput').value = exp.liters || '';
+      document.getElementById('expLitersInput').value = exp.liters ? parseVal(exp.liters).toFixed(2).replace('.', ',') : '';
       document.getElementById('expOdoInput').value = exp.odo || '';
 
       if (exp.fuelType === 'Gasolina' || (exp.title && exp.title.toLowerCase().includes('gasolina'))) {
@@ -2517,7 +2556,7 @@
       document.getElementById('btnSaveMaintSubmit').innerText = 'Adicionar Item';
       document.getElementById('maintNameInput').value = '';
       document.getElementById('maintIntervalInput').value = '10000';
-      document.getElementById('maintCostInput').value = '150.00';
+      document.getElementById('maintCostInput').value = '150,00';
       document.getElementById('maintLastKmInput').value = state.vehicle.odometer || 60000;
       openModal('modalMaintItem');
     }
@@ -2531,7 +2570,7 @@
       document.getElementById('btnSaveMaintSubmit').innerText = 'Salvar Alterações';
       document.getElementById('maintNameInput').value = item.name;
       document.getElementById('maintIntervalInput').value = item.interval;
-      document.getElementById('maintCostInput').value = item.cost;
+      document.getElementById('maintCostInput').value = fmt2(item.cost);
       document.getElementById('maintLastKmInput').value = item.lastKm;
       openModal('modalMaintItem');
     }
@@ -2758,10 +2797,10 @@
       renderMaintenance();
 
       // Parity inputs fill
-      document.getElementById('fuelGasPrice').value = (state.fuelSettings.gasolinePrice || 5.89).toFixed(2);
-      document.getElementById('fuelGasKml').value = (state.fuelSettings.gasolineKmPerL || 11.5).toFixed(1);
-      document.getElementById('fuelEthPrice').value = (state.fuelSettings.ethanolPrice || 3.89).toFixed(2);
-      document.getElementById('fuelEthKml').value = (state.fuelSettings.ethanolKmPerL || 8.2).toFixed(1);
+      document.getElementById('fuelGasPrice').value = (state.fuelSettings.gasolinePrice || 5.89).toFixed(2).replace('.', ',');
+      document.getElementById('fuelGasKml').value = (state.fuelSettings.gasolineKmPerL || 11.5).toFixed(2).replace('.', ',');
+      document.getElementById('fuelEthPrice').value = (state.fuelSettings.ethanolPrice || 3.89).toFixed(2).replace('.', ',');
+      document.getElementById('fuelEthKml').value = (state.fuelSettings.ethanolKmPerL || 8.2).toFixed(2).replace('.', ',');
       calcFuel();
 
       // WhatsApp text
@@ -3230,6 +3269,7 @@ ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${f
     }
 
     // Initialize
+    wireCentsMasks();
     render();
     calculateTripSim();
   </script>
