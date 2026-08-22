@@ -991,21 +991,21 @@
           <div>
             <div class="form-group">
               <label class="form-label">Valor Oferecido pelo App (R$)</label>
-              <input type="text" id="simOffer" class="form-control" value="28.50" oninput="calculateTripSim()" />
+              <input type="text" inputmode="decimal" id="simOffer" class="form-control" value="28.50" oninput="calculateTripSim()" />
             </div>
             <div class="grid grid-2">
               <div class="form-group">
                 <label class="form-label">Busca Pax (KM)</label>
-                <input type="text" id="simPickup" class="form-control" value="2.0" oninput="calculateTripSim()" />
+                <input type="text" inputmode="decimal" id="simPickup" class="form-control" value="2.0" oninput="calculateTripSim()" />
               </div>
               <div class="form-group">
                 <label class="form-label">Viagem Pax (KM)</label>
-                <input type="text" id="simTrip" class="form-control" value="8.5" oninput="calculateTripSim()" />
+                <input type="text" inputmode="decimal" id="simTrip" class="form-control" value="8.5" oninput="calculateTripSim()" />
               </div>
             </div>
             <div class="form-group">
               <label class="form-label">Tempo Total Estimado (Minutos)</label>
-              <input type="number" id="simMinutes" class="form-control" value="22" oninput="calculateTripSim()" />
+              <input type="number" inputmode="numeric" id="simMinutes" class="form-control" value="22" oninput="calculateTripSim()" />
             </div>
           </div>
 
@@ -1048,19 +1048,19 @@
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Preço Gasolina (R$/L)</label>
-              <input type="text" id="fuelGasPrice" class="form-control" value="5.89" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelGasPrice" class="form-control" value="5.89" oninput="calcFuel()" />
             </div>
             <div class="form-group">
               <label class="form-label">Média Gasolina (km/L)</label>
-              <input type="text" id="fuelGasKml" class="form-control" value="11.5" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelGasKml" class="form-control" value="11.5" oninput="calcFuel()" />
             </div>
             <div class="form-group">
               <label class="form-label">Preço Etanol (R$/L)</label>
-              <input type="text" id="fuelEthPrice" class="form-control" value="3.89" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelEthPrice" class="form-control" value="3.89" oninput="calcFuel()" />
             </div>
             <div class="form-group">
               <label class="form-label">Média Etanol (km/L)</label>
-              <input type="text" id="fuelEthKml" class="form-control" value="8.2" oninput="calcFuel()" />
+              <input type="text" inputmode="decimal" id="fuelEthKml" class="form-control" value="8.2" oninput="calcFuel()" />
             </div>
           </div>
 
@@ -1252,15 +1252,15 @@
             <div class="grid grid-3">
               <div>
                 <label class="form-label">Ganhos (R$) *</label>
-                <input type="text" id="appGrossInput" class="form-control" placeholder="Ex: 285.50" />
+                <input type="text" inputmode="decimal" id="appGrossInput" class="form-control" placeholder="Ex: 285.50" />
               </div>
               <div>
                 <label class="form-label">Qtd. Viagens</label>
-                <input type="number" id="appTripsInput" class="form-control" placeholder="Ex: 14" />
+                <input type="number" inputmode="numeric" id="appTripsInput" class="form-control" placeholder="Ex: 14" />
               </div>
               <div>
                 <label class="form-label">Gorjetas (R$)</label>
-                <input type="text" id="appTipsInput" class="form-control" placeholder="0.00" />
+                <input type="text" inputmode="decimal" id="appTipsInput" class="form-control" placeholder="0.00" />
               </div>
             </div>
 
@@ -1340,17 +1340,17 @@
             <!-- Odômetro no início: aparece só no 1º lançamento do dia -->
             <div class="form-group" id="odoStartGroup" style="display: none; margin-bottom: 10px;">
               <label class="form-label">🏠 Odômetro no Início do Turno (1º lançamento do dia)</label>
-              <input type="number" id="shiftOdoStart" class="form-control" placeholder="Ex: 64850" oninput="recalcShiftLive()" />
+              <input type="number" inputmode="numeric" id="shiftOdoStart" class="form-control" placeholder="Ex: 64850" oninput="recalcShiftLive()" />
               <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;" id="odoStartHint">Permite calcular quantos km você rodou fora do trabalho.</div>
             </div>
             <div class="grid grid-2">
               <div class="form-group" style="margin-bottom: 6px;">
                 <label class="form-label">KM Total Rodado no Turno *</label>
-                <input type="text" id="shiftKmTotal" class="form-control" placeholder="Ex: 168.4" required oninput="recalcShiftLive()" />
+                <input type="text" inputmode="decimal" id="shiftKmTotal" class="form-control" placeholder="Ex: 168.4" required oninput="recalcShiftLive()" />
               </div>
               <div class="form-group" style="margin-bottom: 6px;">
                 <label class="form-label">Gasto Combustível Calculado (R$)</label>
-                <input type="text" id="shiftFuelCost" class="form-control" placeholder="0.00" oninput="recalcShiftLive()" />
+                <input type="text" inputmode="decimal" id="shiftFuelCost" class="form-control" placeholder="0.00" oninput="recalcShiftLive()" />
               </div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -1436,7 +1436,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Valor Total Pago (R$)</label>
-              <input type="text" id="expAmount" class="form-control" placeholder="0.00" required oninput="autoCalcPricePerLiter()" />
+              <input type="text" inputmode="decimal" id="expAmount" class="form-control" placeholder="0.00" required oninput="autoCalcPricePerLiter()" />
             </div>
           </div>
 
@@ -1448,11 +1448,11 @@
           <div id="fuelFieldsBox" class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Litros Abastecidos</label>
-              <input type="text" id="expLitersInput" class="form-control" placeholder="Ex: 30.5" oninput="autoCalcPricePerLiter()" />
+              <input type="text" inputmode="decimal" id="expLitersInput" class="form-control" placeholder="Ex: 30.5" oninput="autoCalcPricePerLiter()" />
             </div>
             <div class="form-group">
               <label class="form-label">Odômetro no Posto (KM)</label>
-              <input type="number" id="expOdoInput" class="form-control" placeholder="Ex: 64850" />
+              <input type="number" inputmode="numeric" id="expOdoInput" class="form-control" placeholder="Ex: 64850" />
             </div>
           </div>
         </div>
@@ -1486,21 +1486,21 @@
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Odômetro Atual (KM)</label>
-              <input type="number" id="cfgOdo" class="form-control" value="64850" required />
+              <input type="number" inputmode="numeric" id="cfgOdo" class="form-control" value="64850" required />
             </div>
             <div class="form-group">
               <label class="form-label">Reserva Manutenção (R$/KM)</label>
-              <input type="text" id="cfgReserve" class="form-control" value="0.18" required />
+              <input type="text" inputmode="decimal" id="cfgReserve" class="form-control" value="0.18" required />
             </div>
           </div>
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Meta Bruta Mensal (R$)</label>
-              <input type="number" id="cfgMonthlyGoal" class="form-control" value="7000" />
+              <input type="number" inputmode="numeric" id="cfgMonthlyGoal" class="form-control" value="7000" />
             </div>
             <div class="form-group">
               <label class="form-label">Meta R$/KM Mínima</label>
-              <input type="text" id="cfgTargetKm" class="form-control" value="2.20" />
+              <input type="text" inputmode="decimal" id="cfgTargetKm" class="form-control" value="2.20" />
             </div>
           </div>
         </div>
@@ -1528,16 +1528,16 @@
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Intervalo de Troca (a cada X km)</label>
-              <input type="number" id="maintIntervalInput" class="form-control" placeholder="Ex: 10000" required />
+              <input type="number" inputmode="numeric" id="maintIntervalInput" class="form-control" placeholder="Ex: 10000" required />
             </div>
             <div class="form-group">
               <label class="form-label">Custo Médio Estimado (R$)</label>
-              <input type="text" id="maintCostInput" class="form-control" placeholder="Ex: 150.00" required />
+              <input type="text" inputmode="decimal" id="maintCostInput" class="form-control" placeholder="Ex: 150.00" required />
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Odômetro da Última Troca (KM)</label>
-            <input type="number" id="maintLastKmInput" class="form-control" placeholder="Ex: 60000" required />
+            <input type="number" inputmode="numeric" id="maintLastKmInput" class="form-control" placeholder="Ex: 60000" required />
           </div>
         </div>
         <div class="modal-footer">
