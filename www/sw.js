@@ -1,5 +1,5 @@
 /* MotoristaPro Service Worker — suporte offline 100% (cache-first com atualização em background) */
-const CACHE = 'motoristapro-v1';
+const CACHE = 'motoristapro-v2';
 const ASSETS = [
   'index.html',
   'manifest.json',
@@ -25,6 +25,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // O próprio Service Worker nunca pode ser servido do cache (impediria updates)
+  if (event.request.url.endsWith('sw.js')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then(cached => {
