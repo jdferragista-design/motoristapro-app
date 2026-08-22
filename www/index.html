@@ -632,6 +632,37 @@
       justify-content: space-between;
       margin-top: 6px;
     }
+
+    /* Period switch (painel) */
+    .period-switch {
+      display: flex;
+      gap: 4px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+      width: max-content;
+      max-width: 100%;
+      overflow-x: auto;
+      margin-bottom: 12px;
+    }
+    .period-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 9px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .period-btn.active {
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
+    }
   </style>
 </head>
 <body>
@@ -713,12 +744,20 @@
         <button class="btn btn-primary btn-sm" onclick="promptInstallPWA()">Instalar</button>
       </div>
 
+      <!-- Seletor de Período do Painel -->
+      <div class="period-switch" role="tablist" aria-label="Período do painel">
+        <button class="period-btn" onclick="setDashPeriod('7', this)">7 dias</button>
+        <button class="period-btn active" onclick="setDashPeriod('month', this)">Este mês</button>
+        <button class="period-btn" onclick="setDashPeriod('30', this)">30 dias</button>
+        <button class="period-btn" onclick="setDashPeriod('all', this)">Tudo</button>
+      </div>
+
       <!-- Top Overview Card -->
       <div class="card" style="background: linear-gradient(135deg, #151528 0%, #1c1c36 100%); border-color: rgba(139, 92, 246, 0.25);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
             <div class="card-title">Resumo Financeiro Consolidado</div>
-            <div class="card-subtitle">Faturamento Bruto de Todos os Apps vs Lucro Líquido Real</div>
+            <div class="card-subtitle" id="dashPeriodLabel">Faturamento Bruto de Todos os Apps vs Lucro Líquido Real</div>
           </div>
           <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);" id="dashMargin">68% Margem</span>
         </div>
@@ -783,6 +822,7 @@
             <div class="metric-sub" id="dashAvgTripSub">10,1 km por viagem</div>
           </div>
         </div>
+        <div class="highlight-pill" id="outsideKmPill" style="display: none;"></div>
       </div>
 
       <!-- Platform Breakdown Cards -->
@@ -881,6 +921,8 @@
           <div class="metric-val val-sky" id="expAvgPrice">R$ 4,71/L</div>
         </div>
       </div>
+
+      <div class="highlight-pill" id="realKmlBox" style="display: none; margin-bottom: 14px;"></div>
 
       <div style="margin-bottom: 10px;">
         <input type="text" id="expenseSearchInput" placeholder="🔍 Buscar por descrição ou posto..." class="form-control" oninput="renderExpensesList()" />
@@ -1109,14 +1151,9 @@
       <div class="card" style="border-color: rgba(244, 63, 94, 0.35);">
         <div class="card-title" style="color: #fb7185;">⚠️ Zona de Perigo</div>
         <div class="card-subtitle" style="margin-bottom: 14px;">Ações irreversíveis — faça um backup antes de continuar</div>
-        <div class="grid grid-2">
-          <button class="btn btn-secondary" onclick="resetToDemo()">
-            ♻️ Restaurar Dados de Demonstração
-          </button>
-          <button class="btn btn-danger" onclick="clearAllData()">
-            🗑️ Limpar Todos os Dados
-          </button>
-        </div>
+        <button class="btn btn-danger" style="width: 100%;" onclick="clearAllData()">
+          🗑️ Limpar Todos os Dados
+        </button>
       </div>
 
     </div>
@@ -1169,7 +1206,7 @@
         <div class="grid grid-2" style="margin-bottom: 12px;">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label">Data do Turno</label>
-            <input type="date" id="shiftDate" class="form-control" required />
+            <input type="date" id="shiftDate" class="form-control" required onchange="updateOdoStartVisibility()" />
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label">Período / Turno</label>
@@ -1299,6 +1336,12 @@
 
           <!-- Quilometragem Rodada -->
           <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+            <!-- Odômetro no início: aparece só no 1º lançamento do dia -->
+            <div class="form-group" id="odoStartGroup" style="display: none; margin-bottom: 10px;">
+              <label class="form-label">🏠 Odômetro no Início do Turno (1º lançamento do dia)</label>
+              <input type="number" id="shiftOdoStart" class="form-control" placeholder="Ex: 64850" oninput="recalcShiftLive()" />
+              <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;" id="odoStartHint">Permite calcular quantos km você rodou fora do trabalho.</div>
+            </div>
             <div class="grid grid-2">
               <div class="form-group" style="margin-bottom: 6px;">
                 <label class="form-label">KM Total Rodado no Turno *</label>
@@ -1631,10 +1674,7 @@
     if (localStorage.getItem('mp_html_state_v8')) {
       try {
         const saved = JSON.parse(localStorage.getItem('mp_html_state_v8'));
-        if (saved && saved.vehicle) {
-          state = saved;
-          if (!state.fuelSettings) state.fuelSettings = defaultData.fuelSettings;
-        }
+        if (saved && saved.vehicle) state = migrateState(saved);
       } catch(e){}
     }
 
@@ -1764,6 +1804,60 @@
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
+    }
+
+    // ID numérico único (evita colisão de Date.now() no mesmo ms)
+    function uid() {
+      let id = Date.now();
+      const taken = new Set([...state.shifts, ...state.expenses, ...state.maintenance].map(x => x.id));
+      while (taken.has(id)) id++;
+      return id;
+    }
+
+    // Validação/migração de schema: garante que restauros e loads antigos
+    // nunca quebrem o app por campos faltando
+    function migrateState(s) {
+      const base = JSON.parse(JSON.stringify(defaultData));
+      return {
+        vehicle: Object.assign({}, base.vehicle, (s && s.vehicle) || {}),
+        fuelSettings: Object.assign({}, base.fuelSettings, (s && s.fuelSettings) || {}),
+        shifts: Array.isArray(s && s.shifts) ? s.shifts : [],
+        expenses: Array.isArray(s && s.expenses) ? s.expenses : [],
+        maintenance: Array.isArray(s && s.maintenance) ? s.maintenance : []
+      };
+    }
+
+    // ---------- Período do painel ----------
+    let dashPeriod = 'month';
+    function inPeriod(dateStr) {
+      if (dashPeriod === 'all') return true;
+      if (!dateStr) return false;
+      const now = new Date();
+      if (dashPeriod === 'month') return dateStr.startsWith(getTodayString().slice(0, 7));
+      const days = dashPeriod === '7' ? 7 : 30;
+      const from = new Date();
+      from.setDate(from.getDate() - (days - 1));
+      const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return dateStr >= iso(from) && dateStr <= iso(now);
+    }
+    function setDashPeriod(p, btn) {
+      dashPeriod = p;
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b === btn));
+      render();
+    }
+
+    // ---------- Odômetro & km fora do trabalho ----------
+    // Última leitura conhecida ANTES de uma data: abastecimentos com odômetro
+    // e fins de turno derivados (odoStart + km) de dias anteriores.
+    function getOdoBeforeDate(dateStr) {
+      let odo = 0;
+      state.expenses.forEach(e => { if (e.odo && e.date && e.date < dateStr) odo = Math.max(odo, e.odo); });
+      state.shifts.forEach(s => { if (s.odoStart && s.date && s.date < dateStr) odo = Math.max(odo, s.odoStart + (s.km || 0)); });
+      return odo;
+    }
+    function getKmFora(s) {
+      if (!s.odoStart) return null;
+      return Math.max(0, s.odoStart - getOdoBeforeDate(s.date));
     }
 
     function getShiftTotalGross(s) {
@@ -1959,12 +2053,22 @@
       document.getElementById('shiftFuelCost').value = '';
       document.getElementById('shiftNotes').value = '';
       document.getElementById('shiftFuelOverrideSelect').value = 'auto';
+      document.getElementById('shiftOdoStart').value = '';
 
       stagedShiftApps = [];
       renderStagedApps();
       calculateShiftHoursAuto();
+      updateOdoStartVisibility();
       updateShiftFuelRateSelection();
       openModal('modalShift');
+    }
+
+    // Odômetro no início do turno: visível apenas no 1º lançamento do dia
+    function updateOdoStartVisibility() {
+      const date = document.getElementById('shiftDate').value || getTodayString();
+      const firstOfDay = !state.shifts.some(s => s.date === date && s.id !== editingShiftId);
+      document.getElementById('odoStartGroup').style.display = firstOfDay ? 'block' : 'none';
+      recalcShiftLive();
     }
 
     function openEditShiftModal(id) {
@@ -1982,6 +2086,7 @@
       document.getElementById('shiftKmTotal').value = shift.km || '';
       document.getElementById('shiftFuelCost').value = shift.fuelCost || '';
       document.getElementById('shiftNotes').value = shift.notes || '';
+      document.getElementById('shiftOdoStart').value = shift.odoStart || '';
 
       if (shift.fuelTypeUsed) {
         document.getElementById('shiftFuelOverrideSelect').value = shift.fuelTypeUsed.toLowerCase();
@@ -1992,6 +2097,7 @@
       stagedShiftApps = Array.isArray(shift.apps) ? JSON.parse(JSON.stringify(shift.apps)) : [];
       renderStagedApps();
       calculateShiftHoursAuto();
+      updateOdoStartVisibility();
       updateShiftFuelRateSelection();
       openModal('modalShift');
     }
@@ -2200,6 +2306,21 @@
       document.getElementById('liveShiftRateKm').innerText = `${formatBRL(rKm)}/km`;
       document.getElementById('liveShiftRateHour').innerText = `${formatBRL(rHour)}/h`;
       document.getElementById('liveShiftNet').innerText = formatBRL(net);
+
+      // Feedback ao vivo do km fora do trabalho (1º lançamento do dia)
+      const odoGroup = document.getElementById('odoStartGroup');
+      if (odoGroup && odoGroup.style.display !== 'none') {
+        const odoVal = parseVal(document.getElementById('shiftOdoStart').value);
+        const hint = document.getElementById('odoStartHint');
+        const date = document.getElementById('shiftDate').value || getTodayString();
+        const before = getOdoBeforeDate(date);
+        if (odoVal > 0) {
+          const gap = Math.max(0, odoVal - before);
+          hint.innerHTML = `Última leitura conhecida: <strong>${before.toLocaleString('pt-BR')} km</strong> → ≈ <strong class="val-violet">${gap.toFixed(0)} km fora do trabalho</strong> antes deste turno.`;
+        } else {
+          hint.innerText = 'Permite calcular quantos km você rodou fora do trabalho.';
+        }
+      }
     }
 
     function saveFinalShift() {
@@ -2213,6 +2334,15 @@
       const notes = document.getElementById('shiftNotes').value;
       const override = document.getElementById('shiftFuelOverrideSelect').value;
       const fuelTypeUsed = (override === 'auto') ? getLastFuelInfo().fuelType : (override === 'gasolina' ? 'Gasolina' : 'Etanol');
+
+      // Odômetro no início (apenas 1º lançamento do dia)
+      let odoStart;
+      if (document.getElementById('odoStartGroup').style.display !== 'none') {
+        const v = parseVal(document.getElementById('shiftOdoStart').value);
+        odoStart = v > 0 ? v : undefined;
+      } else if (editingShiftId) {
+        odoStart = (state.shifts.find(s => s.id === editingShiftId) || {}).odoStart;
+      }
 
       if (stagedShiftApps.length === 0 && km === 0) {
         alert('Por favor, adicione ao menos os ganhos de um aplicativo na caixa de seleção.');
@@ -2237,12 +2367,13 @@
             timeEnd,
             fuelCost,
             fuelTypeUsed,
-            notes
+            notes,
+            odoStart
           };
         }
       } else {
         const newShift = {
-          id: Date.now(),
+          id: uid(),
           date,
           period,
           apps: [...stagedShiftApps],
@@ -2252,12 +2383,19 @@
           timeEnd,
           fuelCost,
           fuelTypeUsed,
-          notes
+          notes,
+          odoStart
         };
         state.shifts.unshift(newShift);
         // REGRA DE NEGÓCIO: o km do turno pertence à jornada de trabalho e NÃO
-        // altera o odômetro. O odômetro é atualizado apenas por abastecimentos
-        // (odômetro informado no posto) e manutenções.
+        // soma no odômetro como leitura. O odômetro avança por leituras reais:
+        // abastecimentos, manutenções e o fim de turno derivado do 1º lançamento
+        // do dia (odoStart + km) — base p/ calcular km fora do trabalho.
+      }
+
+      if (odoStart) {
+        const endOdo = odoStart + km;
+        if (endOdo > (state.vehicle.odometer || 0)) state.vehicle.odometer = endOdo;
       }
 
       saveState();
@@ -2346,7 +2484,7 @@
         }
       } else {
         state.expenses.unshift({
-          id: Date.now(),
+          id: uid(),
           date, category: cat, title, amount, liters, odo, fuelType, pricePerLiter
         });
       }
@@ -2414,7 +2552,7 @@
         }
       } else {
         state.maintenance.push({
-          id: Date.now(),
+          id: uid(),
           name, interval, cost, lastKm
         });
       }
@@ -2442,7 +2580,7 @@
       item.lastKm = state.vehicle.odometer;
 
       state.expenses.unshift({
-        id: Date.now(),
+        id: uid(),
         date: getTodayString(),
         category: 'manutencao',
         title: item.name,
@@ -2470,12 +2608,18 @@
     function render() {
       document.getElementById('topCarInfo').innerText = `${state.vehicle.model} • ${state.vehicle.plate} (100% Local + Google Drive)`;
 
-      // Aggregates
+      // Aggregates — escopadas pelo período selecionado no painel
+      const pShifts = state.shifts.filter(s => inPeriod(s.date));
+      const pExpenses = state.expenses.filter(e => inPeriod(e.date));
+      const periodLabels = { '7': 'últimos 7 dias', '30': 'últimos 30 dias', month: 'este mês', all: 'todo o histórico' };
+      const periodLabelEl = document.getElementById('dashPeriodLabel');
+      if (periodLabelEl) periodLabelEl.innerText = `Faturamento Bruto vs Lucro Líquido Real • Período: ${periodLabels[dashPeriod]}`;
+
       let totalGross = 0;
       let totalTrips = 0;
       const appTotals = {};
 
-      state.shifts.forEach(s => {
+      pShifts.forEach(s => {
         const sGross = getShiftTotalGross(s);
         const sTrips = getShiftTotalTrips(s);
         totalGross += sGross;
@@ -2492,10 +2636,10 @@
         }
       });
 
-      const totalKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
-      const totalHours = state.shifts.reduce((a, s) => a + (s.hours || 0), 0);
+      const totalKm = pShifts.reduce((a, s) => a + (s.km || 0), 0);
+      const totalHours = pShifts.reduce((a, s) => a + (s.hours || 0), 0);
 
-      const totalExpenses = state.expenses.reduce((a, e) => a + (e.amount || 0), 0);
+      const totalExpenses = pExpenses.reduce((a, e) => a + (e.amount || 0), 0);
       const reserveAccrued = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
       const netProfit = totalGross - totalExpenses - reserveAccrued;
       const netMargin = totalGross > 0 ? (netProfit / totalGross) * 100 : 0;
@@ -2520,6 +2664,19 @@
       document.getElementById('dashCpk').innerText = formatBRL(cpk) + '/km';
       document.getElementById('dashAvgTrip').innerText = formatBRL(totalTrips > 0 ? totalGross / totalTrips : 0);
       document.getElementById('dashAvgTripSub').innerText = `${totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0.0'} km por viagem`;
+
+      // Km rodados fora do trabalho (uso pessoal entre turnos)
+      const outsidePill = document.getElementById('outsideKmPill');
+      if (outsidePill) {
+        const withOdo = state.shifts.filter(s => s.odoStart);
+        if (withOdo.length > 0) {
+          const outsideTotal = withOdo.reduce((a, s) => a + (getKmFora(s) || 0), 0);
+          outsidePill.style.display = 'flex';
+          outsidePill.innerHTML = `<span style="font-size: 12px; color: var(--text-muted);">🏠 Rodado fora do trabalho (uso pessoal):</span><strong class="val-violet" style="font-size: 14px;">${outsideTotal.toFixed(0)} km</strong>`;
+        } else {
+          outsidePill.style.display = 'none';
+        }
+      }
 
       // Platform Breakdown — donut + legenda (visual novo)
       const pbGrid = document.getElementById('platformBreakdownGrid');
@@ -2655,6 +2812,7 @@
               <span class="badge" style="background: rgba(16,185,129,0.2); color:#34d399; font-weight:800;">Turno ${esc(s.period || 'Integral')}</span>
               <span style="font-size: 12px; color: var(--text-muted);">${formatDate(s.date)} ${s.timeStart ? `• ${esc(s.timeStart)} às ${esc(s.timeEnd)}` : ''}</span>
               ${s.fuelTypeUsed ? `<span class="badge" style="background: rgba(245,158,11,0.15); color: #fbbf24; font-size: 10px;">⛽ ${esc(s.fuelTypeUsed)}</span>` : ''}
+              ${s.odoStart ? `<span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 10px;">🏠 ${(getKmFora(s) || 0).toFixed(0)} km fora do trabalho</span>` : ''}
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <strong style="font-size: 16px; color: #fff;">${formatBRL(sGross)}</strong>
@@ -2749,6 +2907,25 @@
       document.getElementById('expFuel').innerText = formatBRL(fuelExp);
       document.getElementById('expLiters').innerText = `${liters.toFixed(1)} L`;
       document.getElementById('expAvgPrice').innerText = liters > 0 ? `${formatBRL(fuelExp / liters)}/L` : 'R$ 0,00/L';
+
+      // Média REAL do carro: Δodômetro ÷ litros entre os 2 últimos abastecimentos com odômetro
+      const kmlBox = document.getElementById('realKmlBox');
+      if (kmlBox) {
+        const fuelWithOdo = state.expenses
+          .filter(e => e.category === 'combustivel' && e.odo > 0)
+          .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+        if (fuelWithOdo.length >= 2) {
+          const a = fuelWithOdo[fuelWithOdo.length - 2];
+          const b = fuelWithOdo[fuelWithOdo.length - 1];
+          const dKm = (b.odo || 0) - (a.odo || 0);
+          if (dKm > 0 && (b.liters || 0) > 0) {
+            kmlBox.style.display = 'flex';
+            kmlBox.innerHTML = `<span style="font-size: 12px; color: var(--text-muted);">🛞 Média real do carro (últimos abastecimentos com odômetro):</span><strong class="val-sky" style="font-size: 14px;">${(dKm / b.liters).toFixed(1)} km/L</strong>`;
+            return;
+          }
+        }
+        kmlBox.style.display = 'none';
+      }
     }
 
     function renderMaintenance() {
@@ -2911,7 +3088,7 @@
           const imported = JSON.parse(e.target.result);
           if (imported && (imported.shifts || imported.vehicle)) {
             if (confirm(`Restaurar backup com ${imported.shifts?.length || 0} turnos e ${imported.expenses?.length || 0} despesas? Isso substituirá os dados atuais.`)) {
-              state = imported;
+              state = migrateState(imported);
               saveState();
               alert('🎉 Backup restaurado com 100% de sucesso! Todos os seus turnos e médias foram carregados.');
             }
@@ -2991,23 +3168,45 @@ ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${f
       alert('Resumo do fechamento copiado com sucesso! Agora é só colar no WhatsApp.');
     }
 
+    // CSV compatível com Excel BR: BOM UTF-8, separador ";", decimal com vírgula,
+    // datas dd/mm/aaaa e seções separadas p/ turnos e despesas
     function exportCSV() {
-      let csv = 'data:text/csv;charset=utf-8,Tipo,Data,Periodo,Combustivel,TotalBruto(R$),KM,Horas,Observacoes\n';
+      const S = ';';
+      const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const num = v => (Number(v) || 0).toFixed(2).replace('.', ',');
+      const lines = [];
+
+      lines.push('TURNOS');
+      lines.push(['Data', 'Período', 'Aplicativos', 'Bruto (R$)', 'Viagens', 'KM', 'Horas', 'Combustível (R$)', 'Odômetro início (km)', 'Km fora do trabalho', 'Observações'].join(S));
       state.shifts.forEach(s => {
-        const total = getShiftTotalGross(s);
-        csv += `Turno,${s.date},${s.period||'Integral'},${s.fuelTypeUsed||'Etanol'},${total},${s.km},${s.hours},"${s.notes||''}"\n`;
-      });
-      state.expenses.forEach(e => {
-        csv += `Despesa,${e.date},${e.category},${e.fuelType||''},-${e.amount},${e.odo || ''},,"${e.title}"\n`;
+        const apps = Array.isArray(s.apps) ? s.apps.map(a => `${a.name} ${num((a.gross || 0) + (a.tips || 0))}`).join(' | ') : '';
+        const fora = getKmFora(s);
+        lines.push([
+          formatDate(s.date), q(s.period || 'Integral'), q(apps), num(getShiftTotalGross(s)),
+          getShiftTotalTrips(s), num(s.km), num(s.hours), num(s.fuelCost),
+          s.odoStart || '', fora !== null ? fora.toFixed(0) : '', q(s.notes || '')
+        ].join(S));
       });
 
-      const uri = encodeURI(csv);
+      lines.push('');
+      lines.push('DESPESAS');
+      lines.push(['Data', 'Categoria', 'Descrição', 'Valor (R$)', 'Combustível', 'Litros', 'R$/L', 'Odômetro (km)'].join(S));
+      state.expenses.forEach(e => {
+        lines.push([
+          formatDate(e.date), q(e.category), q(e.title), num(e.amount),
+          q(e.fuelType || ''), e.liters ? num(e.liters) : '', e.pricePerLiter ? num(e.pricePerLiter) : '', e.odo || ''
+        ].join(S));
+      });
+
+      const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.setAttribute('href', uri);
-      link.setAttribute('download', `motoristapro_${getTodayString()}.csv`);
+      link.href = url;
+      link.download = `motoristapro_${getTodayString()}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
 
     function exportJSONBackup() {
@@ -3018,14 +3217,6 @@ ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${f
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }
-
-    function resetToDemo() {
-      if (confirm('Deseja recarregar os dados de demonstração padrão?')) {
-        state = JSON.parse(JSON.stringify(defaultData));
-        saveState();
-        alert('Dados de demonstração restaurados!');
-      }
     }
 
     function clearAllData() {
