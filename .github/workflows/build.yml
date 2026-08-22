@@ -24,10 +24,10 @@ jobs:
         distribution: 'zulu'
         java-version: 17
 
-    - name: Configurar Node.js
+    - name: Configurar Node.js 22
       uses: actions/setup-node@v4
       with:
-        node-version: 18
+        node-version: 22
 
     - name: Instalar Dependencias e Sincronizar
       run: |
@@ -45,7 +45,7 @@ jobs:
           cd android
         fi
         chmod +x gradlew
-        ./gradlew assembleDebug
+        ./gradlew assembleDebug --stacktrace
 
     - name: Disponibilizar APK para Download
       uses: actions/upload-artifact@v4
