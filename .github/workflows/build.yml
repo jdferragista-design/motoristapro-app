@@ -13,11 +13,6 @@ jobs:
     - name: Baixar Repositorio
       uses: actions/checkout@v4
 
-    - name: Descompactar Projeto
-      run: |
-        unzip -o motoristapro-app.zip
-        ls -la
-
     - name: Configurar Java 21
       uses: actions/setup-java@v4
       with:
@@ -28,25 +23,19 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
+        cache: 'npm'
 
     - name: Configurar Android SDK
       uses: android-actions/setup-android@v3
 
     - name: Instalar Dependencias e Sincronizar
       run: |
-        if [ -d "motoristapro-app" ]; then
-          cd motoristapro-app
-        fi
-        npm install
+        npm ci
         npx cap sync android
 
     - name: Compilar APK Android
+      working-directory: android
       run: |
-        if [ -d "motoristapro-app/android" ]; then
-          cd motoristapro-app/android
-        elif [ -d "android" ]; then
-          cd android
-        fi
         chmod +x gradlew
         ./gradlew assembleDebug --no-daemon
 
@@ -54,4 +43,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: MotoristaPro-Instalador-Android
-        path: "**/app/build/outputs/apk/debug/app-debug.apk"
+        path: android/app/build/outputs/apk/debug/app-debug.apk
