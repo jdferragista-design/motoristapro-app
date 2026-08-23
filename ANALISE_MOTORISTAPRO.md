@@ -170,6 +170,26 @@ Permanecem em aberto (P1/P2 das seções 2–5): filtro por período/mês, valid
 
 **Verificação:** `node --check` + execução do script com DOM simulado + prova de acurácia (float vs centavos) incluída no commit.
 
+### 9.1 Modularização (restrição de arquivo único removida pelo proprietário)
+
+Com o aval de que o app não precisa ser um arquivo único (APK será gerado depois via Capacitor, que empacota `www/` inteiro), o monólito de 2,8 mil linhas foi dividido em:
+
+```
+www/
+├── index.html          (só markup + referências)
+├── css/style.css       (tema dark-violet completo)
+└── js/
+    ├── utils.js        (parse, centavos toC/brlC, esc, datas, uid)
+    ├── charts.js       (donut, área-chart, sparklines, trend pills)
+    ├── data.js         (defaultData, state, localStorage, migrateState)
+    ├── domain.js       (totais de turno, combustível, odômetro, períodos)
+    ├── ui.js           (modais, lançamentos, calculadoras, máscaras)
+    ├── render.js       (painel, listas, WhatsApp, CSV, backup/Drive)
+    └── init.js         (boot, PWA, listeners)
+```
+
+Scripts clássicos (não-módulos) para preservar os `onclick` inline; ordem de carga garante o boot. Divisão feita por parser (acorn) nos limites de declarações top-level — 66 funções + 11 variáveis verificadas 1:1. `sw.js` v3 cacheia todos os arquivos para o offline.
+
 ---
 
 ## 10. Veredito

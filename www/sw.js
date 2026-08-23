@@ -1,10 +1,18 @@
 /* MotoristaPro Service Worker — suporte offline 100% (cache-first com atualização em background) */
-const CACHE = 'motoristapro-v2';
+const CACHE = 'motoristapro-v3';
 const ASSETS = [
   'index.html',
   'manifest.json',
   'icon-192.png',
-  'icon-512.png'
+  'icon-512.png',
+  'css/style.css',
+  'js/utils.js',
+  'js/charts.js',
+  'js/data.js',
+  'js/domain.js',
+  'js/ui.js',
+  'js/render.js',
+  'js/init.js'
 ];
 
 self.addEventListener('install', (event) => {
