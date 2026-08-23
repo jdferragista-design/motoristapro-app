@@ -1704,10 +1704,17 @@
       return isNaN(n) ? 0 : n;
     }
 
-    function formatBRL(val) {
-      const num = parseVal(val);
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+    // ---------- Precisão monetária: TODA aritmética em centavos (inteiros) ----------
+    // Fronteira de entrada: float -> centavos arredondados (elimina 0.1+0.2=0.30000...4)
+    function toC(v) {
+      const n = typeof v === 'number' ? v : parseVal(v);
+      return Math.round((isNaN(n) ? 0 : n) * 100) || 0;
     }
+    // Formata centavos (int) -> "R$ x,xx" (único ponto de formatação)
+    function brlC(cents) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+    }
+    function formatBRL(val) { return brlC(toC(val)); }
 
     // Escapa texto do usuário antes de interpolá-lo em innerHTML (evita injeção de HTML/XSS)
     function esc(str) {
@@ -1795,8 +1802,8 @@
       const gLine = smoothPath(gPts), nLine = smoothPath(nPts);
       const base = H - 12;
       const dots = perDay.map((d, i) => `
-        <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Bruto: ${formatBRL(d.gross)} • Líquido: ${formatBRL(d.net)}</title></circle>
-        <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Líquido: ${formatBRL(d.net)}</title></circle>`).join('');
+        <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Bruto: ${brlC(d.gross)} • Líquido: ${brlC(d.net)}</title></circle>
+        <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Líquido: ${brlC(d.net)}</title></circle>`).join('');
       return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:170px;display:block;">
         <defs>
           <linearGradient id="areaG" x1="0" y1="0" x2="0" y2="1">
@@ -1913,22 +1920,19 @@
       return Math.max(0, s.odoStart - getOdoBeforeDate(s.date));
     }
 
-    function getShiftTotalGross(s) {
-      if (s.totalGross !== undefined) return s.totalGross;
+    function getShiftTotalGrossC(s) {
+      if (s.totalGross !== undefined) return toC(s.totalGross);
       let total = 0;
       if (Array.isArray(s.apps)) {
-        s.apps.forEach(app => {
-          total += (app.gross || 0) + (app.tips || 0);
-        });
+        s.apps.forEach(app => { total += toC(app.gross) + toC(app.tips); });
       } else if (s.apps && typeof s.apps === 'object') {
-        Object.values(s.apps).forEach(app => {
-          total += (app.gross || 0) + (app.tips || 0);
-        });
+        Object.values(s.apps).forEach(app => { total += toC(app.gross) + toC(app.tips); });
       } else if (s.gross !== undefined) {
-        total = (s.gross || 0) + (s.tips || 0);
+        total = toC(s.gross) + toC(s.tips);
       }
       return total;
     }
+    function getShiftTotalGross(s) { return getShiftTotalGrossC(s) / 100; }
 
     function getShiftTotalTrips(s) {
       if (s.totalTrips !== undefined) return s.totalTrips;
@@ -2268,10 +2272,10 @@
         return;
       }
 
-      let sumGross = 0;
+      let sumGrossC = 0;
       stagedShiftApps.forEach((item, idx) => {
-        const itemSum = item.gross + item.tips;
-        sumGross += itemSum;
+        const itemSumC = toC(item.gross) + toC(item.tips);
+        sumGrossC += itemSumC;
 
         const row = document.createElement('div');
         row.className = 'added-app-row';
@@ -2281,7 +2285,7 @@
             <span style="font-size: 11px; color: var(--text-muted);">${item.trips} viagens ${item.tips > 0 ? `(+${formatBRL(item.tips)} gorjeta)` : ''}</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <strong style="color: #fff; font-size: 13px;">${formatBRL(itemSum)}</strong>
+            <strong style="color: #fff; font-size: 13px;">${brlC(itemSumC)}</strong>
             <button type="button" onclick="removeStagedApp(${idx})" style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 2px;" title="Remover">✕</button>
           </div>
         `;
@@ -2289,7 +2293,7 @@
       });
 
       document.getElementById('stagedAppsCount').innerText = `${stagedShiftApps.length} apps salvos`;
-      document.getElementById('stagedGrossTotal').innerText = formatBRL(sumGross);
+      document.getElementById('stagedGrossTotal').innerText = brlC(sumGrossC);
     }
 
     function calculateShiftHoursAuto() {
@@ -2324,9 +2328,9 @@
     }
 
     function recalcShiftLive() {
-      let totalShiftGross = 0;
+      let totalShiftGrossC = 0;
       stagedShiftApps.forEach(a => {
-        totalShiftGross += (a.gross + a.tips);
+        totalShiftGrossC += toC(a.gross) + toC(a.tips);
       });
 
       const km = parseVal(document.getElementById('shiftKmTotal').value);
@@ -2343,22 +2347,22 @@
         activeCostKm = (state.fuelSettings.ethanolPrice || 3.89) / (state.fuelSettings.ethanolKmPerL || 8.2);
       }
 
-      const autoCalculatedFuel = km * activeCostKm;
-      let fuelCost = parseVal(document.getElementById('shiftFuelCost').value);
-      if (!fuelCost && km > 0) {
-        fuelCost = autoCalculatedFuel;
-        document.getElementById('shiftFuelCost').value = autoCalculatedFuel.toFixed(2).replace('.', ',');
+      const autoFuelC = Math.round(km * activeCostKm * 100);
+      let fuelCostC = toC(document.getElementById('shiftFuelCost').value);
+      if (!fuelCostC && km > 0) {
+        fuelCostC = autoFuelC;
+        document.getElementById('shiftFuelCost').value = (autoFuelC / 100).toFixed(2).replace('.', ',');
       }
 
-      const rKm = km > 0 ? totalShiftGross / km : 0;
-      const rHour = hours > 0 ? totalShiftGross / hours : 0;
-      const reserve = km * (state.vehicle.maintenanceReservePerKm || 0.18);
-      const net = totalShiftGross - (fuelCost || autoCalculatedFuel) - reserve;
+      const rKm = km > 0 ? (totalShiftGrossC / 100) / km : 0;
+      const rHour = hours > 0 ? (totalShiftGrossC / 100) / hours : 0;
+      const reserveC = Math.round(km * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
+      const netC = totalShiftGrossC - (fuelCostC || autoFuelC) - reserveC;
 
-      document.getElementById('liveShiftGross').innerText = formatBRL(totalShiftGross);
+      document.getElementById('liveShiftGross').innerText = brlC(totalShiftGrossC);
       document.getElementById('liveShiftRateKm').innerText = `${formatBRL(rKm)}/km`;
       document.getElementById('liveShiftRateHour').innerText = `${formatBRL(rHour)}/h`;
-      document.getElementById('liveShiftNet').innerText = formatBRL(net);
+      document.getElementById('liveShiftNet').innerText = brlC(netC);
 
       // Feedback ao vivo do km fora do trabalho (1º lançamento do dia)
       const odoGroup = document.getElementById('odoStartGroup');
@@ -2668,15 +2672,13 @@
       const periodLabelEl = document.getElementById('dashPeriodLabel');
       if (periodLabelEl) periodLabelEl.innerText = `Faturamento Bruto vs Lucro Líquido Real • Período: ${periodLabels[dashPeriod]}`;
 
-      let totalGross = 0;
+      let totalGrossC = 0;
       let totalTrips = 0;
       const appTotals = {};
 
       pShifts.forEach(s => {
-        const sGross = getShiftTotalGross(s);
-        const sTrips = getShiftTotalTrips(s);
-        totalGross += sGross;
-        totalTrips += sTrips;
+        totalGrossC += getShiftTotalGrossC(s);
+        totalTrips += getShiftTotalTrips(s);
 
         if (Array.isArray(s.apps)) {
           s.apps.forEach(a => {
@@ -2684,7 +2686,7 @@
             if (!appTotals[k]) {
               appTotals[k] = { name: a.name, badgeClass: a.badgeClass || 'badge-uber', total: 0 };
             }
-            appTotals[k].total += ((a.gross || 0) + (a.tips || 0));
+            appTotals[k].total += toC(a.gross) + toC(a.tips);
           });
         }
       });
@@ -2692,20 +2694,24 @@
       const totalKm = pShifts.reduce((a, s) => a + (s.km || 0), 0);
       const totalHours = pShifts.reduce((a, s) => a + (s.hours || 0), 0);
 
-      const totalExpenses = pExpenses.reduce((a, e) => a + (e.amount || 0), 0);
-      const reserveAccrued = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
-      const netProfit = totalGross - totalExpenses - reserveAccrued;
-      const netMargin = totalGross > 0 ? (netProfit / totalGross) * 100 : 0;
+      const totalExpensesC = pExpenses.reduce((a, e) => a + toC(e.amount), 0);
+      const reserveAccruedC = Math.round(totalKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
+      const netProfitC = totalGrossC - totalExpensesC - reserveAccruedC;
+      const netMargin = totalGrossC > 0 ? (netProfitC / totalGrossC) * 100 : 0;
 
-      const rateKm = totalKm > 0 ? totalGross / totalKm : 0;
-      const rateHour = totalHours > 0 ? totalGross / totalHours : 0;
-      const cpk = totalKm > 0 ? (totalExpenses + reserveAccrued) / totalKm : 0;
+      const rateKm = totalKm > 0 ? (totalGrossC / 100) / totalKm : 0;
+      const rateHour = totalHours > 0 ? (totalGrossC / 100) / totalHours : 0;
+      const cpk = totalKm > 0 ? ((totalExpensesC + reserveAccruedC) / 100) / totalKm : 0;
+
+      // Fundo de reserva da Saúde: sempre TODO o histórico (não o período do painel)
+      const allKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
+      const reserveAllC = Math.round(allKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
 
       // Dashboard Fill
-      document.getElementById('dashGross').innerText = formatBRL(totalGross);
+      document.getElementById('dashGross').innerText = brlC(totalGrossC);
       document.getElementById('dashGrossSub').innerText = `${totalTrips} corridas • ${totalKm.toFixed(1)} km`;
-      document.getElementById('dashExpenses').innerText = formatBRL(totalExpenses + reserveAccrued);
-      document.getElementById('dashNet').innerText = formatBRL(netProfit);
+      document.getElementById('dashExpenses').innerText = brlC(totalExpensesC + reserveAccruedC);
+      document.getElementById('dashNet').innerText = brlC(netProfitC);
       document.getElementById('dashMargin').innerText = `${netMargin.toFixed(0)}% Margem`;
 
       document.getElementById('dashRateKm').innerText = formatBRL(rateKm) + '/km';
@@ -2715,7 +2721,7 @@
       document.getElementById('dashRateHourSub').innerText = `Meta: ${formatBRL(state.vehicle.targetHourlyRate)}/h ${rateHour >= state.vehicle.targetHourlyRate ? '✅' : '⚠️'}`;
 
       document.getElementById('dashCpk').innerText = formatBRL(cpk) + '/km';
-      document.getElementById('dashAvgTrip').innerText = formatBRL(totalTrips > 0 ? totalGross / totalTrips : 0);
+      document.getElementById('dashAvgTrip').innerText = brlC(totalTrips > 0 ? Math.round(totalGrossC / totalTrips) : 0);
       document.getElementById('dashAvgTripSub').innerText = `${totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0.0'} km por viagem`;
 
       // Km rodados fora do trabalho (uso pessoal entre turnos)
@@ -2735,14 +2741,14 @@
       const rr = state.vehicle.maintenanceReservePerKm || 0.18;
       const todayKey = getTodayString();
       const tShifts = state.shifts.filter(s => s.date === todayKey);
-      const tGross = tShifts.reduce((a, s) => a + getShiftTotalGross(s), 0);
+      const tGrossC = tShifts.reduce((a, s) => a + getShiftTotalGrossC(s), 0);
       const tTrips = tShifts.reduce((a, s) => a + getShiftTotalTrips(s), 0);
       const tKm = tShifts.reduce((a, s) => a + (s.km || 0), 0);
       const tHours = tShifts.reduce((a, s) => a + (s.hours || 0), 0);
-      const tFuel = tShifts.reduce((a, s) => a + (s.fuelCost || 0), 0);
-      const tNet = tGross - tFuel - tKm * rr;
+      const tFuelC = tShifts.reduce((a, s) => a + toC(s.fuelCost), 0);
+      const tNetC = tGrossC - tFuelC - Math.round(tKm * rr * 100);
       const tFora = tShifts.reduce((a, s) => a + (getKmFora(s) || 0), 0);
-      const tExpDay = state.expenses.filter(e => e.date === todayKey).reduce((a, e) => a + (e.amount || 0), 0);
+      const tExpDayC = state.expenses.filter(e => e.date === todayKey).reduce((a, e) => a + toC(e.amount), 0);
 
       document.getElementById('todayDateLabel').innerText =
         new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
@@ -2756,7 +2762,7 @@
         todayGrid.innerHTML = `
           <div class="metric-box">
             <div class="metric-label">Bruto Hoje</div>
-            <div class="metric-val val-violet">${formatBRL(tGross)}</div>
+            <div class="metric-val val-violet">${brlC(tGrossC)}</div>
             <div class="metric-sub">${tTrips} corridas</div>
           </div>
           <div class="metric-box">
@@ -2767,22 +2773,22 @@
           <div class="metric-box">
             <div class="metric-label">Horas Hoje</div>
             <div class="metric-val val-sky">${tHours.toFixed(1)}h</div>
-            <div class="metric-sub">${tHours > 0 ? formatBRL(tGross / tHours) + '/h' : '—'}</div>
+            <div class="metric-sub">${tHours > 0 ? brlC(Math.round(tGrossC / tHours)) + '/h' : '—'}</div>
           </div>
           <div class="metric-box" style="border-color: rgba(52, 211, 153, 0.4);">
             <div class="metric-label" style="color: #a7f3d0;">Líquido Hoje</div>
-            <div class="metric-val val-emerald">${formatBRL(tNet)}</div>
-            <div class="metric-sub">combustível: -${formatBRL(tFuel)}${tExpDay > 0 ? ` • outras despesas: -${formatBRL(tExpDay)}` : ''}</div>
+            <div class="metric-val val-emerald">${brlC(tNetC)}</div>
+            <div class="metric-sub">combustível: -${brlC(tFuelC)}${tExpDayC > 0 ? ` • outras despesas: -${brlC(tExpDayC)}` : ''}</div>
           </div>`;
 
         const tApps = {};
         tShifts.forEach(s => (Array.isArray(s.apps) ? s.apps : []).forEach(a => {
           if (!tApps[a.name]) tApps[a.name] = { name: a.name, badgeClass: a.badgeClass || 'badge-uber', total: 0, trips: 0 };
-          tApps[a.name].total += (a.gross || 0) + (a.tips || 0);
+          tApps[a.name].total += toC(a.gross) + toC(a.tips);
           tApps[a.name].trips += (a.trips || 0);
         }));
         todayAppsRow.innerHTML = Object.values(tApps).map(a =>
-          `<span class="badge ${a.badgeClass}">${esc(a.name)}: ${formatBRL(a.total)} (${a.trips} v.)</span>`
+          `<span class="badge ${a.badgeClass}">${esc(a.name)}: ${brlC(a.total)} (${a.trips} v.)</span>`
         ).join(' ');
       }
 
@@ -2794,27 +2800,31 @@
       } else {
         const items = appKeys.map(k => appTotals[k]).sort((a, b) => b.total - a.total);
         const legend = items.map((item, i) => {
-          const pct = totalGross > 0 ? ((item.total / totalGross) * 100).toFixed(0) : 0;
+          const pct = totalGrossC > 0 ? ((item.total / totalGrossC) * 100).toFixed(0) : 0;
           return `<div class="legend-row">
             <span class="legend-dot" style="background: ${DONUT_COLORS[i % DONUT_COLORS.length]};"></span>
             <span class="legend-name">${esc(item.name)}</span>
-            <strong style="color: #fff;">${formatBRL(item.total)}</strong>
+            <strong style="color: #fff;">${brlC(item.total)}</strong>
             <span style="color: var(--text-dim); font-size: 11px; min-width: 34px; text-align: right;">${pct}%</span>
           </div>`;
         }).join('');
         pbGrid.innerHTML = `<div class="donut-flex">
-          ${donutSVG(items, totalGross, formatBRL(totalGross), 'Faturamento total')}
+          ${donutSVG(items, totalGrossC, brlC(totalGrossC), 'Faturamento total')}
           <div class="donut-legend">${legend}</div>
         </div>`;
       }
 
-      // Goal
-      const goal = state.vehicle.monthlyGoal || 7000;
-      const goalPct = Math.min(100, Math.round((totalGross / goal) * 100));
-      document.getElementById('goalLabel').innerText = `${formatBRL(totalGross)} de ${formatBRL(goal)}`;
+      // Goal — meta MENSAL: compara apenas com o bruto do mês corrente (independe do período do painel)
+      const goalC = toC(state.vehicle.monthlyGoal || 7000);
+      const ym = getTodayString().slice(0, 7);
+      const monthGrossC = state.shifts
+        .filter(s => (s.date || '').startsWith(ym))
+        .reduce((a, s) => a + getShiftTotalGrossC(s), 0);
+      const goalPct = goalC > 0 ? Math.min(100, Math.round((monthGrossC / goalC) * 100)) : 0;
+      document.getElementById('goalLabel').innerText = `${brlC(monthGrossC)} de ${brlC(goalC)}`;
       document.getElementById('goalPercent').innerText = `${goalPct}%`;
       document.getElementById('goalFill').style.width = `${goalPct}%`;
-      document.getElementById('goalRemaining').innerText = formatBRL(Math.max(0, goal - totalGross));
+      document.getElementById('goalRemaining').innerText = brlC(Math.max(0, goalC - monthGrossC));
 
       // Últimos 7 dias (dados reais) — área chart + sparklines + tendência semanal
       const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -2824,26 +2834,28 @@
         d.setDate(d.getDate() - offset);
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       };
+      const dayStats = (offset) => {
+        const key = dayKeyOf(offset);
+        const ds = state.shifts.filter(s => s.date === key);
+        const grossC = ds.reduce((a, s) => a + getShiftTotalGrossC(s), 0);
+        const fuelC = ds.reduce((a, s) => a + toC(s.fuelCost), 0);
+        const km = ds.reduce((a, s) => a + (s.km || 0), 0);
+        const expC = state.expenses.filter(e => e.date === key).reduce((a, e) => a + toC(e.amount), 0);
+        return { grossC, netC: grossC - fuelC - Math.round(km * reserveRate * 100), expC };
+      };
       const perDay = [];
       for (let i = 6; i >= 0; i--) {
-        const key = dayKeyOf(i);
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const dayShifts = state.shifts.filter(s => s.date === key);
-        const gross = dayShifts.reduce((acc, s) => acc + getShiftTotalGross(s), 0);
-        const fuel = dayShifts.reduce((acc, s) => acc + (s.fuelCost || 0), 0);
-        const km = dayShifts.reduce((acc, s) => acc + (s.km || 0), 0);
-        const exp = state.expenses.filter(e => e.date === key).reduce((acc, e) => acc + (e.amount || 0), 0);
-        perDay.push({ label: i === 0 ? 'Hoje' : dayNames[d.getDay()], gross, net: gross - fuel - km * reserveRate, exp });
+        const st = dayStats(i);
+        perDay.push({ label: i === 0 ? 'Hoje' : dayNames[d.getDay()], gross: st.grossC, net: st.netC, exp: st.expC });
       }
-      const grossOf = k => state.shifts.filter(s => s.date === k).reduce((a, s) => a + getShiftTotalGross(s), 0);
-      const netOf = k => state.shifts.filter(s => s.date === k).reduce((a, s) => a + getShiftTotalGross(s) - (s.fuelCost || 0) - (s.km || 0) * reserveRate, 0);
-      const sumRange = (from, to, fn) => { let t = 0; for (let i = from; i <= to; i++) t += fn(dayKeyOf(i)); return t; };
-      const curGross = sumRange(0, 6, grossOf), prevGross = sumRange(7, 13, grossOf);
-      const curNet = sumRange(0, 6, netOf), prevNet = sumRange(7, 13, netOf);
+      let curGrossC = 0, curNetC = 0, prevGrossC = 0, prevNetC = 0;
+      for (let i = 0; i <= 6; i++) { const st = dayStats(i); curGrossC += st.grossC; curNetC += st.netC; }
+      for (let i = 7; i <= 13; i++) { const st = dayStats(i); prevGrossC += st.grossC; prevNetC += st.netC; }
 
-      document.getElementById('trendGross').innerHTML = trendPillHTML(curGross, prevGross);
-      document.getElementById('trendNet').innerHTML = trendPillHTML(curNet, prevNet);
+      document.getElementById('trendGross').innerHTML = trendPillHTML(curGrossC, prevGrossC);
+      document.getElementById('trendNet').innerHTML = trendPillHTML(curNetC, prevNetC);
       document.getElementById('sparkGross').innerHTML = sparkSVG(perDay.map(x => x.gross), '#8b5cf6', 'sgGross');
       document.getElementById('sparkExp').innerHTML = sparkSVG(perDay.map(x => x.exp), '#f43f5e', 'sgExp');
       document.getElementById('sparkNet').innerHTML = sparkSVG(perDay.map(x => x.net), '#22d3ee', 'sgNet');
@@ -2859,9 +2871,9 @@
 
       // Health
       document.getElementById('healthOdo').innerText = `${Math.round(state.vehicle.odometer).toLocaleString('pt-BR')} km`;
-      document.getElementById('healthReserve').innerText = formatBRL(reserveAccrued);
-      const maintSpent = state.expenses.filter(e => e.category === 'manutencao').reduce((a, b) => a + b.amount, 0);
-      document.getElementById('healthSpent').innerText = formatBRL(maintSpent);
+      document.getElementById('healthReserve').innerText = brlC(reserveAllC);
+      const maintSpentC = state.expenses.filter(e => e.category === 'manutencao').reduce((a, b) => a + toC(b.amount), 0);
+      document.getElementById('healthSpent').innerText = brlC(maintSpentC);
       renderMaintenance();
 
       // Parity inputs fill
@@ -2897,19 +2909,19 @@
       list.forEach(s => {
         const item = document.createElement('div');
         item.className = 'list-item';
-        const sGross = getShiftTotalGross(s);
+        const sGrossC = getShiftTotalGrossC(s);
         const sTrips = getShiftTotalTrips(s);
-        const rKm = s.km > 0 ? sGross / s.km : 0;
-        const rH = s.hours > 0 ? sGross / s.hours : 0;
-        const reserve = s.km * (state.vehicle.maintenanceReservePerKm || 0.18);
-        const net = sGross - (s.fuelCost || 0) - reserve;
+        const rKm = s.km > 0 ? (sGrossC / 100) / s.km : 0;
+        const rH = s.hours > 0 ? (sGrossC / 100) / s.hours : 0;
+        const reserveC = Math.round(s.km * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
+        const netC = sGrossC - toC(s.fuelCost) - reserveC;
 
         let appBadgesHtml = '';
         if (Array.isArray(s.apps)) {
           s.apps.forEach(a => {
-            const sum = (a.gross || 0) + (a.tips || 0);
-            if (sum > 0 || a.trips > 0) {
-              appBadgesHtml += `<span class="badge ${a.badgeClass || 'badge-uber'}">${esc(a.name)}: ${formatBRL(sum)} (${a.trips || 0} viagens)</span> `;
+            const sumC = toC(a.gross) + toC(a.tips);
+            if (sumC > 0 || a.trips > 0) {
+              appBadgesHtml += `<span class="badge ${a.badgeClass || 'badge-uber'}">${esc(a.name)}: ${brlC(sumC)} (${a.trips || 0} viagens)</span> `;
             }
           });
         }
@@ -2923,7 +2935,7 @@
               ${s.odoStart ? `<span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 10px;">🏠 ${(getKmFora(s) || 0).toFixed(0)} km fora do trabalho</span>` : ''}
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <strong style="font-size: 16px; color: #fff;">${formatBRL(sGross)}</strong>
+              <strong style="font-size: 16px; color: #fff;">${brlC(sGrossC)}</strong>
               <button onclick="openEditShiftModal(${s.id})" class="action-btn action-btn-edit" title="Editar Turno">
                 ✏️ Editar
               </button>
@@ -2941,7 +2953,7 @@
           <!-- Unified Shift KPIs -->
           <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
             <span>${parseVal(s.km).toFixed(1)} km rodados • <strong>${parseVal(s.hours).toFixed(1)} horas de trabalho</strong> (${sTrips} corridas)</span>
-            <span class="val-emerald" style="font-weight: 700;">${formatBRL(rKm)}/km • ${formatBRL(rH)}/h • Líquido: ${formatBRL(net)}</span>
+            <span class="val-emerald" style="font-weight: 700;">${formatBRL(rKm)}/km • ${formatBRL(rH)}/h • Líquido: ${brlC(netC)}</span>
           </div>
           ${s.notes ? `<div style="font-size: 11px; color: var(--text-dim); font-style: italic;">"${esc(s.notes)}"</div>` : ''}
         `;
@@ -3007,14 +3019,14 @@
         container.appendChild(item);
       });
 
-      const totalExp = state.expenses.reduce((a, b) => a + (b.amount || 0), 0);
-      const fuelExp = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + (b.amount || 0), 0);
+      const totalExpC = state.expenses.reduce((a, b) => a + toC(b.amount), 0);
+      const fuelExpC = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + toC(b.amount), 0);
       const liters = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + (b.liters || 0), 0);
 
-      document.getElementById('expTotal').innerText = formatBRL(totalExp);
-      document.getElementById('expFuel').innerText = formatBRL(fuelExp);
+      document.getElementById('expTotal').innerText = brlC(totalExpC);
+      document.getElementById('expFuel').innerText = brlC(fuelExpC);
       document.getElementById('expLiters').innerText = `${liters.toFixed(1)} L`;
-      document.getElementById('expAvgPrice').innerText = liters > 0 ? `${formatBRL(fuelExp / liters)}/L` : 'R$ 0,00/L';
+      document.getElementById('expAvgPrice').innerText = liters > 0 ? `${brlC(Math.round(fuelExpC / liters))}/L` : 'R$ 0,00/L';
 
       // Média REAL do carro: Δodômetro ÷ litros entre os 2 últimos abastecimentos com odômetro
       const kmlBox = document.getElementById('realKmlBox');
@@ -3086,17 +3098,18 @@
       const totalKm = pickup + trip;
       const hours = minutes / 60;
 
-      const rKm = totalKm > 0 ? offer / totalKm : 0;
-      const rHour = hours > 0 ? offer / hours : 0;
+      const offerC = toC(offer);
+      const rKm = totalKm > 0 ? (offerC / 100) / totalKm : 0;
+      const rHour = hours > 0 ? (offerC / 100) / hours : 0;
 
       const fuelInfo = getLastFuelInfo();
-      const fuelCost = totalKm * fuelInfo.costPerKm;
-      const reserve = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
-      const net = offer - fuelCost - reserve;
+      const fuelCostC = Math.round(totalKm * fuelInfo.costPerKm * 100);
+      const reserveC = Math.round(totalKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
+      const netC = offerC - fuelCostC - reserveC;
 
       document.getElementById('simRateKm').innerText = `${formatBRL(rKm)}/km`;
       document.getElementById('simRateHour').innerText = `${formatBRL(rHour)}/h`;
-      document.getElementById('simNet').innerText = formatBRL(net);
+      document.getElementById('simNet').innerText = brlC(netC);
 
       const vBox = document.getElementById('simVerdictBox');
       if (rKm >= 2.5 && rHour >= 45) {
@@ -3212,13 +3225,12 @@
     }
 
     function renderWhatsApp() {
-      let totalGross = 0;
+      let totalGrossC = 0;
       let totalTrips = 0;
       const appTotals = {};
 
       state.shifts.forEach(s => {
-        const sGross = getShiftTotalGross(s);
-        totalGross += sGross;
+        totalGrossC += getShiftTotalGrossC(s);
         totalTrips += getShiftTotalTrips(s);
 
         if (Array.isArray(s.apps)) {
@@ -3227,21 +3239,21 @@
             if (!appTotals[k]) {
               appTotals[k] = { name: a.name, total: 0 };
             }
-            appTotals[k].total += ((a.gross || 0) + (a.tips || 0));
+            appTotals[k].total += toC(a.gross) + toC(a.tips);
           });
         }
       });
 
       const totalKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
       const totalHours = state.shifts.reduce((a, s) => a + (s.hours || 0), 0);
-      const totalExp = state.expenses.reduce((a, e) => a + (e.amount || 0), 0);
-      const reserve = totalKm * (state.vehicle.maintenanceReservePerKm || 0.18);
-      const net = totalGross - totalExp - reserve;
+      const totalExpC = state.expenses.reduce((a, e) => a + toC(e.amount), 0);
+      const reserveC = Math.round(totalKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
+      const netC = totalGrossC - totalExpC - reserveC;
 
       let appLines = '';
       Object.keys(appTotals).forEach(k => {
         const item = appTotals[k];
-        appLines += `• ${item.name}: *${formatBRL(item.total)}*\n`;
+        appLines += `• ${item.name}: *${brlC(item.total)}*\n`;
       });
 
       const lastFuel = getLastFuelInfo();
@@ -3251,19 +3263,19 @@
 ⛽ Combustível Ativo: *${lastFuel.fuelType}* (${lastFuel.avgKml.toFixed(1)} km/L @ ${formatBRL(lastFuel.priceL)}/L)
 
 💰 *GANHOS POR APLICATIVO:*
-${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${formatBRL(totalGross)}*
+${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${brlC(totalGrossC)}*
 
 📉 *DESPESAS & DESGASTE:*
-• Despesas do Período: *-${formatBRL(totalExp)}*
-• Provisão de Manutenção (${formatBRL(state.vehicle.maintenanceReservePerKm)}/km): *-${formatBRL(reserve)}*
-🟢 *LUCRO LÍQUIDO REAL: ${formatBRL(net)}*
+• Despesas do Período: *-${brlC(totalExpC)}*
+• Provisão de Manutenção (${formatBRL(state.vehicle.maintenanceReservePerKm)}/km): *-${brlC(reserveC)}*
+🟢 *LUCRO LÍQUIDO REAL: ${brlC(netC)}*
 
 📈 *EFICIÊNCIA OPERACIONAL:*
 • Total de Corridas: *${totalTrips}*
 • KM Rodados na Rua: *${totalKm.toFixed(1)} km*
 • Horas Trabalhadas: *${totalHours.toFixed(1)}h*
-• Média por KM Geral: *${formatBRL(totalKm > 0 ? totalGross/totalKm : 0)}/km*
-• Média por Hora Geral: *${formatBRL(totalHours > 0 ? totalGross/totalHours : 0)}/h*
+• Média por KM Geral: *${formatBRL(totalKm > 0 ? (totalGrossC/100)/totalKm : 0)}/km*
+• Média por Hora Geral: *${formatBRL(totalHours > 0 ? (totalGrossC/100)/totalHours : 0)}/h*
 
 📱 Fechamento Multi-App pelo *MotoristaPro*`;
 

@@ -152,6 +152,26 @@ Permanecem em aberto (P1/P2 das seções 2–5): filtro por período/mês, valid
 
 ---
 
-## 9. Veredito
+## 9. 🔬 Análise: Precisão de Cálculos Monetários com Ponto Flutuante (22/08/2026)
+
+**Conclusão da análise:** o risco apontado era **real, porém latente** — todo valor exibido passava por `Intl.NumberFormat`/`toFixed(2)`, que arredondam na saída e mascaravam o erro. Mas as *agregações* (lucro líquido, margem, R$/km, CPK, totais por app/dia, fechamento WhatsApp, CSV) somavam floats crus: com centenas de turnos, o acúmulo de ruído binário (~1e-13 por operação) podia (a) deslocar arredondamentos de borda em 1 centavo, (b) produzir totais com frações inexistentes no mundo real e (c) propagar para métricas derivadas (margem %, metas). Exemplo medido: `300 × 0.1` em float = `30.000000000000156`.
+
+**Solução implementada — aritmética 100% em centavos inteiros, sem dependências externas** (decimal.js/big.js violariam a restrição de arquivo único + offline + sem build do projeto):
+
+- `toC(v)` = fronteira de entrada: qualquer valor (float/string) → centavos `Math.round(v*100)`;
+- `brlC(cents)` = único ponto de formatação centavos → "R$ x,xx";
+- Todas as somas/subtrações monetárias (painel, Resumo do Dia, 7 dias, tendências, donut por app, listas de turnos/despesas, staging do modal, resumo ao vivo, simulador, WhatsApp, meta mensal, fundo de reserva) agora operam em `int`; divisões (R$/km, R$/h, km/L, paridade) partem de centavos e só viram float no display;
+- A máscara de input já digitava em centavos — sinergia natural com o novo modelo;
+- Dados gravados (localStorage/backup) permanecem em reais com 2 casas (compatibilidade total com backups existentes); a conversão ocorre na leitura.
+
+**Regressões encontradas durante a análise e corrigidas junto:**
+1. *Fundo de Reserva (Saúde do Carro)* estava escopado ao **período do painel** (regressão do filtro de período) → voltou a usar **todo o histórico** (`reserveAllC`);
+2. *Meta Mensal* comparava a meta com o bruto do **período selecionado** → agora sempre com o bruto do **mês corrente** (`monthGrossC`), independente do filtro ativo.
+
+**Verificação:** `node --check` + execução do script com DOM simulado + prova de acurácia (float vs centavos) incluída no commit.
+
+---
+
+## 10. Veredito
 
 O MotoristaPro tem **produto bem concebido** — o modelo mental (turno multi-app → eficiência R$/km·R$/h → provisão de desgaste → fechamento WhatsApp) é exatamente o fluxo de trabalho real do motorista de aplicativo, superior a muitos concorrentes em objetividade. Porém, a execução atual carrega um **defeito estrutural grave (HTML truncado)**, uma **camada PWA fictícia**, **dados de demonstração misturados com dados reais** e um **repositório com 18 MB de zip contendo node_modules/.git** — itens que devem ser tratados antes de qualquer distribuição pública. Com as correções P0/P1 (estimativa: 1 sprint de um desenvolvedor), o app passa de protótipo promissor a produto confiável.
