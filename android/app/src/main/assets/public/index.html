@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MotoristaPro" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <title>MotoristaPro - Controle de Ganhos, Gastos & Google Drive</title>
+  <link rel="stylesheet" href="css/style.css?v=4" />
+</head>
+<body>
+
+  <!-- Top Header Navbar -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><path d="M9 17h6"></path><circle cx="17" cy="17" r="2"></circle></svg>
+        </div>
+        <div>
+          <div class="brand-title">Motorista<span>Pro</span></div>
+          <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Google Drive)</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-primary btn-sm" onclick="openCreateShiftModal()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Lançar Turno</span>
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="openCreateExpenseModal()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+          <span>Despesa</span>
+        </button>
+        <button class="btn btn-secondary btn-icon" onclick="openModal('modalSettings')" title="Configurações & Metas">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Desktop Navigation Bar -->
+  <nav class="desktop-nav">
+    <div class="desktop-nav-inner">
+      <button class="nav-tab active" onclick="switchTab('dashboard')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+        <span>Painel Geral</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('shifts')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <span>Turnos Unificados</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('expenses')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+        <span>Gastos & Combustível</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('health')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+        <span>Saúde do Carro (Drivvo)</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('calc')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
+        <span>Calculadoras & Simulador</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('reports')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+        <span>Relatórios & Google Drive</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Banner de diagnóstico: aparece se o JS não iniciar (cache antigo) -->
+    <div class="pwa-banner" id="bootErrorBanner" style="display: none; border-color: rgba(244, 63, 94, 0.5); background: rgba(244, 63, 94, 0.12);">
+      <div style="font-size: 12px; font-weight: 700; color: #fecdd3;">⚠️ O app não iniciou (provavelmente cache antigo).</div>
+      <button class="btn btn-danger btn-sm" onclick="location.reload()">Recarregar</button>
+    </div>
+
+    <!-- VIEW 1: DASHBOARD -->
+    <div id="viewDashboard">
+
+      <!-- PWA Install Banner (aparece quando o navegador oferece instalação) -->
+      <div class="pwa-banner" id="pwaInstallBanner" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📲</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 800; color: #fff;">Instalar o MotoristaPro</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Use direto da tela inicial, 100% offline.</div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="promptInstallPWA()">Instalar</button>
+      </div>
+
+      <!-- Seletor de Período do Painel -->
+      <div class="period-switch" role="tablist" aria-label="Período do painel">
+        <button class="period-btn" onclick="setDashPeriod('day', this)">Hoje</button>
+        <button class="period-btn" onclick="setDashPeriod('7', this)">7 dias</button>
+        <button class="period-btn active" onclick="setDashPeriod('month', this)">Este mês</button>
+        <button class="period-btn" onclick="setDashPeriod('30', this)">30 dias</button>
+        <button class="period-btn" onclick="setDashPeriod('all', this)">Tudo</button>
+      </div>
+
+      <!-- Top Overview Card -->
+      <div class="card" style="background: linear-gradient(135deg, #151528 0%, #1c1c36 100%); border-color: rgba(139, 92, 246, 0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <div class="card-title">Resumo Financeiro Consolidado</div>
+            <div class="card-subtitle" id="dashPeriodLabel">Faturamento Bruto de Todos os Apps vs Lucro Líquido Real</div>
+          </div>
+          <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);" id="dashMargin">68% Margem</span>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="metric-box">
+            <div class="metric-head">
+              <div class="metric-label">Faturamento Bruto (Apps)</div>
+              <span id="trendGross"></span>
+            </div>
+            <div class="metric-val" id="dashGross">R$ 1.700,50</div>
+            <div class="metric-sub" id="dashGrossSub">72 corridas • 730,0 km</div>
+            <div class="kpi-spark" id="sparkGross"></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-head">
+              <div class="metric-label">Gastos + Desgaste (CPK)</div>
+            </div>
+            <div class="metric-val val-rose" id="dashExpenses">R$ 537,70</div>
+            <div class="metric-sub" id="dashExpensesSub">Combustível + Provisão</div>
+            <div class="kpi-spark" id="sparkExp"></div>
+          </div>
+          <div class="metric-box" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6));">
+            <div class="metric-head">
+              <div class="metric-label" style="color: #c4b5fd;">Lucro Líquido Real</div>
+              <span id="trendNet"></span>
+            </div>
+            <div class="metric-val val-emerald" id="dashNet">R$ 1.162,80</div>
+            <div class="metric-sub" style="color: #a7f3d0;">100% livre no seu bolso</div>
+            <div class="kpi-spark" id="sparkNet"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumo do Dia -->
+      <div class="card" style="border-color: rgba(34, 211, 238, 0.25);">
+        <div class="card-title">
+          📅 Resumo do Dia
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: capitalize;" id="todayDateLabel"></span>
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;" id="todaySubtitle">Sua atividade de hoje, em tempo real</div>
+        <div class="grid grid-4" id="todayGrid"></div>
+        <div id="todayAppsRow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;"></div>
+      </div>
+
+      <!-- KPI Operational Grid -->
+      <div class="card">
+        <div class="card-title">
+          <svg class="icon val-amber" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          Métricas de Eficiência Operacional do Turno
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Quilometragem e horas unificadas em todos os aplicativos</div>
+
+        <div class="grid grid-4">
+          <div class="metric-box">
+            <div class="metric-label">Faturamento / KM</div>
+            <div class="metric-val val-emerald" id="dashRateKm">R$ 2,33</div>
+            <div class="metric-sub" id="dashRateKmSub">Meta: R$ 2,20/km ✅</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Faturamento / Hora</div>
+            <div class="metric-val val-emerald" id="dashRateHour">R$ 45,10</div>
+            <div class="metric-sub" id="dashRateHourSub">Meta: R$ 35,00/h ✅</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Custo Real / KM (CPK)</div>
+            <div class="metric-val val-rose" id="dashCpk">R$ 0,74</div>
+            <div class="metric-sub">Combustível + Desgaste</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Média por Viagem</div>
+            <div class="metric-val val-sky" id="dashAvgTrip">R$ 23,60</div>
+            <div class="metric-sub" id="dashAvgTripSub">10,1 km por viagem</div>
+          </div>
+        </div>
+        <div class="highlight-pill" id="outsideKmPill" style="display: none;"></div>
+      </div>
+
+      <!-- Platform Breakdown Cards -->
+      <div class="card">
+        <div class="card-title">Divisão de Faturamento por Aplicativo</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Total acumulado gerado em cada plataforma</div>
+
+        <div id="platformBreakdownGrid">
+          <!-- Dynamically populated (donut + legenda) -->
+        </div>
+      </div>
+
+      <!-- Goal & 7-Day Chart Grid -->
+      <div class="grid grid-2">
+        <!-- Goal Progress -->
+        <div class="card">
+          <div class="card-title">
+            <svg class="icon val-emerald" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            Progresso da Meta Mensal
+          </div>
+          <div style="margin: 14px 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700;">
+              <span id="goalLabel">R$ 1.700,50 de R$ 7.000,00</span>
+              <span class="val-emerald" id="goalPercent">24%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="goalFill" style="width: 24%; background: linear-gradient(90deg, #8b5cf6, #22d3ee);"></div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Faltam <strong class="val-amber" id="goalRemaining">R$ 5.299,50</strong> para atingir sua meta do mês.
+          </div>
+        </div>
+
+        <!-- 7 Days Area Chart -->
+        <div class="card">
+          <div class="card-title">Ganhos dos Últimos 7 Dias</div>
+          <div class="card-subtitle">Faturamento bruto × lucro líquido por dia</div>
+          <div class="chart-legend">
+            <span class="legend-chip"><i style="background: #8b5cf6;"></i>Bruto</span>
+            <span class="legend-chip"><i style="background: #22d3ee;"></i>Líquido</span>
+          </div>
+          <div class="chart-container chart-area" id="dashChart">
+            <!-- Dynamically populated -->
+          </div>
+          <div class="chart-xlabels" id="dashChartLabels"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: SHIFTS -->
+    <div id="viewShifts" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900;">Histórico de Turnos Unificados</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Edite ou exclua qualquer turno lançado a qualquer momento</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateShiftModal()">+ Lançar Turno</button>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <input type="text" id="shiftSearchInput" placeholder="🔍 Buscar por data ou observação..." class="form-control" oninput="renderShiftsList()" />
+      </div>
+
+      <div id="shiftsListContainer">
+        <!-- Rendered unified shifts -->
+      </div>
+    </div>
+
+    <!-- VIEW 3: EXPENSES -->
+    <div id="viewExpenses" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900;">Despesas & Abastecimentos</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Edite ou exclua qualquer gasto, abastecimento ou manutenção</p>
+        </div>
+        <button class="btn btn-danger" onclick="openCreateExpenseModal()">+ Lançar Despesa</button>
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom: 14px;">
+        <div class="metric-box">
+          <div class="metric-label">Total Gasto</div>
+          <div class="metric-val val-rose" id="expTotal">R$ 537,70</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Combustível</div>
+          <div class="metric-val val-amber" id="expFuel">R$ 320,50</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Litros Abastecidos</div>
+          <div class="metric-val" id="expLiters">68,0 L</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Preço Médio / L</div>
+          <div class="metric-val val-sky" id="expAvgPrice">R$ 4,71/L</div>
+        </div>
+      </div>
+
+      <div class="highlight-pill" id="realKmlBox" style="display: none; margin-bottom: 14px;"></div>
+
+      <div style="margin-bottom: 10px;">
+        <input type="text" id="expenseSearchInput" placeholder="🔍 Buscar por descrição ou posto..." class="form-control" oninput="renderExpensesList()" />
+      </div>
+
+      <div id="expensesListContainer">
+        <!-- Rendered expenses -->
+      </div>
+    </div>
+
+    <!-- VIEW 4: VEHICLE HEALTH (DRIVVO) -->
+    <div id="viewHealth" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 900;">Saúde do Carro & Manutenção Preventiva</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Monitore, adicione, edite ou exclua itens de revisão periódica</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openCreateMaintenanceModal()">+ Novo Item de Revisão</button>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom: 16px;">
+        <div class="metric-box">
+          <div class="metric-label">Odômetro Atual</div>
+          <div class="metric-val" id="healthOdo">64.850 km</div>
+          <div class="metric-sub"><a href="#" onclick="openModal('modalSettings'); return false;" style="color: #38bdf8; text-decoration: none;">Atualizar odômetro</a></div>
+        </div>
+        <div class="metric-box" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.05);">
+          <div class="metric-label" style="color: #818cf8;">Fundo de Reserva (R$ 0,18/km)</div>
+          <div class="metric-val val-indigo" id="healthReserve">R$ 131,40</div>
+          <div class="metric-sub">Saldo acumulado p/ peças</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Investido em Manutenções</div>
+          <div class="metric-val val-rose" id="healthSpent">R$ 110,00</div>
+          <div class="metric-sub">Total de revisões feitas</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Itens de Revisão Periódica</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Acompanhamento visual por quilometragem e registro de trocas</div>
+
+        <div id="maintenanceItemsContainer" class="grid grid-2">
+          <!-- Rendered maintenance items -->
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: CALCULATORS -->
+    <div id="viewCalc" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <h2 style="font-size: 18px; font-weight: 900;">Calculadoras & Simulador Inteligente</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">Tome decisões lucrativas em menos de 5 segundos</p>
+      </div>
+
+      <!-- Simulator Card -->
+      <div class="card" style="border-color: rgba(245, 158, 11, 0.4);">
+        <div class="card-title" style="color: #fbbf24;">
+          <svg class="icon val-amber" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          Simulador "Aceitar ou Recusar Corrida?" (Tempo Real)
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Digite os dados que tocaram na tela do aplicativo</div>
+
+        <div class="grid grid-2">
+          <div>
+            <div class="form-group">
+              <label class="form-label">Valor Oferecido pelo App (R$)</label>
+              <input type="text" inputmode="decimal" id="simOffer" class="form-control" value="28,50" />
+            </div>
+            <div class="grid grid-2">
+              <div class="form-group">
+                <label class="form-label">Busca Pax (KM)</label>
+                <input type="text" inputmode="decimal" id="simPickup" class="form-control" value="2,00" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Viagem Pax (KM)</label>
+                <input type="text" inputmode="decimal" id="simTrip" class="form-control" value="8,50" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tempo Total Estimado (Minutos)</label>
+              <input type="number" inputmode="numeric" id="simMinutes" class="form-control" value="22" oninput="calculateTripSim()" />
+            </div>
+          </div>
+
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div id="simVerdictBox" style="padding: 10px; border-radius: 10px; font-weight: 800; font-size: 13px; text-align: center; margin-bottom: 10px;">
+              🔥 CORRIDA EXCELENTE! (Super Lucro)
+            </div>
+
+            <div class="grid grid-3" style="text-align: center; margin-bottom: 10px;">
+              <div>
+                <span style="font-size: 10px; color: var(--text-muted);">R$ / KM</span>
+                <div class="val-emerald" style="font-size: 16px; font-weight: 900;" id="simRateKm">R$ 2,71/km</div>
+              </div>
+              <div>
+                <span style="font-size: 10px; color: var(--text-muted);">R$ / Hora</span>
+                <div class="val-emerald" style="font-size: 16px; font-weight: 900;" id="simRateHour">R$ 77,70/h</div>
+              </div>
+              <div>
+                <span style="font-size: 10px; color: var(--text-muted);">Lucro Líquido</span>
+                <div class="val-emerald" style="font-size: 16px; font-weight: 900;" id="simNet">R$ 21,30</div>
+              </div>
+            </div>
+
+            <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px;">
+              *Descontados combustível estimado e reserva de desgaste do carro.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fuel Arbitrage Card -->
+      <div class="card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="card-title">
+          <svg class="icon val-emerald" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+          Calculadora de Paridade (Etanol x Gasolina) - Médias Oficiais
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">As médias e preços definidos aqui são usados automaticamente no cálculo de combustível dos seus turnos</div>
+
+        <div class="grid grid-2">
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Preço Gasolina (R$/L)</label>
+              <input type="text" inputmode="decimal" id="fuelGasPrice" class="form-control" value="5,89" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Média Gasolina (km/L)</label>
+              <input type="text" inputmode="decimal" id="fuelGasKml" class="form-control" value="11,50" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Preço Etanol (R$/L)</label>
+              <input type="text" inputmode="decimal" id="fuelEthPrice" class="form-control" value="3,89" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Média Etanol (km/L)</label>
+              <input type="text" inputmode="decimal" id="fuelEthKml" class="form-control" value="8,20" />
+            </div>
+          </div>
+
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
+            <div id="fuelVerdict" style="font-size: 14px; font-weight: 800; color: #34d399; margin-bottom: 8px;">
+              🏆 Abasteça com ETANOL!
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;" id="fuelParityText">
+              Paridade real: 66.0% da gasolina (Abaixo de 70% compensa no seu carro).
+            </p>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
+              <span>Custo Etanol: <strong id="costEth">R$ 0,47/km</strong></span>
+              <span>Custo Gasolina: <strong id="costGas">R$ 0,51/km</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 6: REPORTS, WHATSAPP & GOOGLE DRIVE -->
+    <div id="viewReports" style="display: none;">
+      <div style="margin-bottom: 14px;">
+        <h2 style="font-size: 18px; font-weight: 900;">Relatórios, WhatsApp & Google Drive</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">Sincronização na nuvem com seu Google Drive pessoal e relatórios diários</p>
+      </div>
+
+      <!-- GOOGLE DRIVE CLOUD SYNC CARD -->
+      <div class="cloud-box">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">☁️</span>
+            <div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Sincronização com Google Drive</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Mantenha seus dados seguros na sua conta Google para nunca perder nada</div>
+            </div>
+          </div>
+          <span class="badge" style="background: rgba(26,115,232,0.2); color:#60a5fa; border-color: rgba(26,115,232,0.4);">
+            Drive Sync
+          </span>
+        </div>
+
+        <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 14px;">
+          Salve o backup do banco de dados na sua nuvem pessoal do <strong>Google Drive</strong>. Ao trocar de celular ou reinstalar o aplicativo, basta restaurar o arquivo em 1 segundo.
+        </p>
+
+        <div class="grid grid-2">
+          <button class="btn btn-gdrive" onclick="saveToGoogleDrive()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            ☁️ Salvar Backup no Google Drive
+          </button>
+          
+          <button class="btn btn-secondary" onclick="triggerRestoreFromGoogleDrive()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            📥 Restaurar do Google Drive / Arquivo
+          </button>
+        </div>
+        <input type="file" id="gdriveFileInput" accept=".json" style="display: none;" onchange="handleRestoreFile(event)" />
+      </div>
+
+      <!-- WHATSAPP CLOSING -->
+      <div class="card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Fechamento Consolidado para WhatsApp</span>
+          <button class="btn btn-primary btn-sm" onclick="copyWhatsAppSummary()">Copiar Texto</button>
+        </div>
+        <div class="card-subtitle" style="margin-bottom: 12px;">Texto formatado com emojis pronto para colar no WhatsApp</div>
+
+        <pre id="whatsappBox" style="background: #0b0b16; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: monospace; font-size: 12px; color: #cbd5e1; white-space: pre-wrap; line-height: 1.6;"></pre>
+      </div>
+
+      <!-- LOCAL BACKUP & EXPORT -->
+      <div class="card">
+        <div class="card-title">Outras Opções de Exportação & Limpeza</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Exporte planilhas ou gerencie os dados gravados no aparelho</div>
+
+        <div class="grid grid-2">
+          <button class="btn btn-secondary" onclick="exportCSV()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Exportar Planilha Excel (CSV)
+          </button>
+          <button class="btn btn-secondary" onclick="exportJSONBackup()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Exportar Backup Completo (JSON)
+          </button>
+        </div>
+      </div>
+
+      <!-- DANGER ZONE -->
+      <div class="card" style="border-color: rgba(244, 63, 94, 0.35);">
+        <div class="card-title" style="color: #fb7185;">⚠️ Zona de Perigo</div>
+        <div class="card-subtitle" style="margin-bottom: 14px;">Ações irreversíveis — faça um backup antes de continuar</div>
+        <button class="btn btn-danger" style="width: 100%;" onclick="clearAllData()">
+          🗑️ Limpar Todos os Dados
+        </button>
+      </div>
+
+    </div>
+    <!-- FIM VIEW 6: REPORTS -->
+
+  </main>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="mobile-nav">
+    <button class="mob-tab active" onclick="switchTab('dashboard')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+      <span>Início</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('shifts')">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <span>Turnos</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('expenses')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M15 10h4a2 2 0 0 1 2 2v10"></path></svg>
+      <span>Gastos</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('health')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+      <span>Carro</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('calc')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line></svg>
+      <span>Cálculos</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('reports')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      <span>Relatórios</span>
+    </button>
+  </nav>
+
+  <!-- MODAL 1: LANÇAR / EDITAR TURNO -->
+  <div class="modal-overlay" id="modalShift">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div style="font-size: 16px; font-weight: 900; color: #fff;" id="modalShiftTitle">Lançar Turno do Dia</div>
+          <div style="font-size: 11px; color: var(--text-muted);">1º Escolha o app e salve os ganhos ➔ 2º Informe KM e Horas</div>
+        </div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalShift')">✕</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Shift Date & Shift Period -->
+        <div class="grid grid-2" style="margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Data do Turno</label>
+            <input type="date" id="shiftDate" class="form-control" required onchange="updateOdoStartVisibility()" />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Período / Turno</label>
+            <select id="shiftPeriod" class="form-control">
+              <option value="Integral">Dia Completo / Integral</option>
+              <option value="Manhã">Manhã</option>
+              <option value="Tarde">Tarde</option>
+              <option value="Noite">Noite / Madrugada</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- ETAPA 1: CAIXA DE SELEÇÃO DE APLICATIVO -->
+        <div class="step-box">
+          <div class="step-header">
+            <span>📱 1. Caixa de Seleção de Aplicativo</span>
+            <span class="badge" style="background: rgba(16,185,129,0.15); color: #34d399;" id="stagedAppsCount">0 apps salvos</span>
+          </div>
+
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
+            <!-- Select Dropdown -->
+            <div class="form-group">
+              <label class="form-label">Escolha o Aplicativo na Caixa de Seleção:</label>
+              <select id="currentAppSelect" class="form-control" style="border-color: #38bdf8; font-weight: 700;">
+                <option value="uber">🚗 Uber</option>
+                <option value="pop">🚕 99Pop</option>
+                <option value="indrive">🚙 InDrive</option>
+                <option value="part">⭐ Corridas Particulares / Extras</option>
+                <option value="ifood">📦 iFood / Entregas</option>
+                <option value="lalamove">🚚 Lalamove / Frete</option>
+                <option value="custom">➕ Outro Aplicativo...</option>
+              </select>
+            </div>
+
+            <!-- Custom App Name -->
+            <div class="form-group" id="customAppNameBox" style="display: none;">
+              <label class="form-label">Nome do Outro App:</label>
+              <input type="text" id="customAppNameInput" class="form-control" placeholder="Ex: Maxim, Mobizap, Buser" />
+            </div>
+
+            <!-- Inputs for Selected App -->
+            <div class="grid grid-3">
+              <div>
+                <label class="form-label">Ganhos (R$) *</label>
+                <input type="text" inputmode="decimal" id="appGrossInput" class="form-control" placeholder="Ex: 285,50" />
+              </div>
+              <div>
+                <label class="form-label">Qtd. Viagens</label>
+                <input type="number" inputmode="numeric" id="appTripsInput" class="form-control" placeholder="Ex: 14" />
+              </div>
+              <div>
+                <label class="form-label">Gorjetas (R$)</label>
+                <input type="text" inputmode="decimal" id="appTipsInput" class="form-control" placeholder="0,00" />
+              </div>
+            </div>
+
+            <!-- Button to save this app into the shift staging list -->
+            <div style="margin-top: 10px;">
+              <button type="button" class="btn btn-accent" style="width: 100%; font-size: 12px;" onclick="addCurrentAppToStaging()">
+                💾 Salvar Este App e Ir para o Próximo ➔
+              </button>
+            </div>
+          </div>
+
+          <!-- Staged Apps List in current shift -->
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">
+              Aplicativos Salvos neste Turno:
+            </div>
+            <div id="stagedAppsList">
+              <!-- Dynamically populated -->
+            </div>
+            <div class="highlight-pill" style="margin-top: 8px;">
+              <span style="font-size: 12px; font-weight: 700; color: #fff;">Faturamento Total dos Apps:</span>
+              <span class="val-emerald" style="font-size: 15px; font-weight: 900;" id="stagedGrossTotal">R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ETAPA 2: QUILOMETRAGEM & HORAS (INÍCIO / FIM -> TOTAL VISÍVEL) -->
+        <div class="step-box">
+          <div class="step-header">
+            <span>🚗 2. Quilometragem & Horas Trabalhadas</span>
+            <span style="color: var(--text-muted); font-size: 10px;">Carro na Rua</span>
+          </div>
+
+          <!-- Horas Início e Fim com Total Visível -->
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
+            <div class="grid grid-2">
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">Hora Início do Turno</label>
+                <input type="time" id="shiftTimeStart" class="form-control" value="07:00" oninput="calculateShiftHoursAuto()" />
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">Hora Fim do Turno</label>
+                <input type="time" id="shiftTimeEnd" class="form-control" value="16:00" oninput="calculateShiftHoursAuto()" />
+              </div>
+            </div>
+
+            <!-- Visor do Total de Horas Calculadas -->
+            <div class="highlight-pill" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+              <div>
+                <span style="font-size: 11px; color: var(--text-muted); display: block;">Tempo Total Calculado:</span>
+                <span class="val-emerald" style="font-size: 16px; font-weight: 900;" id="calculatedHoursDisplay">9h 00min (9.0 horas)</span>
+              </div>
+              <input type="hidden" id="finalHoursValue" value="9.0" />
+            </div>
+          </div>
+
+          <!-- COMBUSTÍVEL DINÂMICO BASEADO NO ÚLTIMO ABASTECIMENTO E PARIDADE -->
+          <div class="fuel-dynamic-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 11px; font-weight: 800; color: #fbbf24; display: flex; align-items: center; gap: 4px;">
+                ⛽ Média de Combustível Ativa (Calculadora de Paridade):
+              </div>
+              <select id="shiftFuelOverrideSelect" class="form-control" style="width: auto; padding: 4px 8px; font-size: 11px; height: auto;" onchange="updateShiftFuelRateSelection()">
+                <option value="auto">⚡ Auto (Último Abastecimento)</option>
+                <option value="gasolina">Gasolina</option>
+                <option value="etanol">Etanol</option>
+              </select>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text); display: flex; justify-content: space-between; align-items: center;" id="shiftFuelDetailsDisplay">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Quilometragem Rodada -->
+          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+            <!-- Odômetro no início: aparece só no 1º lançamento do dia -->
+            <div class="form-group" id="odoStartGroup" style="display: none; margin-bottom: 10px;">
+              <label class="form-label">🏠 Odômetro no Início do Turno (1º lançamento do dia)</label>
+              <input type="number" inputmode="numeric" id="shiftOdoStart" class="form-control" placeholder="Ex: 64850" oninput="recalcShiftLive()" />
+              <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;" id="odoStartHint">Permite calcular quantos km você rodou fora do trabalho.</div>
+            </div>
+            <div class="grid grid-2">
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">KM Total Rodado no Turno *</label>
+                <input type="text" inputmode="decimal" id="shiftKmTotal" class="form-control" placeholder="Ex: 168,40" required />
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label class="form-label">Gasto Combustível Calculado (R$)</label>
+                <input type="text" inputmode="decimal" id="shiftFuelCost" class="form-control" placeholder="0,00" />
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Observações (opcional)</label>
+              <input type="text" id="shiftNotes" class="form-control" placeholder="Ex: Manhã no centro, dinâmico à tarde" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ETAPA 3: PERFORMANCE INSTANTÂNEA DO TURNO -->
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+            <span>Resumo de Fechamento do Turno:</span>
+            <span class="val-emerald" id="liveShiftGross">R$ 0,00</span>
+          </div>
+          <div class="grid grid-3" style="text-align: center; font-size: 11px;">
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <span style="color: var(--text-muted); display: block;">R$/KM Geral</span>
+              <strong class="val-emerald" id="liveShiftRateKm">R$ 0,00/km</strong>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <span style="color: var(--text-muted); display: block;">R$/Hora Geral</span>
+              <strong class="val-emerald" id="liveShiftRateHour">R$ 0,00/h</strong>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <span style="color: var(--text-muted); display: block;">Lucro Líquido Real</span>
+              <strong class="val-emerald" id="liveShiftNet">R$ 0,00</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalShift')">Cancelar</button>
+        <button type="button" class="btn btn-primary" style="flex:1;" onclick="saveFinalShift()" id="btnSaveShiftSubmit">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Salvar Turno Completo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: LANÇAR / EDITAR DESPESA -->
+  <div class="modal-overlay" id="modalExpense">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalExpenseTitle">Lançar Despesa / Abastecimento</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalExpense')">✕</button>
+      </div>
+      <form onsubmit="saveExpense(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Categoria</label>
+            <select id="expCat" class="form-control" onchange="toggleFuelFields()">
+              <option value="combustivel">⛽ Combustível (Abastecimento)</option>
+              <option value="manutencao">🔧 Manutenção e Peças</option>
+              <option value="fixo">🛡️ Custo Fixo (Seguro, MEI, Parcela)</option>
+              <option value="alimentacao">🍔 Alimentação na Rua</option>
+              <option value="lavagem">✨ Lavagem</option>
+              <option value="pedagio">📍 Pedágio / Estacionamento</option>
+            </select>
+          </div>
+
+          <div id="fuelTypeRow" class="form-group" style="display: block;">
+            <label class="form-label">Tipo de Combustível Abastecido</label>
+            <div class="grid grid-2">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; background: var(--bg); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-sub); cursor: pointer;">
+                <input type="radio" name="expFuelRadio" value="Etanol" id="expRadioEthanol" checked />
+                <span>🌿 Etanol</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; background: var(--bg); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-sub); cursor: pointer;">
+                <input type="radio" name="expFuelRadio" value="Gasolina" id="expRadioGasoline" />
+                <span>⛽ Gasolina</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Data</label>
+              <input type="date" id="expDate" class="form-control" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Valor Total Pago (R$)</label>
+              <input type="text" inputmode="decimal" id="expAmount" class="form-control" placeholder="0,00" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Título / Descrição</label>
+            <input type="text" id="expTitle" class="form-control" placeholder="Ex: Abastecimento Etanol Posto Shell" required />
+          </div>
+
+          <div id="fuelFieldsBox" class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Litros Abastecidos</label>
+              <input type="text" inputmode="decimal" id="expLitersInput" class="form-control" placeholder="Ex: 30,50" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Odômetro no Posto (KM)</label>
+              <input type="number" inputmode="numeric" id="expOdoInput" class="form-control" placeholder="Ex: 64850" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalExpense')">Cancelar</button>
+          <button type="submit" class="btn btn-danger" style="flex:1;" id="btnSaveExpenseSubmit">Salvar Gasto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: CONFIGURAÇÕES -->
+  <div class="modal-overlay" id="modalSettings">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;">Configurações do Veículo & Metas</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalSettings')">✕</button>
+      </div>
+      <form onsubmit="saveSettings(event)">
+        <div class="modal-body">
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Modelo do Carro</label>
+              <input type="text" id="cfgModel" class="form-control" value="Chevrolet Onix Plus 1.0" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Placa</label>
+              <input type="text" id="cfgPlate" class="form-control" value="BRA-2E19" />
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Odômetro Atual (KM)</label>
+              <input type="number" inputmode="numeric" id="cfgOdo" class="form-control" value="64850" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reserva Manutenção (R$/KM)</label>
+              <input type="text" inputmode="decimal" id="cfgReserve" class="form-control" value="0,18" required />
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Meta Bruta Mensal (R$)</label>
+              <input type="number" inputmode="numeric" id="cfgMonthlyGoal" class="form-control" value="7000" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Meta R$/KM Mínima</label>
+              <input type="text" inputmode="decimal" id="cfgTargetKm" class="form-control" value="2,20" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalSettings')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Ajustes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: ADICIONAR / EDITAR ITEM DE MANUTENÇÃO PREVENTIVA -->
+  <div class="modal-overlay" id="modalMaintItem">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalMaintTitle">Item de Manutenção Preventiva</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalMaintItem')">✕</button>
+      </div>
+      <form onsubmit="saveMaintenanceItem(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nome da Revisão / Peça</label>
+            <input type="text" id="maintNameInput" class="form-control" placeholder="Ex: Troca de Fluido de Freio DOT4" required />
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Intervalo de Troca (a cada X km)</label>
+              <input type="number" inputmode="numeric" id="maintIntervalInput" class="form-control" placeholder="Ex: 10000" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Custo Médio Estimado (R$)</label>
+              <input type="text" inputmode="decimal" id="maintCostInput" class="form-control" placeholder="Ex: 150,00" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Odômetro da Última Troca (KM)</label>
+            <input type="number" inputmode="numeric" id="maintLastKmInput" class="form-control" placeholder="Ex: 60000" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalMaintItem')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;" id="btnSaveMaintSubmit">Salvar Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/utils.js?v=4"></script>
+  <script src="js/charts.js?v=4"></script>
+  <script src="js/data.js?v=4"></script>
+  <script src="js/domain.js?v=4"></script>
+  <script src="js/ui.js?v=4"></script>
+  <script src="js/render.js?v=4"></script>
+  <script src="js/init.js?v=4"></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.__MP_BOOTED) {
+          var b = document.getElementById('bootErrorBanner');
+          if (b) b.style.display = 'flex';
+        }
+      }, 800);
+    });
+  </script>
+</body>
+</html>
