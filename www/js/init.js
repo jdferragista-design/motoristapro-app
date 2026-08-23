@@ -28,3 +28,10 @@ wireCentsMasks();
 render();
 
 calculateTripSim();
+
+// Sinaliza boot concluído (usado pelo banner de diagnóstico do index.html)
+window.__MP_BOOTED = true;
+window.addEventListener('error', function (e) {
+  var b = document.getElementById('bootErrorBanner');
+  if (b && e.message) b.style.display = 'flex';
+});

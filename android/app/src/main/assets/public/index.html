@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro - Controle de Ganhos, Gastos & Google Drive</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=4" />
 </head>
 <body>
 
@@ -76,6 +76,12 @@
 
   <!-- Main Container -->
   <main class="container">
+
+    <!-- Banner de diagnóstico: aparece se o JS não iniciar (cache antigo) -->
+    <div class="pwa-banner" id="bootErrorBanner" style="display: none; border-color: rgba(244, 63, 94, 0.5); background: rgba(244, 63, 94, 0.12);">
+      <div style="font-size: 12px; font-weight: 700; color: #fecdd3;">⚠️ O app não iniciou (provavelmente cache antigo).</div>
+      <button class="btn btn-danger btn-sm" onclick="location.reload()">Recarregar</button>
+    </div>
 
     <!-- VIEW 1: DASHBOARD -->
     <div id="viewDashboard">
@@ -907,12 +913,22 @@
     </div>
   </div>
 
-  <script src="js/utils.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/domain.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/render.js"></script>
-  <script src="js/init.js"></script>
+  <script src="js/utils.js?v=4"></script>
+  <script src="js/charts.js?v=4"></script>
+  <script src="js/data.js?v=4"></script>
+  <script src="js/domain.js?v=4"></script>
+  <script src="js/ui.js?v=4"></script>
+  <script src="js/render.js?v=4"></script>
+  <script src="js/init.js?v=4"></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.__MP_BOOTED) {
+          var b = document.getElementById('bootErrorBanner');
+          if (b) b.style.display = 'flex';
+        }
+      }, 800);
+    });
+  </script>
 </body>
 </html>
