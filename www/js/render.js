@@ -257,6 +257,15 @@ function render() {
   document.getElementById('fuelEthKml').value = (state.fuelSettings.ethanolKmPerL || 8.2).toFixed(2).replace('.', ',');
   calcFuel();
 
+  // Configurações
+  document.getElementById('cfgModel').value = state.vehicle.model || '';
+  document.getElementById('cfgPlate').value = state.vehicle.plate || '';
+  document.getElementById('cfgOdo').value = Math.round(state.vehicle.odometer || 0);
+  document.getElementById('cfgReserve').value = (state.vehicle.maintenanceReservePerKm || 0.18).toFixed(2).replace('.', ',');
+  document.getElementById('cfgMonthlyGoal').value = Math.round(state.vehicle.monthlyGoal || 7000);
+  document.getElementById('cfgTargetKm').value = (state.vehicle.targetKmRate || 2.20).toFixed(2).replace('.', ',');
+  document.getElementById('cfgTargetHour').value = (state.vehicle.targetHourlyRate || 35.00).toFixed(2).replace('.', ',');
+
   // WhatsApp text
   renderWhatsApp();
 }
@@ -596,10 +605,37 @@ ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${b
 }
 
 
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', 'readonly');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+
+  let copied = false;
+  try {
+    copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+  } catch (e) {}
+
+  document.body.removeChild(ta);
+  if (copied) {
+    alert('Resumo do fechamento copiado com sucesso! Agora é só colar no WhatsApp.');
+  } else {
+    prompt('Seu navegador não permitiu copiar automaticamente. Copie o texto abaixo manualmente:', text);
+  }
+}
+
 function copyWhatsAppSummary() {
   const text = document.getElementById('whatsappBox').innerText;
-  navigator.clipboard.writeText(text);
-  alert('Resumo do fechamento copiado com sucesso! Agora é só colar no WhatsApp.');
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(text)
+      .then(() => alert('Resumo do fechamento copiado com sucesso! Agora é só colar no WhatsApp.'))
+      .catch(() => fallbackCopyText(text));
+    return;
+  }
+  fallbackCopyText(text);
 }
 
 

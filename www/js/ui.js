@@ -684,6 +684,7 @@ function saveSettings(e) {
   state.vehicle.maintenanceReservePerKm = parseVal(document.getElementById('cfgReserve').value) || 0.18;
   state.vehicle.monthlyGoal = parseVal(document.getElementById('cfgMonthlyGoal').value) || 7000;
   state.vehicle.targetKmRate = parseVal(document.getElementById('cfgTargetKm').value) || 2.20;
+  state.vehicle.targetHourlyRate = parseVal(document.getElementById('cfgTargetHour').value) || 35.00;
 
   saveState();
   closeModal('modalSettings');
@@ -713,12 +714,17 @@ function calculateTripSim() {
   document.getElementById('simRateHour').innerText = `${formatBRL(rHour)}/h`;
   document.getElementById('simNet').innerText = brlC(netC);
 
+  const excellentKm = (state.vehicle.targetKmRate || 2.20) * (2.5 / 2.2);
+  const excellentHour = (state.vehicle.targetHourlyRate || 35.00) * (45 / 35);
+  const warningKm = (state.vehicle.targetKmRate || 2.20) * (1.9 / 2.2);
+  const warningHour = (state.vehicle.targetHourlyRate || 35.00) * (28 / 35);
+
   const vBox = document.getElementById('simVerdictBox');
-  if (rKm >= 2.5 && rHour >= 45) {
+  if (rKm >= excellentKm && rHour >= excellentHour) {
     vBox.innerText = '🔥 CORRIDA EXCELENTE! (Super Lucro)';
     vBox.style.background = 'rgba(16, 185, 129, 0.2)';
     vBox.style.color = '#34d399';
-  } else if (rKm < 1.9 || rHour < 28) {
+  } else if (rKm < warningKm || rHour < warningHour) {
     vBox.innerText = '❌ CUIDADO! Prejuízo ou Margem Mínima';
     vBox.style.background = 'rgba(244, 63, 94, 0.2)';
     vBox.style.color = '#fb7185';
