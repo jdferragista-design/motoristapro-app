@@ -24,6 +24,27 @@ function brlC(cents) {
 
 function formatBRL(val) { return brlC(toC(val)); }
 
+function setSignedValueClass(elOrId, numericValue) {
+  const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+  if (!el || !el.classList) return;
+  el.classList.remove('val-emerald', 'val-rose');
+  el.classList.add(numericValue < 0 ? 'val-rose' : 'val-emerald');
+}
+
+function setSignedBadgeState(elOrId, numericValue) {
+  const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+  if (!el) return;
+  if (numericValue < 0) {
+    el.style.background = 'rgba(244, 63, 94, 0.15)';
+    el.style.color = '#fb7185';
+    el.style.borderColor = 'rgba(244, 63, 94, 0.3)';
+  } else {
+    el.style.background = 'rgba(16, 185, 129, 0.15)';
+    el.style.color = '#10b981';
+    el.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+  }
+}
+
 
 // Escapa texto do usuário antes de interpolá-lo em innerHTML (evita injeção de HTML/XSS)
 function esc(str) {

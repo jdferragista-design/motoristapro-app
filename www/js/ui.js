@@ -385,6 +385,7 @@ function recalcShiftLive() {
   document.getElementById('liveShiftRateKm').innerText = `${formatBRL(rKm)}/km`;
   document.getElementById('liveShiftRateHour').innerText = `${formatBRL(rHour)}/h`;
   document.getElementById('liveShiftNet').innerText = brlC(netC);
+  setSignedValueClass('liveShiftNet', netC);
 
   // O odômetro inicial fica registrado para cálculo posterior nos relatórios.
   const odoGroup = document.getElementById('odoStartGroup');

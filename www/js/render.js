@@ -92,6 +92,8 @@ function render() {
   document.getElementById('dashExpenses').innerText = brlC(totalExpensesC + reserveAccruedC);
   document.getElementById('dashNet').innerText = brlC(netProfitC);
   document.getElementById('dashMargin').innerText = `${netMargin.toFixed(0)}% Margem`;
+  setSignedValueClass('dashNet', netProfitC);
+  setSignedBadgeState('dashMargin', netMargin);
 
   document.getElementById('dashRateKm').innerText = formatBRL(rateKm) + '/km';
   document.getElementById('dashRateKmSub').innerText = `Meta: ${formatBRL(state.vehicle.targetKmRate)}/km ${rateKm >= state.vehicle.targetKmRate ? '✅' : '⚠️'}`;
@@ -128,6 +130,7 @@ function render() {
     todayGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 14px; background: rgba(0,0,0,0.25); border-radius: 10px;">Nenhum turno lançado hoje ainda. Toque em “Lançar Turno” para começar. 🚀</div>';
     todayAppsRow.innerHTML = '';
   } else {
+    const todayNetNegative = tNetC < 0;
     todayGrid.innerHTML = `
       <div class="metric-box">
         <div class="metric-label">Bruto Hoje</div>
@@ -144,9 +147,9 @@ function render() {
         <div class="metric-val val-sky">${tHours.toFixed(1)}h</div>
         <div class="metric-sub">${tHours > 0 ? brlC(Math.round(tGrossC / tHours)) + '/h' : '—'}</div>
       </div>
-      <div class="metric-box" style="border-color: rgba(52, 211, 153, 0.4);">
-        <div class="metric-label" style="color: #a7f3d0;">Líquido Hoje</div>
-        <div class="metric-val val-emerald">${brlC(tNetC)}</div>
+      <div class="metric-box" style="border-color: ${todayNetNegative ? 'rgba(244, 63, 94, 0.4)' : 'rgba(52, 211, 153, 0.4)'};">
+        <div class="metric-label" style="color: ${todayNetNegative ? '#fda4af' : '#a7f3d0'};">Líquido Hoje</div>
+        <div class="metric-val ${todayNetNegative ? 'val-rose' : 'val-emerald'}">${brlC(tNetC)}</div>
         <div class="metric-sub">combustível: -${brlC(tFuelC)}${tExpDayC > 0 ? ` • outras despesas: -${brlC(tExpDayC)}` : ''}</div>
       </div>`;
 
@@ -322,7 +325,7 @@ function renderShiftsList() {
       <!-- Unified Shift KPIs -->
       <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
         <span>${parseVal(s.km).toFixed(1)} km rodados • <strong>${parseVal(s.hours).toFixed(1)} horas de trabalho</strong> (${sTrips} corridas)</span>
-        <span class="val-emerald" style="font-weight: 700;">${formatBRL(rKm)}/km • ${formatBRL(rH)}/h • Líquido: ${brlC(netC)}</span>
+        <span class="${netC < 0 ? 'val-rose' : 'val-emerald'}" style="font-weight: 700;">${formatBRL(rKm)}/km • ${formatBRL(rH)}/h • Líquido: ${brlC(netC)}</span>
       </div>
       ${s.notes ? `<div style="font-size: 11px; color: var(--text-dim); font-style: italic;">"${esc(s.notes)}"</div>` : ''}
     `;
