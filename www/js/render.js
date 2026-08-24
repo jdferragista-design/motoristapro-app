@@ -118,8 +118,10 @@ function render() {
   const tKm = tShifts.reduce((a, s) => a + (s.km || 0), 0);
   const tHours = tShifts.reduce((a, s) => a + (s.hours || 0), 0);
   const tFuelC = tShifts.reduce((a, s) => a + toC(s.fuelCost), 0);
-  const tNetC = tGrossC - tFuelC - Math.round(tKm * rr * 100);
-  const tExpDayC = state.expenses.filter(e => e.date === todayKey).reduce((a, e) => a + toC(e.amount), 0);
+  const tOtherExpDayC = state.expenses
+    .filter(e => e.date === todayKey && e.category !== 'combustivel')
+    .reduce((a, e) => a + toC(e.amount), 0);
+  const tNetC = tGrossC - tFuelC - Math.round(tKm * rr * 100) - tOtherExpDayC;
 
   document.getElementById('todayDateLabel').innerText =
     new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
@@ -150,7 +152,7 @@ function render() {
       <div class="metric-box" style="border-color: ${todayNetNegative ? 'rgba(244, 63, 94, 0.4)' : 'rgba(52, 211, 153, 0.4)'};">
         <div class="metric-label" style="color: ${todayNetNegative ? '#fda4af' : '#a7f3d0'};">Líquido Hoje</div>
         <div class="metric-val ${todayNetNegative ? 'val-rose' : 'val-emerald'}">${brlC(tNetC)}</div>
-        <div class="metric-sub">combustível: -${brlC(tFuelC)}${tExpDayC > 0 ? ` • outras despesas: -${brlC(tExpDayC)}` : ''}</div>
+        <div class="metric-sub">combustível: -${brlC(tFuelC)}${tOtherExpDayC > 0 ? ` • outras despesas: -${brlC(tOtherExpDayC)}` : ''}</div>
       </div>`;
 
     const tApps = {};
@@ -655,10 +657,15 @@ function exportJSONBackup() {
 
 
 function clearAllData() {
-  if (confirm('⚠️ Tem certeza que deseja limpar TODOS os turnos e despesas para começar do zero?')) {
-    state.shifts = [];
-    state.expenses = [];
+  if (confirm('⚠️ Tem certeza que deseja limpar TODOS os dados para começar do zero?')) {
+    state = migrateState({
+      vehicle: JSON.parse(JSON.stringify(defaultData.vehicle)),
+      fuelSettings: JSON.parse(JSON.stringify(defaultData.fuelSettings)),
+      shifts: [],
+      expenses: [],
+      maintenance: []
+    });
     saveState();
-    alert('Dados limpos com sucesso! Agora você pode começar seu próprio controle.');
+    alert('Todos os dados foram limpos com sucesso. O app foi resetado para começar do zero.');
   }
 }

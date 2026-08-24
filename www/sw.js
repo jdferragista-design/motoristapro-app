@@ -1,5 +1,5 @@
 /* MotoristaPro Service Worker — suporte offline 100% (network-first p/ HTML + cache-first p/ assets) */
-const CACHE = 'motoristapro-v6';
+const CACHE = 'motoristapro-v7';
 const ASSETS = [
   'index.html',
   'manifest.json',

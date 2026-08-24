@@ -149,7 +149,7 @@ function getLastFuelInfo() {
 
   const isGas = lastFuelType.toLowerCase().includes('gasolina');
   const avgKml = isGas ? (state.fuelSettings.gasolineKmPerL || 11.5) : (state.fuelSettings.ethanolKmPerL || 8.2);
-  const priceL = isGas ? (state.fuelSettings.gasolinePrice || 5.89) : (state.fuelSettings.ethanolPrice || 3.89);
+  const priceL = lastPricePerLiter;
   const costPerKm = avgKml > 0 ? (priceL / avgKml) : 0.48;
 
   return {
