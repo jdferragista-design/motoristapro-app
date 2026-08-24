@@ -32,6 +32,7 @@ function wireCentsMasks() {
   CENTS_MASK_IDS.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
+    el.addEventListener('focus', () => setTimeout(() => el.select(), 0));
     el.addEventListener('input', () => {
       maskCents(el);
       const fn = CALC_AFTER_MASK[id];
@@ -347,10 +348,11 @@ function recalcShiftLive() {
   }
 
   const autoFuelC = Math.round(km * activeCostKm * 100);
-  let fuelCostC = toC(document.getElementById('shiftFuelCost').value);
-  if (!fuelCostC && km > 0) {
+  const fuelInput = document.getElementById('shiftFuelCost');
+  let fuelCostC = toC(fuelInput.value);
+  if (!fuelCostC && km > 0 && document.activeElement !== fuelInput) {
     fuelCostC = autoFuelC;
-    document.getElementById('shiftFuelCost').value = (autoFuelC / 100).toFixed(2).replace('.', ',');
+    fuelInput.value = (autoFuelC / 100).toFixed(2).replace('.', ',');
   }
 
   const rKm = km > 0 ? (totalShiftGrossC / 100) / km : 0;
