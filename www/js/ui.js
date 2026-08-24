@@ -365,19 +365,11 @@ function recalcShiftLive() {
   document.getElementById('liveShiftRateHour').innerText = `${formatBRL(rHour)}/h`;
   document.getElementById('liveShiftNet').innerText = brlC(netC);
 
-  // Feedback ao vivo do km fora do trabalho (1º lançamento do dia)
+  // O odômetro inicial fica registrado para cálculo posterior nos relatórios.
   const odoGroup = document.getElementById('odoStartGroup');
   if (odoGroup && odoGroup.style.display !== 'none') {
-    const odoVal = parseVal(document.getElementById('shiftOdoStart').value);
     const hint = document.getElementById('odoStartHint');
-    const date = document.getElementById('shiftDate').value || getTodayString();
-    const before = getOdoBeforeDate(date);
-    if (odoVal > 0) {
-      const gap = Math.max(0, odoVal - before);
-      hint.innerHTML = `Última leitura conhecida: <strong>${before.toLocaleString('pt-BR')} km</strong> → ≈ <strong class="val-violet">${gap.toFixed(0)} km fora do trabalho</strong> antes deste turno.`;
-    } else {
-      hint.innerText = 'Permite calcular quantos km você rodou fora do trabalho.';
-    }
+    if (hint) hint.innerText = 'Usado apenas nos relatórios para calcular km fora de serviço até a próxima jornada.';
   }
 }
 
@@ -449,7 +441,7 @@ function saveFinalShift() {
     // REGRA DE NEGÓCIO: o km do turno pertence à jornada de trabalho e NÃO
     // soma no odômetro como leitura. O odômetro avança por leituras reais:
     // abastecimentos, manutenções e o fim de turno derivado do 1º lançamento
-    // do dia (odoStart + km) — base p/ calcular km fora do trabalho.
+    // do dia (odoStart + km) — base p/ calcular km fora de serviço entre jornadas.
   }
 
   if (odoStart) {

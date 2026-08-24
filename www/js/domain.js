@@ -24,19 +24,59 @@ function setDashPeriod(p, btn) {
 }
 
 
-// ---------- Odômetro & km fora do trabalho ----------
-// Última leitura conhecida ANTES de uma data: abastecimentos com odômetro
-// e fins de turno derivados (odoStart + km) de dias anteriores.
-function getOdoBeforeDate(dateStr) {
-  let odo = 0;
-  state.expenses.forEach(e => { if (e.odo && e.date && e.date < dateStr) odo = Math.max(odo, e.odo); });
-  state.shifts.forEach(s => { if (s.odoStart && s.date && s.date < dateStr) odo = Math.max(odo, s.odoStart + (s.km || 0)); });
-  return odo;
+// ---------- Odômetro & km fora de serviço ----------
+// Regra: calcular somente ENTRE jornadas. Para cada dia com odoStart,
+// usamos: (odoStart da próxima jornada) - (odoStart do dia atual + km total do dia atual).
+// O valor fica disponível apenas para relatórios/exportações.
+function getWorkdayOdoSummaries() {
+  const byDate = {};
+
+  state.shifts.forEach(s => {
+    if (!s.date) return;
+    if (!byDate[s.date]) {
+      byDate[s.date] = {
+        date: s.date,
+        km: 0,
+        odoStart: null,
+        firstTime: null,
+        firstShiftId: null
+      };
+    }
+
+    const day = byDate[s.date];
+    day.km += (s.km || 0);
+
+    if (s.odoStart > 0) {
+      const time = s.timeStart || '23:59';
+      if (
+        day.odoStart === null ||
+        day.firstTime === null ||
+        time < day.firstTime
+      ) {
+        day.odoStart = s.odoStart;
+        day.firstTime = time;
+        day.firstShiftId = s.id;
+      }
+    }
+  });
+
+  return Object.values(byDate).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
 }
 
 function getKmFora(s) {
-  if (!s.odoStart) return null;
-  return Math.max(0, s.odoStart - getOdoBeforeDate(s.date));
+  if (!s || !s.odoStart) return null;
+
+  const days = getWorkdayOdoSummaries().filter(d => d.odoStart > 0);
+  const idx = days.findIndex(d => d.date === s.date && d.firstShiftId === s.id);
+  if (idx === -1 || idx >= days.length - 1) return null;
+
+  const current = days[idx];
+  const next = days[idx + 1];
+  return Math.max(0, (next.odoStart || 0) - ((current.odoStart || 0) + (current.km || 0)));
+}
+
+function getTotalKmFora() {
+  return state.shifts.reduce((acc, s) => acc + (getKmFora(s) || 0), 0);
 }
 
 

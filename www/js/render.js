@@ -103,18 +103,9 @@ function render() {
   document.getElementById('dashAvgTrip').innerText = brlC(totalTrips > 0 ? Math.round(totalGrossC / totalTrips) : 0);
   document.getElementById('dashAvgTripSub').innerText = `${totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0.0'} km por viagem`;
 
-  // Km rodados fora do trabalho (uso pessoal entre turnos)
+  // Km fora de serviço não fica visível no painel; só relatórios/exportações.
   const outsidePill = document.getElementById('outsideKmPill');
-  if (outsidePill) {
-    const withOdo = state.shifts.filter(s => s.odoStart);
-    if (withOdo.length > 0) {
-      const outsideTotal = withOdo.reduce((a, s) => a + (getKmFora(s) || 0), 0);
-      outsidePill.style.display = 'flex';
-      outsidePill.innerHTML = `<span style="font-size: 12px; color: var(--text-muted);">🏠 Rodado fora do trabalho (uso pessoal):</span><strong class="val-violet" style="font-size: 14px;">${outsideTotal.toFixed(0)} km</strong>`;
-    } else {
-      outsidePill.style.display = 'none';
-    }
-  }
+  if (outsidePill) outsidePill.style.display = 'none';
 
   // ---------- Resumo do Dia ----------
   const rr = state.vehicle.maintenanceReservePerKm || 0.18;
@@ -126,7 +117,6 @@ function render() {
   const tHours = tShifts.reduce((a, s) => a + (s.hours || 0), 0);
   const tFuelC = tShifts.reduce((a, s) => a + toC(s.fuelCost), 0);
   const tNetC = tGrossC - tFuelC - Math.round(tKm * rr * 100);
-  const tFora = tShifts.reduce((a, s) => a + (getKmFora(s) || 0), 0);
   const tExpDayC = state.expenses.filter(e => e.date === todayKey).reduce((a, e) => a + toC(e.amount), 0);
 
   document.getElementById('todayDateLabel').innerText =
@@ -147,7 +137,7 @@ function render() {
       <div class="metric-box">
         <div class="metric-label">KM Hoje</div>
         <div class="metric-val">${tKm.toFixed(1)}</div>
-        <div class="metric-sub">${tFora > 0 ? `+${tFora.toFixed(0)} km fora do trabalho` : 'somente turnos'}</div>
+        <div class="metric-sub">somente turnos</div>
       </div>
       <div class="metric-box">
         <div class="metric-label">Horas Hoje</div>
@@ -312,7 +302,6 @@ function renderShiftsList() {
           <span class="badge" style="background: rgba(16,185,129,0.2); color:#34d399; font-weight:800;">Turno ${esc(s.period || 'Integral')}</span>
           <span style="font-size: 12px; color: var(--text-muted);">${formatDate(s.date)} ${s.timeStart ? `• ${esc(s.timeStart)} às ${esc(s.timeEnd)}` : ''}</span>
           ${s.fuelTypeUsed ? `<span class="badge" style="background: rgba(245,158,11,0.15); color: #fbbf24; font-size: 10px;">⛽ ${esc(s.fuelTypeUsed)}</span>` : ''}
-          ${s.odoStart ? `<span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 10px;">🏠 ${(getKmFora(s) || 0).toFixed(0)} km fora do trabalho</span>` : ''}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <strong style="font-size: 16px; color: #fff;">${brlC(sGrossC)}</strong>
@@ -566,6 +555,7 @@ function renderWhatsApp() {
   const totalExpC = state.expenses.reduce((a, e) => a + toC(e.amount), 0);
   const reserveC = Math.round(totalKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
   const netC = totalGrossC - totalExpC - reserveC;
+  const totalKmFora = getTotalKmFora();
 
   let appLines = '';
   Object.keys(appTotals).forEach(k => {
@@ -590,6 +580,7 @@ ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${b
 📈 *EFICIÊNCIA OPERACIONAL:*
 • Total de Corridas: *${totalTrips}*
 • KM Rodados na Rua: *${totalKm.toFixed(1)} km*
+• KM Fora de Serviço (entre jornadas): *${totalKmFora.toFixed(0)} km*
 • Horas Trabalhadas: *${totalHours.toFixed(1)}h*
 • Média por KM Geral: *${formatBRL(totalKm > 0 ? (totalGrossC/100)/totalKm : 0)}/km*
 • Média por Hora Geral: *${formatBRL(totalHours > 0 ? (totalGrossC/100)/totalHours : 0)}/h*
@@ -616,7 +607,7 @@ function exportCSV() {
   const lines = [];
 
   lines.push('TURNOS');
-  lines.push(['Data', 'Período', 'Aplicativos', 'Bruto (R$)', 'Viagens', 'KM', 'Horas', 'Combustível (R$)', 'Odômetro início (km)', 'Km fora do trabalho', 'Observações'].join(S));
+  lines.push(['Data', 'Período', 'Aplicativos', 'Bruto (R$)', 'Viagens', 'KM', 'Horas', 'Combustível (R$)', 'Odômetro início (km)', 'Km fora de serviço (até próxima jornada)', 'Observações'].join(S));
   state.shifts.forEach(s => {
     const apps = Array.isArray(s.apps) ? s.apps.map(a => `${a.name} ${num((a.gross || 0) + (a.tips || 0))}`).join(' | ') : '';
     const fora = getKmFora(s);
