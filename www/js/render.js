@@ -215,7 +215,7 @@ function render() {
     const fuelC = ds.reduce((a, s) => a + toC(s.fuelCost), 0);
     const km = ds.reduce((a, s) => a + (s.km || 0), 0);
     const expC = state.expenses.filter(e => e.date === key).reduce((a, e) => a + toC(e.amount), 0);
-    return { grossC, netC: grossC - fuelC - Math.round(km * reserveRate * 100), expC };
+    return { grossC, netC: grossC - fuelC - Math.round(km * reserveRate * 100) - expC, expC };
   };
   const perDay = [];
   for (let i = 6; i >= 0; i--) {
@@ -279,10 +279,15 @@ function renderShiftsList() {
 
   let list = state.shifts;
   if (query) {
-    list = list.filter(s => 
-      (s.notes && s.notes.toLowerCase().includes(query)) ||
-      (s.date && s.date.includes(query))
-    );
+    list = list.filter(s => {
+      const appNames = Array.isArray(s.apps) ? s.apps.map(a => String(a.name || '').toLowerCase()).join(' ') : '';
+      return (
+        (s.notes && s.notes.toLowerCase().includes(query)) ||
+        (s.date && s.date.includes(query)) ||
+        formatDate(s.date).toLowerCase().includes(query) ||
+        appNames.includes(query)
+      );
+    });
   }
 
   if(list.length === 0) {
@@ -356,7 +361,8 @@ function renderExpensesList() {
     list = list.filter(e => 
       (e.title && e.title.toLowerCase().includes(query)) ||
       (e.category && e.category.toLowerCase().includes(query)) ||
-      (e.date && e.date.includes(query))
+      (e.date && e.date.includes(query)) ||
+      formatDate(e.date).toLowerCase().includes(query)
     );
   }
 
@@ -578,6 +584,7 @@ function renderWhatsApp() {
   });
 
   const lastFuel = getLastFuelInfo();
+  const profitBadge = netC < 0 ? '🔴' : '🟢';
 
   const text = `📊 *FECHAMENTO CONSOLIDADO - MOTORISTAPRO*
 🚗 Veículo: ${state.vehicle.model} (${state.vehicle.plate})
@@ -589,7 +596,7 @@ ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${b
 📉 *DESPESAS & DESGASTE:*
 • Despesas do Período: *-${brlC(totalExpC)}*
 • Provisão de Manutenção (${formatBRL(state.vehicle.maintenanceReservePerKm)}/km): *-${brlC(reserveC)}*
-🟢 *LUCRO LÍQUIDO REAL: ${brlC(netC)}*
+${profitBadge} *LUCRO LÍQUIDO REAL: ${brlC(netC)}*
 
 📈 *EFICIÊNCIA OPERACIONAL:*
 • Total de Corridas: *${totalTrips}*
