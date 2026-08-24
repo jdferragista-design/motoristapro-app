@@ -33,6 +33,17 @@ function wireCentsMasks() {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('focus', () => setTimeout(() => el.select(), 0));
+    if (id === 'shiftFuelCost') {
+      el.addEventListener('input', () => {
+        el.dataset.shiftFuelMode = 'manual';
+      });
+      el.addEventListener('blur', () => {
+        const autoFuelC = parseInt(el.dataset.autoFuelC || '0', 10) || 0;
+        const currentFuelC = toC(el.value);
+        el.dataset.shiftFuelMode = (!el.value || currentFuelC === autoFuelC) ? 'auto' : 'manual';
+        recalcShiftLive();
+      });
+    }
     el.addEventListener('input', () => {
       maskCents(el);
       const fn = CALC_AFTER_MASK[id];
@@ -140,6 +151,8 @@ function openCreateShiftModal() {
   document.getElementById('shiftTimeEnd').value = '16:00';
   document.getElementById('shiftKmTotal').value = '';
   document.getElementById('shiftFuelCost').value = '';
+  document.getElementById('shiftFuelCost').dataset.autoFuelC = '0';
+  document.getElementById('shiftFuelCost').dataset.shiftFuelMode = 'auto';
   document.getElementById('shiftNotes').value = '';
   document.getElementById('shiftFuelOverrideSelect').value = 'auto';
   document.getElementById('shiftOdoStart').value = '';
@@ -176,6 +189,8 @@ function openEditShiftModal(id) {
   document.getElementById('shiftTimeEnd').value = shift.timeEnd || '16:00';
   document.getElementById('shiftKmTotal').value = shift.km || '';
   document.getElementById('shiftFuelCost').value = fmt2(shift.fuelCost);
+  document.getElementById('shiftFuelCost').dataset.autoFuelC = String(toC(shift.fuelCost));
+  document.getElementById('shiftFuelCost').dataset.shiftFuelMode = shift.fuelCost > 0 ? 'manual' : 'auto';
   document.getElementById('shiftNotes').value = shift.notes || '';
   document.getElementById('shiftOdoStart').value = shift.odoStart || '';
 
@@ -349,10 +364,16 @@ function recalcShiftLive() {
 
   const autoFuelC = Math.round(km * activeCostKm * 100);
   const fuelInput = document.getElementById('shiftFuelCost');
-  let fuelCostC = toC(fuelInput.value);
-  if (!fuelCostC && km > 0 && document.activeElement !== fuelInput) {
+  const currentFuelC = toC(fuelInput.value);
+  const lastAutoFuelC = parseInt(fuelInput.dataset.autoFuelC || '0', 10) || 0;
+  const autoManaged = (fuelInput.dataset.shiftFuelMode || 'auto') === 'auto' || !fuelInput.value || currentFuelC === lastAutoFuelC;
+
+  let fuelCostC = currentFuelC;
+  if (document.activeElement !== fuelInput && autoManaged) {
     fuelCostC = autoFuelC;
-    fuelInput.value = (autoFuelC / 100).toFixed(2).replace('.', ',');
+    fuelInput.dataset.autoFuelC = String(autoFuelC);
+    fuelInput.dataset.shiftFuelMode = 'auto';
+    fuelInput.value = km > 0 ? (autoFuelC / 100).toFixed(2).replace('.', ',') : '';
   }
 
   const rKm = km > 0 ? (totalShiftGrossC / 100) / km : 0;
