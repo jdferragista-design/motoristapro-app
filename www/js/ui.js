@@ -393,6 +393,12 @@ function recalcShiftLive() {
   document.getElementById('liveShiftNet').innerText = brlC(netC);
   setSignedValueClass('liveShiftNet', netC);
 
+  const liveShiftSummaryBox = document.getElementById('liveShiftSummaryBox');
+  if (liveShiftSummaryBox) {
+    liveShiftSummaryBox.style.background = netC < 0 ? 'rgba(244, 63, 94, 0.08)' : 'rgba(16, 185, 129, 0.08)';
+    liveShiftSummaryBox.style.borderColor = netC < 0 ? 'rgba(244, 63, 94, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+  }
+
   // O odômetro inicial fica registrado para cálculo posterior nos relatórios.
   const odoGroup = document.getElementById('odoStartGroup');
   if (odoGroup && odoGroup.style.display !== 'none') {
@@ -721,6 +727,7 @@ function calculateTripSim() {
   document.getElementById('simRateKm').innerText = `${formatBRL(rKm)}/km`;
   document.getElementById('simRateHour').innerText = `${formatBRL(rHour)}/h`;
   document.getElementById('simNet').innerText = brlC(netC);
+  setSignedValueClass('simNet', netC);
 
   const excellentKm = (state.vehicle.targetKmRate || 2.20) * (2.5 / 2.2);
   const excellentHour = (state.vehicle.targetHourlyRate || 35.00) * (45 / 35);
@@ -728,18 +735,22 @@ function calculateTripSim() {
   const warningHour = (state.vehicle.targetHourlyRate || 35.00) * (28 / 35);
 
   const vBox = document.getElementById('simVerdictBox');
+  const simMetricsBox = document.getElementById('simMetricsBox');
   if (rKm >= excellentKm && rHour >= excellentHour) {
     vBox.innerText = '🔥 CORRIDA EXCELENTE! (Super Lucro)';
     vBox.style.background = 'rgba(16, 185, 129, 0.2)';
     vBox.style.color = '#34d399';
+    if (simMetricsBox) simMetricsBox.style.borderColor = 'rgba(16, 185, 129, 0.35)';
   } else if (rKm < warningKm || rHour < warningHour) {
     vBox.innerText = '❌ CUIDADO! Prejuízo ou Margem Mínima';
     vBox.style.background = 'rgba(244, 63, 94, 0.2)';
     vBox.style.color = '#fb7185';
+    if (simMetricsBox) simMetricsBox.style.borderColor = 'rgba(244, 63, 94, 0.35)';
   } else {
     vBox.innerText = '⚠️ Corrida Aceitável / Regular';
     vBox.style.background = 'rgba(245, 158, 11, 0.2)';
     vBox.style.color = '#fbbf24';
+    if (simMetricsBox) simMetricsBox.style.borderColor = 'rgba(245, 158, 11, 0.35)';
   }
 }
 

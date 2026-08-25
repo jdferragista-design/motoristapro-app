@@ -95,6 +95,25 @@ function render() {
   setSignedValueClass('dashNet', netProfitC);
   setSignedBadgeState('dashMargin', netMargin);
 
+  const dashNetCard = document.getElementById('dashNetCard');
+  const dashNetLabel = document.getElementById('dashNetLabel');
+  const dashNetSub = document.getElementById('dashNetSub');
+  if (dashNetCard && dashNetLabel && dashNetSub) {
+    if (netProfitC < 0) {
+      dashNetCard.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+      dashNetCard.style.background = 'linear-gradient(160deg, rgba(244, 63, 94, 0.12), rgba(21, 21, 39, 0.6))';
+      dashNetLabel.style.color = '#fda4af';
+      dashNetSub.style.color = '#fda4af';
+      dashNetSub.innerText = 'Período fechando no vermelho.';
+    } else {
+      dashNetCard.style.borderColor = 'rgba(139, 92, 246, 0.4)';
+      dashNetCard.style.background = 'linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6))';
+      dashNetLabel.style.color = '#c4b5fd';
+      dashNetSub.style.color = '#a7f3d0';
+      dashNetSub.innerText = '100% livre no seu bolso';
+    }
+  }
+
   document.getElementById('dashRateKm').innerText = formatBRL(rateKm) + '/km';
   document.getElementById('dashRateKmSub').innerText = `Meta: ${formatBRL(state.vehicle.targetKmRate)}/km ${rateKm >= state.vehicle.targetKmRate ? '✅' : '⚠️'}`;
 

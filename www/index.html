@@ -135,13 +135,13 @@
             <div class="metric-sub" id="dashExpensesSub">Combustível + Provisão</div>
             <div class="kpi-spark" id="sparkExp"></div>
           </div>
-          <div class="metric-box" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6));">
+          <div class="metric-box" id="dashNetCard" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6));">
             <div class="metric-head">
-              <div class="metric-label" style="color: #c4b5fd;">Lucro Líquido Real</div>
+              <div class="metric-label" id="dashNetLabel" style="color: #c4b5fd;">Lucro Líquido Real</div>
               <span id="trendNet"></span>
             </div>
             <div class="metric-val val-emerald" id="dashNet">R$ 1.162,80</div>
-            <div class="metric-sub" style="color: #a7f3d0;">100% livre no seu bolso</div>
+            <div class="metric-sub" id="dashNetSub" style="color: #a7f3d0;">100% livre no seu bolso</div>
             <div class="kpi-spark" id="sparkNet"></div>
           </div>
         </div>
@@ -374,7 +374,7 @@
             </div>
           </div>
 
-          <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div id="simMetricsBox" style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
             <div id="simVerdictBox" style="padding: 10px; border-radius: 10px; font-weight: 800; font-size: 13px; text-align: center; margin-bottom: 10px;">
               🔥 CORRIDA EXCELENTE! (Super Lucro)
             </div>
@@ -726,7 +726,7 @@
         </div>
 
         <!-- ETAPA 3: PERFORMANCE INSTANTÂNEA DO TURNO -->
-        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 12px;">
+        <div id="liveShiftSummaryBox" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 12px;">
           <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 8px;">
             <span>Resumo de Fechamento do Turno:</span>
             <span class="val-emerald" id="liveShiftGross">R$ 0,00</span>
@@ -917,13 +917,13 @@
     </div>
   </div>
 
-  <script src="js/utils.js?v=13"></script>
-  <script src="js/charts.js?v=13"></script>
-  <script src="js/data.js?v=13"></script>
-  <script src="js/domain.js?v=13"></script>
-  <script src="js/ui.js?v=13"></script>
-  <script src="js/render.js?v=13"></script>
-  <script src="js/init.js?v=13"></script>
+  <script src="js/utils.js?v=14"></script>
+  <script src="js/charts.js?v=14"></script>
+  <script src="js/data.js?v=14"></script>
+  <script src="js/domain.js?v=14"></script>
+  <script src="js/ui.js?v=14"></script>
+  <script src="js/render.js?v=14"></script>
+  <script src="js/init.js?v=14"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {
