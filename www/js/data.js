@@ -141,7 +141,7 @@ function migrateState(s) {
   const base = JSON.parse(JSON.stringify(defaultData));
   const vehicle = Object.assign({}, base.vehicle, (s && s.vehicle) || {});
   if (!(s && s.vehicle && Object.prototype.hasOwnProperty.call(s.vehicle, 'manualOdometerBase'))) {
-    vehicle.manualOdometerBase = 0;
+    vehicle.manualOdometerBase = vehicle.odometer || 0;
   }
   return {
     vehicle,
