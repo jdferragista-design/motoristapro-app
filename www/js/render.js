@@ -550,7 +550,10 @@ async function shareTextFileNatively({ fileName, content, title, text, dialogTit
 
   const Filesystem = getCapacitorPlugin('Filesystem');
   const Share = getCapacitorPlugin('Share');
-  if (!Filesystem || !Share) return false;
+  if (!Filesystem || !Share) {
+    alert('O compartilhamento nativo não está disponível neste aparelho. Vamos tentar o modo alternativo.');
+    return false;
+  }
 
   try {
     const path = `exports/${fileName}`;
@@ -566,7 +569,10 @@ async function shareTextFileNatively({ fileName, content, title, text, dialogTit
       ? await Filesystem.getUri({ path, directory: 'CACHE' })
       : null;
     const fileUri = uriResult && uriResult.uri ? uriResult.uri : null;
-    if (!fileUri) return false;
+    if (!fileUri) {
+      alert('Não conseguimos preparar o arquivo nativo para compartilhar. Vamos tentar o modo alternativo.');
+      return false;
+    }
 
     await Share.share({
       title,
@@ -577,6 +583,7 @@ async function shareTextFileNatively({ fileName, content, title, text, dialogTit
     return true;
   } catch (err) {
     console.log('Native file share failed, falling back to web flow:', err);
+    alert('Não foi possível abrir o compartilhamento nativo. Vamos tentar o modo alternativo.');
     return false;
   }
 }
@@ -844,15 +851,16 @@ async function exportJSONBackup() {
 
 
 function clearAllData() {
-  if (confirm('⚠️ Tem certeza que deseja limpar TODOS os dados para começar do zero?')) {
+  if (confirm('⚠️ Tem certeza que deseja limpar os dados operacionais? As configurações do veículo e combustível serão mantidas.')) {
     state = migrateState({
-      vehicle: JSON.parse(JSON.stringify(defaultData.vehicle)),
-      fuelSettings: JSON.parse(JSON.stringify(defaultData.fuelSettings)),
+      vehicle: JSON.parse(JSON.stringify(state.vehicle)),
+      fuelSettings: JSON.parse(JSON.stringify(state.fuelSettings)),
       shifts: [],
       expenses: [],
       maintenance: []
     });
+    syncVehicleOdometer();
     saveState();
-    alert('Todos os dados foram limpos com sucesso. O app foi resetado para começar do zero.');
+    alert('Turnos, despesas e manutenção foram limpos. As configurações do veículo e combustível foram mantidas.');
   }
 }
