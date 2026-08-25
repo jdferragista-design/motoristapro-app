@@ -169,7 +169,9 @@ function openCreateShiftModal() {
 // Odômetro no início do turno: visível apenas no 1º lançamento do dia
 function updateOdoStartVisibility() {
   const date = document.getElementById('shiftDate').value || getTodayString();
-  const firstOfDay = !state.shifts.some(s => s.date === date && s.id !== editingShiftId);
+  const currentShift = editingShiftId ? state.shifts.find(s => s.id === editingShiftId) : null;
+  const editingOwnFirstLaunch = !!(currentShift && currentShift.date === date && currentShift.odoStart);
+  const firstOfDay = editingOwnFirstLaunch || !state.shifts.some(s => s.date === date && s.id !== editingShiftId);
   document.getElementById('odoStartGroup').style.display = firstOfDay ? 'block' : 'none';
   recalcShiftLive();
 }
