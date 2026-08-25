@@ -520,9 +520,116 @@ function renderMaintenance() {
 // ==============================================================
 // GOOGLE DRIVE SYNC & BACKUP LOGIC
 // ==============================================================
+function isNativeCapacitorApp() {
+  const cap = window.Capacitor;
+  if (!cap) return false;
+  if (typeof cap.isNativePlatform === 'function') return cap.isNativePlatform();
+  if (typeof cap.getPlatform === 'function') {
+    const platform = cap.getPlatform();
+    return platform === 'android' || platform === 'ios';
+  }
+  return false;
+}
+
+function getCapacitorPlugin(name) {
+  const cap = window.Capacitor;
+  if (!cap) return null;
+  if (cap.Plugins && cap.Plugins[name]) return cap.Plugins[name];
+  if (typeof cap.registerPlugin === 'function') {
+    window.__MP_CAP_PLUGINS = window.__MP_CAP_PLUGINS || {};
+    if (!window.__MP_CAP_PLUGINS[name]) {
+      window.__MP_CAP_PLUGINS[name] = cap.registerPlugin(name);
+    }
+    return window.__MP_CAP_PLUGINS[name];
+  }
+  return null;
+}
+
+async function shareTextFileNatively({ fileName, content, title, text, dialogTitle }) {
+  if (!isNativeCapacitorApp()) return false;
+
+  const Filesystem = getCapacitorPlugin('Filesystem');
+  const Share = getCapacitorPlugin('Share');
+  if (!Filesystem || !Share) return false;
+
+  try {
+    const path = `exports/${fileName}`;
+    await Filesystem.writeFile({
+      path,
+      data: content,
+      directory: 'CACHE',
+      encoding: 'utf8',
+      recursive: true
+    });
+
+    const uriResult = typeof Filesystem.getUri === 'function'
+      ? await Filesystem.getUri({ path, directory: 'CACHE' })
+      : null;
+    const fileUri = uriResult && uriResult.uri ? uriResult.uri : null;
+    if (!fileUri) return false;
+
+    await Share.share({
+      title,
+      text,
+      files: [fileUri],
+      dialogTitle
+    });
+    return true;
+  } catch (err) {
+    console.log('Native file share failed, falling back to web flow:', err);
+    return false;
+  }
+}
+
+function buildBackupJson() {
+  return JSON.stringify(state, null, 2);
+}
+
+function buildCSVContent() {
+  const S = ';';
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const num = v => (Number(v) || 0).toFixed(2).replace('.', ',');
+  const lines = [];
+
+  lines.push('TURNOS');
+  lines.push(['Data', 'Período', 'Aplicativos', 'Bruto (R$)', 'Viagens', 'KM', 'Horas', 'Combustível (R$)', 'Odômetro início (km)', 'Km fora de serviço (até próxima jornada)', 'Observações'].join(S));
+  state.shifts.forEach(s => {
+    const apps = Array.isArray(s.apps) ? s.apps.map(a => `${a.name} ${num((a.gross || 0) + (a.tips || 0))}`).join(' | ') : '';
+    const fora = getKmFora(s);
+    lines.push([
+      formatDate(s.date), q(s.period || 'Integral'), q(apps), num(getShiftTotalGross(s)),
+      getShiftTotalTrips(s), num(s.km), num(s.hours), num(s.fuelCost),
+      s.odoStart || '', fora !== null ? fora.toFixed(0) : '', q(s.notes || '')
+    ].join(S));
+  });
+
+  lines.push('');
+  lines.push('DESPESAS');
+  lines.push(['Data', 'Categoria', 'Descrição', 'Valor (R$)', 'Combustível', 'Litros', 'R$/L', 'Odômetro (km)'].join(S));
+  state.expenses.forEach(e => {
+    lines.push([
+      formatDate(e.date), q(e.category), q(e.title), num(e.amount),
+      q(e.fuelType || ''), e.liters ? num(e.liters) : '', e.pricePerLiter ? num(e.pricePerLiter) : '', e.odo || ''
+    ].join(S));
+  });
+
+  return '\uFEFF' + lines.join('\r\n');
+}
+
 async function saveToGoogleDrive() {
   const fileName = `motoristapro_backup_${getTodayString()}.json`;
-  const jsonStr = JSON.stringify(state, null, 2);
+  const jsonStr = buildBackupJson();
+
+  if (await shareTextFileNatively({
+    fileName,
+    content: jsonStr,
+    title: 'Backup MotoristaPro',
+    text: `Backup completo do MotoristaPro gerado em ${formatDate(getTodayString())}`,
+    dialogTitle: 'Salvar backup no Google Drive'
+  })) {
+    return;
+  }
+
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const file = new File([blob], fileName, { type: 'application/json' });
 
@@ -686,39 +793,25 @@ function copyWhatsAppSummary() {
 
 // CSV compatível com Excel BR: BOM UTF-8, separador ";", decimal com vírgula,
 // datas dd/mm/aaaa e seções separadas p/ turnos e despesas
-function exportCSV() {
-  const S = ';';
-  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const num = v => (Number(v) || 0).toFixed(2).replace('.', ',');
-  const lines = [];
+async function exportCSV() {
+  const fileName = `motoristapro_${getTodayString()}.csv`;
+  const csvContent = buildCSVContent();
 
-  lines.push('TURNOS');
-  lines.push(['Data', 'Período', 'Aplicativos', 'Bruto (R$)', 'Viagens', 'KM', 'Horas', 'Combustível (R$)', 'Odômetro início (km)', 'Km fora de serviço (até próxima jornada)', 'Observações'].join(S));
-  state.shifts.forEach(s => {
-    const apps = Array.isArray(s.apps) ? s.apps.map(a => `${a.name} ${num((a.gross || 0) + (a.tips || 0))}`).join(' | ') : '';
-    const fora = getKmFora(s);
-    lines.push([
-      formatDate(s.date), q(s.period || 'Integral'), q(apps), num(getShiftTotalGross(s)),
-      getShiftTotalTrips(s), num(s.km), num(s.hours), num(s.fuelCost),
-      s.odoStart || '', fora !== null ? fora.toFixed(0) : '', q(s.notes || '')
-    ].join(S));
-  });
+  if (await shareTextFileNatively({
+    fileName,
+    content: csvContent,
+    title: 'Exportação CSV MotoristaPro',
+    text: `Planilha do MotoristaPro gerada em ${formatDate(getTodayString())}`,
+    dialogTitle: 'Compartilhar planilha CSV'
+  })) {
+    return;
+  }
 
-  lines.push('');
-  lines.push('DESPESAS');
-  lines.push(['Data', 'Categoria', 'Descrição', 'Valor (R$)', 'Combustível', 'Litros', 'R$/L', 'Odômetro (km)'].join(S));
-  state.expenses.forEach(e => {
-    lines.push([
-      formatDate(e.date), q(e.category), q(e.title), num(e.amount),
-      q(e.fuelType || ''), e.liters ? num(e.liters) : '', e.pricePerLiter ? num(e.pricePerLiter) : '', e.odo || ''
-    ].join(S));
-  });
-
-  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `motoristapro_${getTodayString()}.csv`;
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -726,11 +819,24 @@ function exportCSV() {
 }
 
 
-function exportJSONBackup() {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+async function exportJSONBackup() {
+  const fileName = `motoristapro_backup_${getTodayString()}.json`;
+  const jsonStr = buildBackupJson();
+
+  if (await shareTextFileNatively({
+    fileName,
+    content: jsonStr,
+    title: 'Backup MotoristaPro',
+    text: `Backup completo do MotoristaPro gerado em ${formatDate(getTodayString())}`,
+    dialogTitle: 'Compartilhar backup JSON'
+  })) {
+    return;
+  }
+
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonStr);
   const link = document.createElement('a');
   link.setAttribute('href', dataStr);
-  link.setAttribute('download', `motoristapro_backup_${getTodayString()}.json`);
+  link.setAttribute('download', fileName);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

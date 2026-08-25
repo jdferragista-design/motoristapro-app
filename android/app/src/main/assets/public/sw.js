@@ -1,11 +1,12 @@
-/* MotoristaPro Service Worker — suporte offline 100% (cache-first com atualização em background) */
-const CACHE = 'motoristapro-v4';
+/* MotoristaPro Service Worker — suporte offline 100% (network-first p/ HTML + cache-first p/ assets) */
+const CACHE = 'motoristapro-v16';
 const ASSETS = [
   'index.html',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
   'css/style.css',
+  'js/capacitor.js',
   'js/utils.js',
   'js/charts.js',
   'js/data.js',
@@ -39,6 +40,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // HTML/navegação: prioriza rede para evitar ficar preso em build antigo
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put('index.html', clone));
+        }
+        return response;
+      }).catch(() => caches.match('index.html'))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then(cached => {
       const network = fetch(event.request).then(response => {
@@ -49,7 +64,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       }).catch(() => cached);
 
-      // Cache-first: responde imediatamente do cache e atualiza em background
+      // Assets: cache-first com atualização em background
       return cached || network;
     })
   );
