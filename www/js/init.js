@@ -31,7 +31,13 @@ calculateTripSim();
 
 // Sinaliza boot concluído (usado pelo banner de diagnóstico do index.html)
 window.__MP_BOOTED = true;
+logEvent('info', 'Boot concluído', { version: APP_VERSION });
 window.addEventListener('error', function (e) {
+  logEvent('error', 'Erro global em runtime', { message: e.message, source: e.filename, line: e.lineno, col: e.colno });
   var b = document.getElementById('bootErrorBanner');
   if (b && e.message) b.style.display = 'flex';
+});
+window.addEventListener('unhandledrejection', function (e) {
+  var reason = e && e.reason;
+  logEvent('error', 'Promise rejeitada sem tratamento', reason && reason.message ? { message: reason.message, stack: reason.stack } : reason);
 });

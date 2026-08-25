@@ -684,6 +684,7 @@ function executeMaintenance(mId) {
   });
 
   syncVehicleOdometer();
+  logEvent('info', 'Manutenção executada', { maintenanceId: mId, name: item.name, cost, odometer: state.vehicle.odometer });
   saveState();
   alert(`✅ Manutenção registrada com sucesso! Despesa de ${formatBRL(cost)} lançada no seu fluxo de caixa.`);
 }

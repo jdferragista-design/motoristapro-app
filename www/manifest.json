@@ -1,6 +1,6 @@
 {
-  "name": "MotoristaPro 1.18 - Controle de Ganhos, Gastos & Manutenção",
-  "short_name": "MotoristaPro 1.18",
+  "name": "MotoristaPro v1.18 - Controle de Ganhos, Gastos & Manutenção",
+  "short_name": "MotoristaPro v1.18",
   "description": "Controle financeiro completo para motoristas de aplicativo: turnos multi-app, R$/km, paridade de combustível e manutenção preventiva. 100% offline.",
   "start_url": "index.html",
   "scope": "./",

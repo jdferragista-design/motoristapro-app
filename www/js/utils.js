@@ -22,6 +22,81 @@ function brlC(cents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 }
 
+const APP_VERSION = 'v1.18.1';
+const LOG_STORAGE_KEY = 'mp_html_logs_v1';
+const LOG_LIMIT = 400;
+
+let appLogs = [];
+try {
+  appLogs = JSON.parse(localStorage.getItem(LOG_STORAGE_KEY) || '[]');
+  if (!Array.isArray(appLogs)) appLogs = [];
+} catch (e) {
+  appLogs = [];
+}
+
+function normalizeLogData(data) {
+  if (data === undefined) return undefined;
+  if (data instanceof Error) {
+    return { message: data.message, stack: data.stack };
+  }
+  if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean' || data === null) {
+    return data;
+  }
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch (e) {
+    return String(data);
+  }
+}
+
+function logEvent(level, message, data) {
+  const entry = {
+    ts: new Date().toISOString(),
+    level,
+    message,
+    data: normalizeLogData(data)
+  };
+  appLogs.push(entry);
+  if (appLogs.length > LOG_LIMIT) appLogs = appLogs.slice(-LOG_LIMIT);
+  try {
+    localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(appLogs));
+  } catch (e) {}
+  return entry;
+}
+
+function getAppLogs() {
+  return appLogs.slice();
+}
+
+function buildAppLogsText() {
+  const platform = window.Capacitor && typeof window.Capacitor.getPlatform === 'function'
+    ? window.Capacitor.getPlatform()
+    : 'web';
+  const stateSummary = typeof state !== 'undefined'
+    ? {
+        shifts: (state.shifts || []).length,
+        expenses: (state.expenses || []).length,
+        maintenance: (state.maintenance || []).length,
+        vehicle: state.vehicle || null
+      }
+    : null;
+
+  const lines = [
+    `MotoristaPro ${APP_VERSION}`,
+    `Gerado em: ${new Date().toISOString()}`,
+    `Plataforma: ${platform}`,
+    stateSummary ? `Resumo de estado: ${JSON.stringify(stateSummary)}` : 'Resumo de estado: indisponível',
+    '--- LOGS ---'
+  ];
+
+  getAppLogs().forEach(entry => {
+    const data = entry.data !== undefined ? ` | ${JSON.stringify(entry.data)}` : '';
+    lines.push(`[${entry.ts}] ${entry.level.toUpperCase()} - ${entry.message}${data}`);
+  });
+
+  return lines.join('\n');
+}
+
 function formatBRL(val) { return brlC(toC(val)); }
 
 function setSignedValueClass(elOrId, numericValue) {

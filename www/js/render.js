@@ -884,6 +884,35 @@ async function exportJSONBackup() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  logEvent('warn', 'Fallback para download web do backup JSON', { fileName });
+}
+
+async function exportLogs() {
+  const fileName = `motoristapro_logs_${getTodayString()}.txt`;
+  const logsText = buildAppLogsText();
+  logEvent('info', 'Tentativa de exportar logs', { fileName });
+
+  if (await shareTextFileNatively({
+    fileName,
+    content: logsText,
+    title: `Logs ${APP_VERSION}`,
+    text: `Logs de diagnóstico do MotoristaPro ${APP_VERSION}`,
+    dialogTitle: 'Compartilhar logs de diagnóstico'
+  })) {
+    logEvent('info', 'Logs enviados para compartilhamento nativo', { fileName });
+    return;
+  }
+
+  const blob = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  logEvent('warn', 'Fallback para download web dos logs', { fileName });
 }
 
 

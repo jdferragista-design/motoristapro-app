@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#0a0a14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="MotoristaPro" />
+  <meta name="apple-mobile-web-app-title" content="MotoristaPro v1.18" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
-  <title>MotoristaPro - Controle de Ganhos, Gastos & Google Drive</title>
-  <link rel="stylesheet" href="css/style.css?v=15" />
+  <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Google Drive</title>
+  <link rel="stylesheet" href="css/style.css?v=19" />
 </head>
 <body>
 
@@ -23,7 +23,7 @@
           <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><path d="M9 17h6"></path><circle cx="17" cy="17" r="2"></circle></svg>
         </div>
         <div>
-          <div class="brand-title">Motorista<span>Pro</span></div>
+          <div class="brand-title">Motorista<span>Pro</span> <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">v1.18</span></div>
           <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Google Drive)</div>
         </div>
       </div>
@@ -91,7 +91,7 @@
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 20px;">📲</span>
           <div>
-            <div style="font-size: 13px; font-weight: 800; color: #fff;">Instalar o MotoristaPro</div>
+            <div style="font-size: 13px; font-weight: 800; color: #fff;">Instalar o MotoristaPro v1.18</div>
             <div style="font-size: 11px; color: var(--text-muted);">Use direto da tela inicial, 100% offline.</div>
           </div>
         </div>
@@ -288,7 +288,7 @@
         </div>
       </div>
 
-      <div class="highlight-pill" id="realKmlBox" style="display: none; margin-bottom: 14px;"></div>
+      <div class="highlight-pill" id="realKmlBox" style="display: none; margin-bottom: 14px;""></div>
 
       <div style="margin-bottom: 10px;">
         <input type="text" id="expenseSearchInput" placeholder="🔍 Buscar por descrição ou posto..." class="form-control" oninput="renderExpensesList()" />
@@ -501,7 +501,7 @@
         <div class="card-title">Outras Opções de Exportação & Limpeza</div>
         <div class="card-subtitle" style="margin-bottom: 14px;">Exporte planilhas ou gerencie os dados gravados no aparelho</div>
 
-        <div class="grid grid-2">
+        <div class="grid grid-3">
           <button class="btn btn-secondary" onclick="exportCSV()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             Exportar Planilha Excel (CSV)
@@ -509,6 +509,10 @@
           <button class="btn btn-secondary" onclick="exportJSONBackup()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             Exportar Backup Completo (JSON)
+          </button>
+          <button class="btn btn-secondary" onclick="exportLogs()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="13" y2="17"></line></svg>
+            Baixar Logs (TXT)
           </button>
         </div>
       </div>
@@ -917,14 +921,44 @@
     </div>
   </div>
 
-  <script src="js/capacitor.js?v=16"></script>
-  <script src="js/utils.js?v=16"></script>
-  <script src="js/charts.js?v=16"></script>
-  <script src="js/data.js?v=16"></script>
-  <script src="js/domain.js?v=16"></script>
-  <script src="js/ui.js?v=16"></script>
-  <script src="js/render.js?v=16"></script>
-  <script src="js/init.js?v=16"></script>
+  <script src="js/capacitor.js?v=19"></script>
+  <script src="js/utils.js?v=19"></script>
+  <script src="js/charts.js?v=19"></script>
+  <script src="js/data.js?v=19"></script>
+  <script src="js/domain.js?v=19"></script>
+  <script src="js/ui.js?v=19"></script>
+  <script src="js/render.js?v=19"></script>
+  <script src="js/init.js?v=19"></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.__MP_BOOTED) {
+          var b = document.getElementById('bootErrorBanner');
+          if (b) b.style.display = 'flex';
+        }
+      }, 800);
+    });
+  </script>
+</body>
+</html>
+"></script>
+  <script src="js/render.js?v=18"></script>
+  <script src="js/init.js?v=18"></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.__MP_BOOTED) {
+          var b = document.getElementById('bootErrorBanner');
+          if (b) b.style.display = 'flex';
+        }
+      }, 800);
+    });
+  </script>
+</body>
+</html>
+"></script>
+  <script src="js/render.js?v=18"></script>
+  <script src="js/init.js?v=18"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {

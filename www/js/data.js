@@ -128,6 +128,7 @@ let editingMaintId = null;
 
 let deferredPWAEvent = null;
 
+logEvent('info', 'Estado inicial do app carregado', { version: APP_VERSION });
 
 function saveState() {
   localStorage.setItem('mp_html_state_v8', JSON.stringify(state));
