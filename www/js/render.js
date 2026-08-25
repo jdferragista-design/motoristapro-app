@@ -535,6 +535,7 @@ function handleRestoreFile(event) {
       if (imported && (imported.shifts || imported.vehicle)) {
         if (confirm(`Restaurar backup com ${imported.shifts?.length || 0} turnos e ${imported.expenses?.length || 0} despesas? Isso substituirá os dados atuais.`)) {
           state = migrateState(imported);
+          syncVehicleOdometer();
           saveState();
           alert('🎉 Backup restaurado com 100% de sucesso! Todos os seus turnos e médias foram carregados.');
         }

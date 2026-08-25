@@ -5,14 +5,17 @@
 if (localStorage.getItem('mp_html_state_v8')) {
   try {
     const saved = JSON.parse(localStorage.getItem('mp_html_state_v8'));
-    if (saved && saved.vehicle) state = migrateState(saved);
+    if (saved && saved.vehicle) {
+      state = migrateState(saved);
+      syncVehicleOdometer();
+    }
   } catch(e){}
 }
 
 const CENTS_MASK_IDS = ['appGrossInput', 'appTipsInput', 'shiftKmTotal', 'shiftFuelCost',
   'expAmount', 'expLitersInput', 'simOffer', 'simPickup', 'simTrip',
   'fuelGasPrice', 'fuelGasKml', 'fuelEthPrice', 'fuelEthKml',
-  'cfgReserve', 'cfgTargetKm', 'maintCostInput'];
+  'cfgReserve', 'cfgTargetKm', 'cfgTargetHour', 'maintCostInput'];
 
 const CALC_AFTER_MASK = {
   shiftKmTotal: () => recalcShiftLive(),
@@ -191,8 +194,9 @@ function openEditShiftModal(id) {
   document.getElementById('shiftTimeEnd').value = shift.timeEnd || '16:00';
   document.getElementById('shiftKmTotal').value = shift.km || '';
   document.getElementById('shiftFuelCost').value = fmt2(shift.fuelCost);
-  document.getElementById('shiftFuelCost').dataset.autoFuelC = String(toC(shift.fuelCost));
-  document.getElementById('shiftFuelCost').dataset.shiftFuelMode = shift.fuelCost > 0 ? 'manual' : 'auto';
+  const savedFuelMode = shift.fuelCostMode || (shift.fuelCost > 0 ? 'manual' : 'auto');
+  document.getElementById('shiftFuelCost').dataset.autoFuelC = savedFuelMode === 'auto' ? String(toC(shift.fuelCost)) : '0';
+  document.getElementById('shiftFuelCost').dataset.shiftFuelMode = savedFuelMode;
   document.getElementById('shiftNotes').value = shift.notes || '';
   document.getElementById('shiftOdoStart').value = shift.odoStart || '';
 
@@ -406,6 +410,7 @@ function saveFinalShift() {
   const timeStart = document.getElementById('shiftTimeStart').value;
   const timeEnd = document.getElementById('shiftTimeEnd').value;
   const fuelCost = parseVal(document.getElementById('shiftFuelCost').value);
+  const fuelCostMode = document.getElementById('shiftFuelCost').dataset.shiftFuelMode || 'manual';
   const notes = document.getElementById('shiftNotes').value;
   const override = document.getElementById('shiftFuelOverrideSelect').value;
   const fuelTypeUsed = (override === 'auto') ? getLastFuelInfo().fuelType : (override === 'gasolina' ? 'Gasolina' : 'Etanol');
@@ -441,6 +446,7 @@ function saveFinalShift() {
         timeStart,
         timeEnd,
         fuelCost,
+        fuelCostMode,
         fuelTypeUsed,
         notes,
         odoStart
@@ -457,6 +463,7 @@ function saveFinalShift() {
       timeStart,
       timeEnd,
       fuelCost,
+      fuelCostMode,
       fuelTypeUsed,
       notes,
       odoStart
