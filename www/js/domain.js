@@ -79,6 +79,25 @@ function getTotalKmFora() {
   return state.shifts.reduce((acc, s) => acc + (getKmFora(s) || 0), 0);
 }
 
+function getMaxRecordedOdometer() {
+  let maxOdo = 0;
+
+  state.expenses.forEach(e => {
+    if (e && e.odo > 0) maxOdo = Math.max(maxOdo, e.odo);
+  });
+
+  state.shifts.forEach(s => {
+    if (s && s.odoStart > 0) maxOdo = Math.max(maxOdo, s.odoStart + (s.km || 0));
+  });
+
+  return maxOdo;
+}
+
+function syncVehicleOdometer() {
+  const manualBase = state.vehicle.manualOdometerBase || 0;
+  state.vehicle.odometer = Math.max(manualBase, getMaxRecordedOdometer(), 0);
+}
+
 
 function getShiftTotalGrossC(s) {
   if (s.totalGross !== undefined) return toC(s.totalGross);

@@ -139,8 +139,12 @@ function saveState() {
 // nunca quebrem o app por campos faltando
 function migrateState(s) {
   const base = JSON.parse(JSON.stringify(defaultData));
+  const vehicle = Object.assign({}, base.vehicle, (s && s.vehicle) || {});
+  if (!(s && s.vehicle && Object.prototype.hasOwnProperty.call(s.vehicle, 'manualOdometerBase'))) {
+    vehicle.manualOdometerBase = 0;
+  }
   return {
-    vehicle: Object.assign({}, base.vehicle, (s && s.vehicle) || {}),
+    vehicle,
     fuelSettings: Object.assign({}, base.fuelSettings, (s && s.fuelSettings) || {}),
     shifts: Array.isArray(s && s.shifts) ? s.shifts : [],
     expenses: Array.isArray(s && s.expenses) ? s.expenses : [],

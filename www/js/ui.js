@@ -468,10 +468,7 @@ function saveFinalShift() {
     // do dia (odoStart + km) — base p/ calcular km fora de serviço entre jornadas.
   }
 
-  if (odoStart) {
-    const endOdo = odoStart + km;
-    if (endOdo > (state.vehicle.odometer || 0)) state.vehicle.odometer = endOdo;
-  }
+  syncVehicleOdometer();
 
   saveState();
   closeModal('modalShift');
@@ -482,6 +479,7 @@ function saveFinalShift() {
 function deleteShift(id) {
   if(confirm('Deseja realmente excluir este registro de turno?')) {
     state.shifts = state.shifts.filter(s => s.id !== id);
+    syncVehicleOdometer();
     saveState();
   }
 }
@@ -568,11 +566,9 @@ function saveExpense(e) {
     });
   }
 
-  // REGRA DE NEGÓCIO: odômetro é atualizado apenas por abastecimentos
-  // (e manutenções/configurações). Vale para criação e edição.
-  if (isFuel && odo && odo > (state.vehicle.odometer || 0)) {
-    state.vehicle.odometer = odo;
-  }
+  // REGRA DE NEGÓCIO: odômetro é alimentado por leituras reais com odômetro
+  // (abastecimentos, manutenções e início+fim do 1º turno do dia).
+  syncVehicleOdometer();
 
   saveState();
   closeModal('modalExpense');
@@ -583,6 +579,7 @@ function saveExpense(e) {
 function deleteExpense(id) {
   if(confirm('Deseja realmente excluir esta despesa?')) {
     state.expenses = state.expenses.filter(e => e.id !== id);
+    syncVehicleOdometer();
     saveState();
   }
 }
@@ -673,6 +670,7 @@ function executeMaintenance(mId) {
     odo: state.vehicle.odometer
   });
 
+  syncVehicleOdometer();
   saveState();
   alert(`✅ Manutenção registrada com sucesso! Despesa de ${formatBRL(cost)} lançada no seu fluxo de caixa.`);
 }
@@ -683,6 +681,7 @@ function saveSettings(e) {
   state.vehicle.model = document.getElementById('cfgModel').value;
   state.vehicle.plate = document.getElementById('cfgPlate').value;
   state.vehicle.odometer = parseVal(document.getElementById('cfgOdo').value) || 64850;
+  state.vehicle.manualOdometerBase = state.vehicle.odometer;
   state.vehicle.maintenanceReservePerKm = parseVal(document.getElementById('cfgReserve').value) || 0.18;
   state.vehicle.monthlyGoal = parseVal(document.getElementById('cfgMonthlyGoal').value) || 7000;
   state.vehicle.targetKmRate = parseVal(document.getElementById('cfgTargetKm').value) || 2.20;
