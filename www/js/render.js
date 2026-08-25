@@ -545,44 +545,81 @@ function getCapacitorPlugin(name) {
   return null;
 }
 
+async function writeNativeExportFile(fileName, content) {
+  if (!isNativeCapacitorApp()) return null;
+
+  const Filesystem = getCapacitorPlugin('Filesystem');
+  if (!Filesystem) return null;
+
+  let directory = 'CACHE';
+  if (typeof Filesystem.requestPermissions === 'function') {
+    try {
+      const perm = await Filesystem.requestPermissions();
+      if (perm && perm.publicStorage === 'granted') directory = 'DOCUMENTS';
+    } catch (e) {}
+  }
+
+  const path = directory === 'DOCUMENTS' ? `MotoristaPro/${fileName}` : `exports/${fileName}`;
+  await Filesystem.writeFile({
+    path,
+    data: content,
+    directory,
+    encoding: 'utf8',
+    recursive: true
+  });
+
+  const uriResult = typeof Filesystem.getUri === 'function'
+    ? await Filesystem.getUri({ path, directory })
+    : null;
+  return {
+    path,
+    directory,
+    uri: uriResult && uriResult.uri ? uriResult.uri : null
+  };
+}
+
 async function shareTextFileNatively({ fileName, content, title, text, dialogTitle }) {
   if (!isNativeCapacitorApp()) return false;
 
   const Filesystem = getCapacitorPlugin('Filesystem');
   const Share = getCapacitorPlugin('Share');
-  if (!Filesystem || !Share) {
-    alert('O compartilhamento nativo não está disponível neste aparelho. Vamos tentar o modo alternativo.');
+  if (!Filesystem) {
+    alert('O armazenamento nativo não está disponível neste aparelho. Vamos tentar o modo alternativo.');
     return false;
   }
 
   try {
-    const path = `exports/${fileName}`;
-    await Filesystem.writeFile({
-      path,
-      data: content,
-      directory: 'CACHE',
-      encoding: 'utf8',
-      recursive: true
-    });
-
-    const uriResult = typeof Filesystem.getUri === 'function'
-      ? await Filesystem.getUri({ path, directory: 'CACHE' })
-      : null;
-    const fileUri = uriResult && uriResult.uri ? uriResult.uri : null;
-    if (!fileUri) {
+    const fileInfo = await writeNativeExportFile(fileName, content);
+    if (!fileInfo || !fileInfo.uri) {
       alert('Não conseguimos preparar o arquivo nativo para compartilhar. Vamos tentar o modo alternativo.');
+      return false;
+    }
+
+    if (!Share) {
+      if (fileInfo.directory === 'DOCUMENTS') {
+        alert(`Arquivo salvo em Documentos/MotoristaPro/${fileName}. Abra o app Arquivos ou Google Drive para localizar e compartilhar.`);
+        return true;
+      }
+      alert('O compartilhamento nativo não está disponível neste aparelho. Vamos tentar o modo alternativo.');
       return false;
     }
 
     await Share.share({
       title,
       text,
-      files: [fileUri],
+      files: [fileInfo.uri],
       dialogTitle
     });
     return true;
   } catch (err) {
     console.log('Native file share failed, falling back to web flow:', err);
+    try {
+      const fallbackFile = await writeNativeExportFile(fileName, content);
+      if (fallbackFile && fallbackFile.directory === 'DOCUMENTS') {
+        alert(`Não foi possível abrir o compartilhamento nativo. O arquivo foi salvo em Documentos/MotoristaPro/${fileName}.`);
+        return true;
+      }
+    } catch (e) {}
     alert('Não foi possível abrir o compartilhamento nativo. Vamos tentar o modo alternativo.');
     return false;
   }
