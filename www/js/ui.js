@@ -740,17 +740,26 @@ function calculateTripSim() {
     vBox.innerText = '🔥 CORRIDA EXCELENTE! (Super Lucro)';
     vBox.style.background = 'rgba(16, 185, 129, 0.2)';
     vBox.style.color = '#34d399';
-    if (simMetricsBox) simMetricsBox.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+    if (simMetricsBox) {
+      simMetricsBox.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+      simMetricsBox.style.background = 'linear-gradient(160deg, rgba(16, 185, 129, 0.08), rgba(25, 25, 48, 0.95))';
+    }
   } else if (rKm < warningKm || rHour < warningHour) {
     vBox.innerText = '❌ CUIDADO! Prejuízo ou Margem Mínima';
     vBox.style.background = 'rgba(244, 63, 94, 0.2)';
     vBox.style.color = '#fb7185';
-    if (simMetricsBox) simMetricsBox.style.borderColor = 'rgba(244, 63, 94, 0.35)';
+    if (simMetricsBox) {
+      simMetricsBox.style.borderColor = 'rgba(244, 63, 94, 0.35)';
+      simMetricsBox.style.background = 'linear-gradient(160deg, rgba(244, 63, 94, 0.08), rgba(25, 25, 48, 0.95))';
+    }
   } else {
     vBox.innerText = '⚠️ Corrida Aceitável / Regular';
     vBox.style.background = 'rgba(245, 158, 11, 0.2)';
     vBox.style.color = '#fbbf24';
-    if (simMetricsBox) simMetricsBox.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+    if (simMetricsBox) {
+      simMetricsBox.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+      simMetricsBox.style.background = 'linear-gradient(160deg, rgba(245, 158, 11, 0.08), rgba(25, 25, 48, 0.95))';
+    }
   }
 }
 

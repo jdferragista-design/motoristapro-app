@@ -114,11 +114,17 @@ function render() {
     }
   }
 
+  const hitKmTarget = rateKm >= state.vehicle.targetKmRate;
+  const hitHourTarget = rateHour >= state.vehicle.targetHourlyRate;
   document.getElementById('dashRateKm').innerText = formatBRL(rateKm) + '/km';
-  document.getElementById('dashRateKmSub').innerText = `Meta: ${formatBRL(state.vehicle.targetKmRate)}/km ${rateKm >= state.vehicle.targetKmRate ? '✅' : '⚠️'}`;
+  setSignedValueClass('dashRateKm', hitKmTarget ? 1 : -1);
+  document.getElementById('dashRateKmSub').innerText = `Meta: ${formatBRL(state.vehicle.targetKmRate)}/km ${hitKmTarget ? '✅' : '⚠️'}`;
+  document.getElementById('dashRateKmSub').style.color = hitKmTarget ? '#86efac' : '#fbbf24';
 
   document.getElementById('dashRateHour').innerText = formatBRL(rateHour) + '/h';
-  document.getElementById('dashRateHourSub').innerText = `Meta: ${formatBRL(state.vehicle.targetHourlyRate)}/h ${rateHour >= state.vehicle.targetHourlyRate ? '✅' : '⚠️'}`;
+  setSignedValueClass('dashRateHour', hitHourTarget ? 1 : -1);
+  document.getElementById('dashRateHourSub').innerText = `Meta: ${formatBRL(state.vehicle.targetHourlyRate)}/h ${hitHourTarget ? '✅' : '⚠️'}`;
+  document.getElementById('dashRateHourSub').style.color = hitHourTarget ? '#86efac' : '#fbbf24';
 
   document.getElementById('dashCpk').innerText = formatBRL(cpk) + '/km';
   document.getElementById('dashAvgTrip').innerText = brlC(totalTrips > 0 ? Math.round(totalGrossC / totalTrips) : 0);
@@ -147,10 +153,19 @@ function render() {
 
   const todayGrid = document.getElementById('todayGrid');
   const todayAppsRow = document.getElementById('todayAppsRow');
+  const todaySubtitle = document.getElementById('todaySubtitle');
   if (tShifts.length === 0) {
+    if (todaySubtitle) {
+      todaySubtitle.innerText = 'Nenhum turno lançado hoje ainda';
+      todaySubtitle.style.color = 'var(--text-muted)';
+    }
     todayGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 14px; background: rgba(0,0,0,0.25); border-radius: 10px;">Nenhum turno lançado hoje ainda. Toque em “Lançar Turno” para começar. 🚀</div>';
     todayAppsRow.innerHTML = '';
   } else {
+    if (todaySubtitle) {
+      todaySubtitle.innerText = tNetC < 0 ? 'Hoje está fechando no vermelho' : 'Sua atividade de hoje, em tempo real';
+      todaySubtitle.style.color = tNetC < 0 ? '#fda4af' : 'var(--text-muted)';
+    }
     const todayNetNegative = tNetC < 0;
     todayGrid.innerHTML = `
       <div class="metric-box">
@@ -214,9 +229,12 @@ function render() {
     .filter(s => (s.date || '').startsWith(ym))
     .reduce((a, s) => a + getShiftTotalGrossC(s), 0);
   const goalPct = goalC > 0 ? Math.min(100, Math.round((monthGrossC / goalC) * 100)) : 0;
+  const goalTone = goalPct >= 100 ? '#34d399' : (goalPct >= 60 ? '#fbbf24' : '#fb7185');
   document.getElementById('goalLabel').innerText = `${brlC(monthGrossC)} de ${brlC(goalC)}`;
   document.getElementById('goalPercent').innerText = `${goalPct}%`;
+  document.getElementById('goalPercent').style.color = goalTone;
   document.getElementById('goalFill').style.width = `${goalPct}%`;
+  document.getElementById('goalFill').style.background = goalPct >= 100 ? 'linear-gradient(90deg, #10b981, #34d399)' : (goalPct >= 60 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #f43f5e, #fb7185)');
   document.getElementById('goalRemaining').innerText = brlC(Math.max(0, goalC - monthGrossC));
 
   // Últimos 7 dias (dados reais) — área chart + sparklines + tendência semanal
