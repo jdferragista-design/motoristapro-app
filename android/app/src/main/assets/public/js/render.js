@@ -372,6 +372,8 @@ function render() {
     }
   }
 
+  renderChartsView();
+
   // Shifts list
   renderShiftsList();
 
@@ -1027,4 +1029,110 @@ function clearAllData() {
     saveState();
     alert('Turnos, despesas e manutenção foram limpos. As configurações do veículo e combustível foram mantidas.');
   }
+}
+
+
+// ---------- Aba Gráficos — composição visual ----------
+function chartEmptyBox(msg) {
+  return `<div style="text-align:center;color:var(--text-muted);padding:22px;background:rgba(0,0,0,0.25);border-radius:10px;">${msg}</div>`;
+}
+
+function donutWithLegend(entries, centerTop, centerBottom) {
+  const totalC = entries.reduce((a, x) => a + x.total, 0);
+  const legend = entries.map((it, i) =>
+    `<div class="legend-row">
+      <span class="legend-dot" style="background:${it.color || DONUT_COLORS[i % DONUT_COLORS.length]};"></span>
+      <span class="legend-name">${esc(it.name)}</span>
+      <strong style="color:#fff;">${brlC(it.total)}</strong>
+      <span style="color:var(--text-dim);font-size:11px;min-width:34px;text-align:right;">${totalC > 0 ? Math.round((it.total / totalC) * 100) : 0}%</span>
+    </div>`).join('');
+  return `<div class="donut-flex">${donutSVG(entries, totalC, centerTop, centerBottom)}<div class="donut-legend">${legend}</div></div>`;
+}
+
+function renderChartsView() {
+  const box = document.getElementById('chartMainBox');
+  if (!box) return; // HTML antigo em cache — aba ainda não existe
+  const reserveRate = state.vehicle.maintenanceReservePerKm || 0.18;
+  const today = getTodayString();
+  const nDays = CHART_PERIODS[chartPeriod];
+  const aISO = chartFromISO();
+
+  // KPI strip do período + tendência vs janela anterior equivalente (só períodos fixos)
+  const tot = rangeTotals(state.shifts, state.expenses, aISO, today, reserveRate);
+  document.getElementById('chvGross').innerText = brlC(tot.grossC);
+  document.getElementById('chvGrossSub').innerText = `${tot.trips} corridas • ${tot.km.toFixed(1)} km • ${tot.workedDays} dia(s) trabalhado(s)`;
+  document.getElementById('chvExp').innerText = brlC(tot.costC);
+  document.getElementById('chvNet').innerText = brlC(tot.netC);
+  const trendEl = document.getElementById('chvTrend');
+  const netSubEl = document.getElementById('chvNetSub');
+  if (typeof nDays === 'number') {
+    const bPrev = isoAddDays(aISO, -1);
+    const aPrev = isoAddDays(bPrev, -(nDays - 1));
+    const prev = rangeTotals(state.shifts, state.expenses, aPrev, bPrev, reserveRate);
+    trendEl.innerHTML = trendPillHTML(tot.netC, prev.netC);
+    netSubEl.innerText = `vs ${brlC(prev.netC)} nos ${nDays} dias anteriores`;
+  } else {
+    trendEl.innerHTML = '';
+    netSubEl.innerText = 'Todo o histórico registrado';
+  }
+
+  const titleEl = document.getElementById('chartCardTitle');
+  const subEl = document.getElementById('chartCardSubtitle');
+  const legendEl = document.getElementById('chartLegend');
+  const labelsEl = document.getElementById('chartMainLabels');
+  box.innerHTML = '';
+  labelsEl.innerHTML = '';
+
+  if (tot.grossC <= 0 && tot.costC <= 0) {
+    titleEl.innerHTML = '📊 Sem dados no período';
+    subEl.innerText = 'Lance turnos ou despesas dentro do intervalo selecionado para gerar gráficos.';
+    legendEl.style.display = 'none';
+    box.innerHTML = chartEmptyBox('Nada por aqui ainda 🚗💨 — ajuste o período ou registre dados primeiro.');
+    return;
+  }
+
+  if (chartType === 'weekday') {
+    titleEl.innerHTML = '🗓️ Rendimento por Dia da Semana';
+    subEl.innerText = 'Média de faturamento bruto por dia trabalhado no período';
+    legendEl.style.display = 'none';
+    const items = buildWeekdayItems(state.shifts, aISO, today);
+    box.innerHTML = items.some(d => d.count > 0) ? weekdayBarsSVG(items)
+      : chartEmptyBox('Nenhum turno registrado neste período.');
+    return;
+  }
+
+  if (chartType === 'catdonut') {
+    titleEl.innerHTML = '💸 Despesas por Categoria';
+    subEl.innerText = 'Distribuição dos custos no período selecionado';
+    legendEl.style.display = 'none';
+    const entries = expenseBreakdown(state.shifts, state.expenses, aISO, today);
+    box.innerHTML = entries.length > 0 ? donutWithLegend(entries, brlC(entries.reduce((a, x) => a + x.total, 0)), 'Despesas no período')
+      : chartEmptyBox('Nenhuma despesa registrada neste período.');
+    return;
+  }
+
+  if (chartType === 'appdonut') {
+    titleEl.innerHTML = '🍩 Faturamento por Aplicativo';
+    subEl.innerText = 'Participação de cada plataforma no período selecionado';
+    legendEl.style.display = 'none';
+    const entries = appBreakdown(state.shifts, aISO, today);
+    box.innerHTML = entries.length > 0 ? donutWithLegend(entries, brlC(entries.reduce((a, x) => a + x.total, 0)), 'Bruto no período')
+      : chartEmptyBox('Nenhum ganho por app registrado neste período.');
+    return;
+  }
+
+  // padrão: evolução (trend)
+  const isMonthly = nDays === null || nDays > 62;
+  const points = isMonthly
+    ? buildMonthlySeries(state.shifts, state.expenses, { months: CHART_MONTHS_FOR[chartPeriod] ?? null, reserveRate, today })
+    : buildDailySeries(state.shifts, state.expenses, { days: nDays, reserveRate, today });
+  titleEl.innerHTML = '📈 Evolução de Ganhos e Custos';
+  subEl.innerText = isMonthly
+    ? `Gráfico mensal • ${chartPeriod === 'all' ? 'todo o histórico' : `últimos ${CHART_MONTHS_FOR[chartPeriod]} meses`}`
+    : `Gráfico diário • últimos ${nDays} dias`;
+  legendEl.style.display = points.some(p => p.hasData) ? 'flex' : 'none';
+  box.innerHTML = seriesLineSVG(points);
+  const step = isMonthly ? 1 : Math.max(1, Math.ceil(points.length / 9));
+  labelsEl.innerHTML = points.map((p, i) =>
+    `<span>${!isMonthly && i % step !== step - 1 && i !== points.length - 1 ? '' : p.label}</span>`).join('');
 }

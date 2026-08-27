@@ -85,7 +85,7 @@ if ('serviceWorker' in navigator) {
 
 // Switch tab
 function switchTab(tabId) {
-  const views = ['dashboard', 'shifts', 'expenses', 'health', 'calc', 'reports'];
+  const views = ['dashboard', 'shifts', 'expenses', 'health', 'charts', 'calc', 'reports'];
   views.forEach(v => {
     const el = document.getElementById('view' + v.charAt(0).toUpperCase() + v.slice(1));
     if(el) el.style.display = (v === tabId) ? 'block' : 'none';

@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Google Drive</title>
-  <link rel="stylesheet" href="css/style.css?v=20" />
+  <link rel="stylesheet" href="css/style.css?v=21" />
 </head>
 <body>
 
@@ -62,6 +62,10 @@
       <button class="nav-tab" onclick="switchTab('health')">
         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
         <span>Saúde do Carro (Drivvo)</span>
+      </button>
+      <button class="nav-tab" onclick="switchTab('charts')">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        <span>Gráficos & Insights</span>
       </button>
       <button class="nav-tab" onclick="switchTab('calc')">
         <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
@@ -365,6 +369,65 @@
       </div>
     </div>
 
+    <!-- VIEW 5: GRÁFICOS (central com filtros) -->
+    <div id="viewCharts" style="display: none;">
+      <div class="card" style="background: linear-gradient(135deg, #151528 0%, #1c1c36 100%); border-color: rgba(139, 92, 246, 0.25);">
+        <div class="card-title">📊 Central de Gráficos</div>
+        <div class="card-subtitle" id="chartsViewSubtitle" style="margin-bottom: 12px;">Analise sua evolução por tipo de gráfico e período</div>
+
+        <div class="form-label" style="margin-bottom: 8px;">Tipo de gráfico</div>
+        <div id="chartTypeRow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;">
+          <button class="period-btn active" onclick="setChartType('trend', this)">📈 Evolução</button>
+          <button class="period-btn" onclick="setChartType('weekday', this)">🗓️ Dia da semana</button>
+          <button class="period-btn" onclick="setChartType('catdonut', this)">💸 Despesas</button>
+          <button class="period-btn" onclick="setChartType('appdonut', this)">🍩 Por aplicativo</button>
+        </div>
+
+        <div class="form-label" style="margin-bottom: 8px;">Período</div>
+        <div id="chartPeriodRow" style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <button class="period-btn" onclick="setChartPeriodG('7', this)">7 dias</button>
+          <button class="period-btn" onclick="setChartPeriodG('30', this)">30 dias</button>
+          <button class="period-btn active" onclick="setChartPeriodG('90', this)">3 meses</button>
+          <button class="period-btn" onclick="setChartPeriodG('180', this)">6 meses</button>
+          <button class="period-btn" onclick="setChartPeriodG('365', this)">12 meses</button>
+          <button class="period-btn" onclick="setChartPeriodG('all', this)">Tudo</button>
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="metric-box">
+          <div class="metric-label">Bruto no Período</div>
+          <div class="metric-val val-violet" id="chvGross">R$ 0,00</div>
+          <div class="metric-sub" id="chvGrossSub"></div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Custos Estimados</div>
+          <div class="metric-val val-rose" id="chvExp">R$ 0,00</div>
+          <div class="metric-sub">Combustível + provisão + despesas</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-head">
+            <div class="metric-label">Lucro Líquido</div>
+            <span id="chvTrend"></span>
+          </div>
+          <div class="metric-val val-emerald" id="chvNet">R$ 0,00</div>
+          <div class="metric-sub" id="chvNetSub"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" id="chartCardTitle">📈 Evolução de Ganhos e Custos</div>
+        <div class="card-subtitle" id="chartCardSubtitle"></div>
+        <div class="chart-legend" id="chartLegend" style="display: flex;">
+          <span class="legend-chip"><i style="background: #8b5cf6;"></i>Bruto</span>
+          <span class="legend-chip"><i style="background: #fb7185;"></i>Custos</span>
+          <span class="legend-chip"><i style="background: #22d3ee;"></i>Líquido</span>
+        </div>
+        <div class="chart-container chart-area" id="chartMainBox"></div>
+        <div class="chart-xlabels" id="chartMainLabels"></div>
+      </div>
+    </div>
+
     <!-- VIEW 5: CALCULATORS -->
     <div id="viewCalc" style="display: none;">
       <div style="margin-bottom: 14px;">
@@ -576,6 +639,10 @@
     <button class="mob-tab" onclick="switchTab('health')">
       <svg class="icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
       <span>Carro</span>
+    </button>
+    <button class="mob-tab" onclick="switchTab('charts')">
+      <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+      <span>Gráficos</span>
     </button>
     <button class="mob-tab" onclick="switchTab('calc')">
       <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line></svg>
@@ -949,14 +1016,14 @@
     </div>
   </div>
 
-  <script src="js/capacitor.js?v=20"></script>
-  <script src="js/utils.js?v=20"></script>
-  <script src="js/charts.js?v=20"></script>
-  <script src="js/data.js?v=20"></script>
-  <script src="js/domain.js?v=20"></script>
-  <script src="js/ui.js?v=20"></script>
-  <script src="js/render.js?v=20"></script>
-  <script src="js/init.js?v=20"></script>
+  <script src="js/capacitor.js?v=21"></script>
+  <script src="js/utils.js?v=21"></script>
+  <script src="js/charts.js?v=21"></script>
+  <script src="js/data.js?v=21"></script>
+  <script src="js/domain.js?v=21"></script>
+  <script src="js/ui.js?v=21"></script>
+  <script src="js/render.js?v=21"></script>
+  <script src="js/init.js?v=21"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {

@@ -95,26 +95,26 @@ function trendPillHTML(cur, prev) {
 }
 
 
-// ---------- Evolução mensal (Bruto × Custos × Líquido) ----------
+// ---------- Linha de evolução (Bruto × Custos × Líquido) — pontos dia ou mês ----------
 function fmtShortBRL(cents) {
   return 'R$ ' + Math.round(cents / 100).toLocaleString('pt-BR');
 }
 
 
-function monthlyLineSVG(months) {
+function seriesLineSVG(points) {
   const W = 640, H = 200, P = 14, BASE = H - 16;
-  const maxV = Math.max(...months.map(m => Math.max(m.grossC, m.netC, m.expC)), 1);
-  const xs = i => P + i * ((W - 2 * P) / (months.length - 1 || 1));
+  const maxV = Math.max(...points.map(m => Math.max(m.grossC, m.netC, m.expC)), 1);
+  const xs = i => P + i * ((W - 2 * P) / (points.length - 1 || 1));
   const ys = v => BASE - (v / maxV) * (H - 46);
-  const pt = key => months.map((m, i) => ({ x: xs(i), y: ys(m[key]) }));
+  const pt = key => points.map((m, i) => ({ x: xs(i), y: ys(m[key]) }));
   const gPts = pt('grossC'), ePts = pt('expC'), nPts = pt('netC');
   const gLine = smoothPath(gPts), eLine = smoothPath(ePts), nLine = smoothPath(nPts);
   const grid = [1, 0.66, 0.33].map(f =>
     `<line x1="${P}" y1="${ys(maxV * f).toFixed(1)}" x2="${W - P}" y2="${ys(maxV * f).toFixed(1)}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`).join('');
-  const dots = months.map((m, i) => `
-    <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${m.label} — Bruto: ${brlC(m.grossC)}</title></circle>
-    <circle cx="${ePts[i].x.toFixed(1)}" cy="${ePts[i].y.toFixed(1)}" r="3" fill="#fb7185" stroke="#0a0a14" stroke-width="1.5"><title>${m.label} — Custos: ${brlC(m.expC)} (combustível + provisão + despesas)</title></circle>
-    <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3.5" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${m.label} — Líquido: ${brlC(m.netC)}</title></circle>`).join('');
+  const dots = points.map((m, i) => `
+    <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${m.tip || m.label} — Bruto: ${brlC(m.grossC)}</title></circle>
+    <circle cx="${ePts[i].x.toFixed(1)}" cy="${ePts[i].y.toFixed(1)}" r="3" fill="#fb7185" stroke="#0a0a14" stroke-width="1.5"><title>${m.tip || m.label} — Custos: ${brlC(m.expC)} (combustível + provisão + despesas)</title></circle>
+    <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3.5" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${m.tip || m.label} — Líquido: ${brlC(m.netC)}</title></circle>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:200px;display:block;">
     <defs>
       <linearGradient id="monG" x1="0" y1="0" x2="0" y2="1">
@@ -129,6 +129,12 @@ function monthlyLineSVG(months) {
     <path d="${nLine}" fill="none" stroke="#22d3ee" stroke-width="2" vector-effect="non-scaling-stroke"/>
     ${dots}
   </svg>`;
+}
+
+
+// Retrocompatibilidade com o card "Evolução Mensal" do painel
+function monthlyLineSVG(months) {
+  return seriesLineSVG(months);
 }
 
 

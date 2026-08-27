@@ -179,3 +179,199 @@ function getLastFuelInfo() {
     lastDate
   };
 }
+
+
+// ---------- Aba Gráficos (filtros e agregações da central de gráficos) ----------
+let chartType = 'trend';
+let chartPeriod = '90';
+
+const CHART_PERIODS = { '7': 7, '30': 30, '90': 90, '180': 180, '365': 365, all: null };
+const CHART_MONTHS_FOR = { '180': 6, '365': 12 };
+const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MONTH_LONG = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const EXPENSE_CAT_LABELS = { combustivel: 'Combustível', alimentacao: 'Alimentação', lavagem: 'Lavagem', manutencao: 'Manutenção', fixo: 'Custo Fixo', outros: 'Outros' };
+const EXPENSE_CAT_COLORS = { combustivel: '#f43f5e', alimentacao: '#fbbf24', lavagem: '#38bdf8', manutencao: '#a855f7', fixo: '#64748b', outros: '#34d399' };
+
+function isoAddDays(iso, delta) {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function chartFromISO() {
+  const n = CHART_PERIODS[chartPeriod];
+  if (n === null || n === undefined) return null;
+  return isoAddDays(getTodayString(), -(n - 1));
+}
+
+function setChartType(t, btn) {
+  chartType = t;
+  document.querySelectorAll('#chartTypeRow .period-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderChartsView();
+}
+
+function setChartPeriodG(p, btn) {
+  chartPeriod = p;
+  document.querySelectorAll('#chartPeriodRow .period-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderChartsView();
+}
+
+// Buckets por dia ISO dentro de [fromISO..] (fromISO null = tudo)
+function dayBuckets(shifts, expenses, fromISO) {
+  const b = {};
+  const ensure = dt => (b[dt] = b[dt] || { grossC: 0, fuelC: 0, km: 0, expOtherC: 0 });
+  const hit = dt => dt && dt.length === 10 && (!fromISO || dt >= fromISO);
+  shifts.forEach(s => {
+    if (!hit(s.date)) return;
+    const d = ensure(s.date);
+    d.grossC += getShiftTotalGrossC(s);
+    d.fuelC += toC(s.fuelCost);
+    d.km += (s.km || 0);
+  });
+  expenses.forEach(e => {
+    if (!hit(e.date) || e.category === 'combustivel') return; // combustível já entra via turno
+    ensure(e.date).expOtherC += toC(e.amount);
+  });
+  return b;
+}
+
+function costOfBucket(bkt, reserveRate) {
+  return bkt.fuelC + Math.round((bkt.km || 0) * reserveRate * 100) + bkt.expOtherC;
+}
+
+// Totais consolidados num intervalo inclusivo [aISO..bISO] (null = aberto)
+function rangeTotals(shifts, expenses, aISO, bISO, reserveRate) {
+  const within = dt => dt && (!aISO || dt >= aISO) && (!bISO || dt <= bISO);
+  let grossC = 0, km = 0, trips = 0;
+  const days = new Set();
+  shifts.forEach(s => {
+    if (!within(s.date)) return;
+    grossC += getShiftTotalGrossC(s);
+    km += (s.km || 0);
+    trips += getShiftTotalTrips(s);
+    days.add(s.date);
+  });
+  let costC = 0;
+  const bmap = dayBuckets(shifts, expenses, aISO);
+  Object.keys(bmap).forEach(k => {
+    if (within(k)) costC += costOfBucket(bmap[k], reserveRate);
+  });
+  return { grossC, costC, netC: grossC - costC, km, trips, workedDays: days.size };
+}
+
+// Série diária dos últimos N dias calendário
+function buildDailySeries(shifts, expenses, opts) {
+  const { days, reserveRate, today } = opts;
+  const buckets = dayBuckets(shifts, expenses, isoAddDays(today, -(days - 1)));
+  const out = [];
+  for (let off = days - 1; off >= 0; off--) {
+    const iso = isoAddDays(today, -off);
+    const bkt = buckets[iso] || { grossC: 0, fuelC: 0, km: 0, expOtherC: 0 };
+    const costC = costOfBucket(bkt, reserveRate);
+    const parts = iso.split('-');
+    out.push({
+      key: iso,
+      label: `${Number(parts[2])}/${Number(parts[1])}`,
+      tip: `${Number(parts[2])}/${Number(parts[1])}/${parts[0]}`,
+      grossC: bkt.grossC,
+      expC: costC,
+      netC: bkt.grossC - costC,
+      hasData: !!buckets[iso]
+    });
+  }
+  return out;
+}
+
+// Série mensal: months=n (terminando no mês atual) ou null = todo o histórico
+function buildMonthlySeries(shifts, expenses, opts) {
+  const { months, reserveRate, today } = opts;
+  const perMonth = {};
+  Object.entries(dayBuckets(shifts, expenses, null)).forEach(([iso, b]) => {
+    const ym = iso.slice(0, 7);
+    const acc = (perMonth[ym] = perMonth[ym] || { grossC: 0, fuelC: 0, km: 0, expOtherC: 0 });
+    acc.grossC += b.grossC; acc.fuelC += b.fuelC; acc.km += b.km; acc.expOtherC += b.expOtherC;
+  });
+  const ty = Number(today.slice(0, 4)), tm = Number(today.slice(5, 7)) - 1;
+  let count, startY, startM;
+  if (months == null) {
+    const keys = Object.keys(perMonth).sort();
+    startY = keys.length ? Number(keys[0].slice(0, 4)) : ty;
+    startM = keys.length ? Number(keys[0].slice(5, 7)) - 1 : tm;
+    count = (ty - startY) * 12 + (tm - startM) + 1;
+  } else {
+    const absStart = ty * 12 + tm - (months - 1);
+    startY = Math.floor(absStart / 12); startM = ((absStart % 12) + 12) % 12;
+    count = months;
+  }
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const abs = startY * 12 + startM + i;
+    const y = Math.floor(abs / 12), m = ((abs % 12) + 12) % 12;
+    const ym = `${y}-${String(m + 1).padStart(2, '0')}`;
+    const bkt = perMonth[ym] || { grossC: 0, fuelC: 0, km: 0, expOtherC: 0 };
+    const costC = costOfBucket(bkt, reserveRate);
+    out.push({
+      key: ym,
+      label: MONTH_SHORT[m] + (y !== ty ? `/${String(y).slice(-2)}` : ''),
+      tip: `${MONTH_LONG[m]} de ${y}`,
+      grossC: bkt.grossC,
+      expC: costC,
+      netC: bkt.grossC - costC,
+      hasData: !!perMonth[ym],
+      future: y * 12 + m > ty * 12 + tm
+    });
+  }
+  while (out.length > 1 && !out[0].hasData && !out[1].hasData) out.shift();
+  return out.filter(p => !p.future);
+}
+
+// Média de bruto por dia da semana (somente dias trabalhados no intervalo)
+function buildWeekdayItems(shifts, aISO, bISO) {
+  const agg = Array.from({ length: 7 }, () => ({ dates: new Set(), grossC: 0 }));
+  shifts.forEach(s => {
+    if (!s.date || s.date.length !== 10) return;
+    if (aISO && s.date < aISO) return;
+    if (bISO && s.date > bISO) return;
+    const dow = new Date(`${s.date}T12:00:00`).getDay();
+    agg[dow].dates.add(s.date);
+    agg[dow].grossC += getShiftTotalGrossC(s);
+  });
+  return WEEKDAY_SHORT.map((label, i) => ({
+    label,
+    avgC: agg[i].dates.size > 0 ? Math.round(agg[i].grossC / agg[i].dates.size) : 0,
+    count: agg[i].dates.size
+  }));
+}
+
+// Despesas por categoria no intervalo (combustível conta via turno)
+function expenseBreakdown(shifts, expenses, aISO, bISO) {
+  const within = dt => dt && dt.length === 10 && (!aISO || dt >= aISO) && (!bISO || dt <= bISO);
+  const byCat = {};
+  shifts.forEach(s => { if (within(s.date)) byCat.combustivel = (byCat.combustivel || 0) + toC(s.fuelCost); });
+  expenses.forEach(e => {
+    if (!within(e.date) || e.category === 'combustivel') return; // combustível já entra via turno
+    const cat = e.category || 'outros';
+    byCat[cat] = (byCat[cat] || 0) + toC(e.amount);
+  });
+  return Object.entries(byCat)
+    .map(([cat, total]) => ({ name: EXPENSE_CAT_LABELS[cat] || cat, color: EXPENSE_CAT_COLORS[cat] || '#34d399', total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+// Faturamento por aplicativo no intervalo
+function appBreakdown(shifts, aISO, bISO) {
+  const byApp = {};
+  shifts.forEach(s => {
+    if (!s.date || s.date.length !== 10) return;
+    if (aISO && s.date < aISO) return;
+    if (bISO && s.date > bISO) return;
+    const apps = Array.isArray(s.apps) ? s.apps : (s.apps && typeof s.apps === 'object' ? Object.values(s.apps) : []);
+    apps.forEach(a => {
+      const k = (a && a.name) || 'Outro';
+      byApp[k] = byApp[k] || { name: k, total: 0 };
+      byApp[k].total += toC(a.gross) + toC(a.tips);
+    });
+  });
+  return Object.values(byApp).sort((a, b) => b.total - a.total);
+}
