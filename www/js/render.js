@@ -62,14 +62,18 @@ function render() {
   const totalKm = pShifts.reduce((a, s) => a + (s.km || 0), 0);
   const totalHours = pShifts.reduce((a, s) => a + (s.hours || 0), 0);
 
-  const totalExpensesC = pExpenses.reduce((a, e) => a + toC(e.amount), 0);
-  const reserveAccruedC = Math.round(totalKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
-  const netProfitC = totalGrossC - totalExpensesC - reserveAccruedC;
+  // Modelo unificado (Painel ≡ Gráficos): combustível = fuelCost por turno;
+  // despesas de abastecimento real NÃO somam aqui (elimina dupla contagem
+  // e a divergência Painel × Gráficos observada nos dados reais).
+  const costs = costPartsForRange(pShifts, pExpenses, null, null);
+  const totalCostsC = costs.totalCostC;
+  const fixedSharePct = totalCostsC > 0 ? Math.round(costs.fixedC / totalCostsC * 100) : 0;
+  const netProfitC = costs.netC;
   const netMargin = totalGrossC > 0 ? (netProfitC / totalGrossC) * 100 : 0;
 
   const rateKm = totalKm > 0 ? (totalGrossC / 100) / totalKm : 0;
   const rateHour = totalHours > 0 ? (totalGrossC / 100) / totalHours : 0;
-  const cpk = totalKm > 0 ? ((totalExpensesC + reserveAccruedC) / 100) / totalKm : 0;
+  const cpk = totalKm > 0 ? (totalCostsC / 100) / totalKm : 0;
 
   // Fundo de reserva da Saúde: sempre TODO o histórico (não o período do painel)
   const allKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
@@ -78,7 +82,9 @@ function render() {
   // Dashboard Fill
   document.getElementById('dashGross').innerText = brlC(totalGrossC);
   document.getElementById('dashGrossSub').innerText = `${totalTrips} corridas • ${totalKm.toFixed(1)} km`;
-  document.getElementById('dashExpenses').innerText = brlC(totalExpensesC + reserveAccruedC);
+  document.getElementById('dashExpenses').innerText = brlC(totalCostsC);
+  document.getElementById('dashExpensesSub').innerText =
+    fixedSharePct >= 25 ? `${fixedSharePct}% são custos fixos do carro` : 'Combustível + provisão + outras despesas';
   document.getElementById('dashNet').innerText = brlC(netProfitC);
   document.getElementById('dashMargin').innerText = `${netMargin.toFixed(0)}% Margem`;
   setSignedValueClass('dashNet', netProfitC);
@@ -119,13 +125,24 @@ function render() {
   document.getElementById('dashAvgTrip').innerText = brlC(totalTrips > 0 ? Math.round(totalGrossC / totalTrips) : 0);
   document.getElementById('dashAvgTripSub').innerText = `${totalTrips > 0 ? (totalKm / totalTrips).toFixed(1) : '0.0'} km por viagem`;
 
-  // Km fora de serviço não fica visível no painel; só relatórios/exportações.
   const outsidePill = document.getElementById('outsideKmPill');
-  if (outsidePill) outsidePill.style.display = 'none';
+  if (outsidePill) {
+    const foraInfo = getTotalKmFora();
+    if (foraInfo > 20) {
+      const pct = totalKm > 0 ? Math.round(foraInfo / (totalKm + foraInfo) * 100) : 0;
+      outsidePill.style.display = 'block';
+      outsidePill.innerHTML = `🚨 ${foraInfo.toFixed(0)} km fora de serviço (${pct}% do total) rodámos fora do trabalho neste período`;
+    } else {
+      outsidePill.style.display = 'none';
+    }
+  }
 
-  // ---------- Resumo do Dia ----------
+  // ---------- Resumo do Dia (dia selecionável via dashboardDay) ----------
   const rr = state.vehicle.maintenanceReservePerKm || 0.18;
-  const todayKey = getTodayString();
+  const todayKey = dashboardDay || getTodayString();
+  const isTodayView = todayKey === getTodayString();
+  const dayObj = new Date(todayKey + 'T12:00:00');
+  const doLabel = isTodayView ? 'Hoje' : dayObj.toLocaleDateString('pt-BR', { weekday: 'long' });
   const tShifts = state.shifts.filter(s => s.date === todayKey);
   const tGrossC = tShifts.reduce((a, s) => a + getShiftTotalGrossC(s), 0);
   const tTrips = tShifts.reduce((a, s) => a + getShiftTotalTrips(s), 0);
@@ -138,42 +155,72 @@ function render() {
   const tNetC = tGrossC - tFuelC - Math.round(tKm * rr * 100) - tOtherExpDayC;
 
   document.getElementById('todayDateLabel').innerText =
-    new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
+    (isTodayView ? 'Hoje · ' : '') + dayObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
+
+  // Sincroniza o date picker e limita o intervalo aos dados existentes
+  const dayInput = document.getElementById('dashboardDayInput');
+  if (dayInput) {
+    if (dayInput.value !== todayKey) dayInput.value = todayKey;
+    const allDayDates = state.shifts.map(s => s.date).concat(state.expenses.map(e => e.date))
+      .filter(d => d && d.length === 10).sort();
+    if (allDayDates.length) {
+      dayInput.min = allDayDates[0];
+      dayInput.max = getTodayString();
+    }
+  }
 
   const todayGrid = document.getElementById('todayGrid');
   const todayAppsRow = document.getElementById('todayAppsRow');
   const todaySubtitle = document.getElementById('todaySubtitle');
   if (tShifts.length === 0) {
     if (todaySubtitle) {
-      todaySubtitle.innerText = 'Nenhum turno lançado hoje ainda';
+      todaySubtitle.innerText = isTodayView ? 'Nenhum turno lançado hoje ainda' : 'Nenhum turno lançado neste dia';
       todaySubtitle.style.color = 'var(--text-muted)';
     }
-    todayGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 14px; background: rgba(0,0,0,0.25); border-radius: 10px;">Nenhum turno lançado hoje ainda. Toque em “Lançar Turno” para começar. 🚀</div>';
+    todayGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 14px; background: rgba(0,0,0,0.25); border-radius: 10px;">${isTodayView ? 'Nenhum turno lançado hoje ainda. Toque em “Lançar Turno” para começar. 🚀' : 'Sem turnos registrados neste dia.'}</div>`;
     todayAppsRow.innerHTML = '';
   } else {
     if (todaySubtitle) {
-      todaySubtitle.innerText = tNetC < 0 ? 'Hoje está fechando no vermelho' : 'Sua atividade de hoje, em tempo real';
+      let baseText = tNetC < 0 ? `${doLabel} fechando no vermelho` : `Atividade de ${isTodayView ? 'hoje' : doLabel.toLowerCase()}`;
+      try {
+        const wdNow = dayObj.getDay();
+        const cutTs = Date.now() - 56 * 86400000;
+        const prevSameWd = [];
+        state.shifts.forEach(s => {
+          if (!s.date || s.date === todayKey || s.date.length !== 10) return;
+          const ts = new Date(s.date + 'T12:00:00');
+          if (ts.getDay() !== wdNow || ts.getTime() < cutTs) return;
+          prevSameWd.push(getShiftTotalGrossC(s));
+        });
+        if (prevSameWd.length >= 2 && tGrossC > 0) {
+          const avgC = prevSameWd.reduce((a, b) => a + b, 0) / prevSameWd.length;
+          const dp = Math.round((tGrossC - avgC) / avgC * 100);
+          const plurals = ['domingos', 'segundas', 'terças', 'quartas', 'quintas', 'sextas', 'sábados'];
+          baseText += ` (${dp >= 0 ? '▲' : '▼'}${Math.abs(dp)}% vs média das ${plurals[wdNow]})`;
+        }
+      } catch (e) { /* comparativo é best-effort */ }
+      todaySubtitle.innerText = baseText;
       todaySubtitle.style.color = tNetC < 0 ? '#fda4af' : 'var(--text-muted)';
     }
     const todayNetNegative = tNetC < 0;
     todayGrid.innerHTML = `
       <div class="metric-box">
-        <div class="metric-label">Bruto Hoje</div>
+        <div class="metric-label">Bruto ${doLabel}</div>
         <div class="metric-val val-violet">${brlC(tGrossC)}</div>
         <div class="metric-sub">${tTrips} corridas</div>
       </div>
       <div class="metric-box">
-        <div class="metric-label">KM Hoje</div>
+        <div class="metric-label">KM ${doLabel}</div>
         <div class="metric-val">${tKm.toFixed(1)}</div>
         <div class="metric-sub">somente turnos</div>
       </div>
       <div class="metric-box">
-        <div class="metric-label">Horas Hoje</div>
+        <div class="metric-label">Horas ${doLabel}</div>
         <div class="metric-val val-sky">${tHours.toFixed(1)}h</div>
         <div class="metric-sub">${tHours > 0 ? brlC(Math.round(tGrossC / tHours)) + '/h' : '—'}</div>
       </div>
       <div class="metric-box" style="border-color: ${todayNetNegative ? 'rgba(244, 63, 94, 0.4)' : 'rgba(52, 211, 153, 0.4)'};">
-        <div class="metric-label" style="color: ${todayNetNegative ? '#fda4af' : '#a7f3d0'};">Líquido Hoje</div>
+        <div class="metric-label" style="color: ${todayNetNegative ? '#fda4af' : '#a7f3d0'};">Líquido ${doLabel}</div>
         <div class="metric-val ${todayNetNegative ? 'val-rose' : 'val-emerald'}">${brlC(tNetC)}</div>
         <div class="metric-sub">combustível: -${brlC(tFuelC)}${tOtherExpDayC > 0 ? ` • outras despesas: -${brlC(tOtherExpDayC)}` : ''}</div>
       </div>`;
@@ -203,6 +250,27 @@ function render() {
   document.getElementById('goalFill').style.width = `${goalPct}%`;
   document.getElementById('goalFill').style.background = goalPct >= 100 ? 'linear-gradient(90deg, #10b981, #34d399)' : (goalPct >= 60 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #f43f5e, #fb7185)');
   document.getElementById('goalRemaining').innerText = brlC(Math.max(0, goalC - monthGrossC));
+
+  // Pace/projeção da meta (responde "vou bater?" e não só "% até agora")
+  const paceInfo = buildMonthPaceInfo(monthGrossC, getTodayString());
+  const gpEl = document.getElementById('goalPace');
+  if (gpEl && monthGrossC > 0) {
+    gpEl.style.display = 'block';
+    gpEl.innerHTML =
+      `📈 Ritmo atual: projeção de <strong class="${paceInfo.onTrack ? 'val-emerald' : 'val-rose'}">${brlC(paceInfo.projC)}</strong>` +
+      ` (${paceInfo.pct}% da meta) • restam ${paceInfo.daysLeft} dias → ${brlC(paceInfo.dailyNeededC)}/dia para fechar 100%`;
+  } else if (gpEl) {
+    gpEl.style.display = 'none';
+  }
+
+  // Chips-insight automáticos (top-3 derivados dos dados reais do aparelho)
+  const chipRow = document.getElementById('insightChips');
+  if (chipRow) {
+    const insights = buildAutoInsights();
+    chipRow.style.display = insights.length ? 'flex' : 'none';
+    chipRow.innerHTML = insights.map(t =>
+      `<span class="chip-insight">${esc(t)}</span>`).join('');
+  }
 
   // Últimos 7 dias (dados reais) — área chart + sparklines + tendência semanal
   const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -924,20 +992,39 @@ function renderChartsView() {
   const nDays = CHART_PERIODS[chartPeriod];
   const aISO = chartFromISO();
 
+  // ---- Período adaptativo: se o histórico é mais curto que a janela escolhida,
+  // ajusta para caber tudo e sinaliza (evita série degenerada/vazia p/ apps novos)
+  const allDates = [...state.shifts.map(s => s.date), ...state.expenses.map(e => e.date)]
+    .filter(d => d && d.length === 10).sort();
+  const firstDataDate = allDates.length ? allDates[0] : null;
+  let spanDaysTotal = 0;
+  if (firstDataDate) spanDaysTotal = Math.max(1, Math.ceil((new Date(today) - new Date(firstDataDate)) / 86400000) + 1);
+  let nDaysEff = nDays;
+  if (typeof nDays === 'number' && firstDataDate) {
+    const winStartISO = isoAddDays(today, -(nDays - 1));
+    if (winStartISO > firstDataDate) nDaysEff = Math.max(7, Math.min(nDays, spanDaysTotal));
+  }
+  const adapted = typeof nDays === 'number' && nDaysEff !== nDays;
+  const aDyn = (typeof nDays === 'number') ? isoAddDays(today, -(nDaysEff - 1)) : aISO;
+  const hintTxt = adapted ? ` • mostrando todo o histórico (${spanDaysTotal} dias)` : '';
+
   // KPI strip do período + tendência vs janela anterior equivalente (só períodos fixos)
-  const tot = rangeTotals(state.shifts, state.expenses, aISO, today, reserveRate);
+  const tot = rangeTotals(state.shifts, state.expenses, aDyn, today, reserveRate);
   document.getElementById('chvGross').innerText = brlC(tot.grossC);
   document.getElementById('chvGrossSub').innerText = `${tot.trips} corridas • ${tot.km.toFixed(1)} km • ${tot.workedDays} dia(s) trabalhado(s)`;
   document.getElementById('chvExp').innerText = brlC(tot.costC);
   document.getElementById('chvNet').innerText = brlC(tot.netC);
   const trendEl = document.getElementById('chvTrend');
   const netSubEl = document.getElementById('chvNetSub');
-  if (typeof nDays === 'number') {
+  if (typeof nDays === 'number' && !adapted) {
     const bPrev = isoAddDays(aISO, -1);
     const aPrev = isoAddDays(bPrev, -(nDays - 1));
     const prev = rangeTotals(state.shifts, state.expenses, aPrev, bPrev, reserveRate);
     trendEl.innerHTML = trendPillHTML(tot.netC, prev.netC);
     netSubEl.innerText = `vs ${brlC(prev.netC)} nos ${nDays} dias anteriores`;
+  } else if (adapted) {
+    trendEl.innerHTML = '';
+    netSubEl.innerText = `Janela ajustada ao histórico (${spanDaysTotal} dias)`;
   } else {
     trendEl.innerHTML = '';
     netSubEl.innerText = 'Todo o histórico registrado';
@@ -960,9 +1047,9 @@ function renderChartsView() {
 
   if (chartType === 'weekday') {
     titleEl.innerHTML = '🗓️ Rendimento por Dia da Semana';
-    subEl.innerText = 'Média de faturamento bruto por dia trabalhado no período';
+    subEl.innerText = 'Média de faturamento bruto por dia trabalhado no período' + hintTxt;
     legendEl.style.display = 'none';
-    const items = buildWeekdayItems(state.shifts, aISO, today);
+    const items = buildWeekdayItems(state.shifts, aDyn, today);
     box.innerHTML = items.some(d => d.count > 0) ? weekdayBarsSVG(items)
       : chartEmptyBox('Nenhum turno registrado neste período.');
     return;
@@ -970,9 +1057,13 @@ function renderChartsView() {
 
   if (chartType === 'catdonut') {
     titleEl.innerHTML = '💸 Despesas por Categoria';
-    subEl.innerText = 'Distribuição dos custos no período selecionado';
+    const entries = expenseBreakdown(state.shifts, state.expenses, aDyn, today);
+    if (entries.length > 0) {
+      const topShare = Math.round(entries[0].total / Math.max(entries.reduce((a, x) => a + x.total, 0), 1) * 100);
+      subEl.innerText = 'Distribuição dos custos no período selecionado' +
+        (topShare >= 50 ? ` • atenção: "${entries[0].name}" representa ${topShare}%` : '') + hintTxt;
+    } else subEl.innerText = 'Distribuição dos custos no período selecionado';
     legendEl.style.display = 'none';
-    const entries = expenseBreakdown(state.shifts, state.expenses, aISO, today);
     box.innerHTML = entries.length > 0 ? donutWithLegend(entries, brlC(entries.reduce((a, x) => a + x.total, 0)), 'Despesas no período')
       : chartEmptyBox('Nenhuma despesa registrada neste período.');
     return;
@@ -980,23 +1071,119 @@ function renderChartsView() {
 
   if (chartType === 'appdonut') {
     titleEl.innerHTML = '🍩 Faturamento por Aplicativo';
-    subEl.innerText = 'Participação de cada plataforma no período selecionado';
+    subEl.innerText = 'Participação e ticket médio por plataforma no período' + hintTxt;
     legendEl.style.display = 'none';
-    const entries = appBreakdown(state.shifts, aISO, today);
-    box.innerHTML = entries.length > 0 ? donutWithLegend(entries, brlC(entries.reduce((a, x) => a + x.total, 0)), 'Bruto no período')
-      : chartEmptyBox('Nenhum ganho por app registrado neste período.');
+    const entries = appBreakdown(state.shifts, aDyn, today);
+    if (entries.length > 0) {
+      const totAll = entries.reduce((a, x) => a + x.total, 0);
+      const mainHtml = donutWithLegend(entries, brlC(totAll), 'Bruto no período');
+      const tks = entries.filter(e => e.ticket != null).sort((a, b) => b.ticket - a.ticket);
+      const bestT = tks.length ? tks[0].ticket : null;
+      const rows = tks.map(e => `
+        <tr><td>${esc(e.name)}</td>
+        <td>${brlC(e.ticket)}</td>
+        <td>${e.trips} corridas</td>
+        <td>${bestT ? Math.round(e.ticket / bestT * 100) + '%' : '—'}</td></tr>`).join('');
+      const tbl = `<div style="margin-top:10px;overflow-x:auto;"><table class="ticket-mini"><thead><tr><th>App</th><th>Ticket médio</th><th>Volume</th><th>vs melhor</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      box.innerHTML = mainHtml + tbl;
+    } else {
+      box.innerHTML = chartEmptyBox('Nenhum ganho por app registrado neste período.');
+    }
+    return;
+  }
+  // ---------- Novos gráficos analíticos ----------
+  if (chartType === 'rsweek') {
+    titleEl.innerHTML = '📊 R$/hora por Semana';
+    subEl.innerText = 'Eficiência horária por semana trabalhada' + hintTxt;
+    legendEl.style.display = 'none';
+    const thRate = state.vehicle.targetHourlyRate || 35;
+    const wkAgg = {};
+    state.shifts.forEach(s => {
+      if (!s.date || s.date.length !== 10) return;
+      if (aDyn && s.date < aDyn) return;
+      const d = new Date(s.date + 'T12:00:00');
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // segunda-feira da semana
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const a = wkAgg[k] || (wkAgg[k] = { g: 0, h: 0 });
+      a.g += getShiftTotalGrossC(s);
+      a.h += parseFloat(s.hours) || 0;
+    });
+    const items = Object.keys(wkAgg).sort().map(k => {
+      const z = wkAgg[k];
+      const dd = new Date(k + 'T12:00:00');
+      return { label: `${dd.getDate()}/${dd.getMonth() + 1}`,
+               rsH: z.h > 0 ? (z.g / 100) / z.h : 0, worked: z.h > 0 };
+    });
+    box.innerHTML = items.filter(i => i.worked).length >= 2
+      ? weeklyBarsSVG(items, thRate)
+      : chartEmptyBox('Faltam duas semanas com turnos para comparar rendimento semanal.');
+    return;
+  }
+
+  if (chartType === 'heat') {
+    titleEl.innerHTML = '🔥 Melhores Horários de Início';
+    subEl.innerText = 'Bruto médio dos turnos conforme a hora de início';
+    legendEl.style.display = 'none';
+    const bins = [[5, '05–07h'], [8, '08–10h'], [11, '11–13h'], [14, '14–16h'], [17, '17–19h'], [20, '20–22h'], [23, '23–02h']];
+    const colLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    const m = bins.map(() => colLabels.map(() => ({ g: 0, n: 0 })));
+    let used = 0;
+    state.shifts.forEach(s => {
+      if (!s.timeStart || !s.date || s.date.length !== 10) return;
+      if (aDyn && s.date < aDyn) return;
+      const hh = parseInt(String(s.timeStart).slice(0, 2), 10) || 0;
+      let bi = bins.findIndex(([h]) => hh >= h && hh < h + 3);
+      if (hh >= 23) bi = 6;
+      if (bi < 0) bi = 0;
+      const ci = (new Date(s.date + 'T12:00:00').getDay() + 6) % 7;
+      m[bi][ci].g += getShiftTotalGrossC(s);
+      m[bi][ci].n += 1;
+      used++;
+    });
+    if (used < 5) {
+      box.innerHTML = chartEmptyBox('Lance mais turnos com horário de início para mapear seus melhores horários.');
+    } else {
+      const maxV = Math.max(...m.flat().map(c => c.n ? c.g / c.n : 0), 1);
+      let rects = '', labs = '';
+      m.forEach((row, ri) => {
+        row.forEach((c, ci) => {
+          const avg = c.n ? c.g / c.n : 0;
+          const a = avg > 0 ? (Math.pow(avg / maxV, 0.6) * 0.85 + 0.07).toFixed(2) : 0.04;
+          rects += `<rect x="${(46 + ci * 74).toFixed(0)}" y="${(ri * 33 + 6).toFixed(0)}" width="70" height="29" rx="6" fill="rgba(139,92,246,${a})"/>`;
+          if (c.n) rects += `<text x="${(81 + ci * 74).toFixed(0)}" y="${(ri * 33 + 24).toFixed(0)}" text-anchor="middle" font-size="9.5" font-weight="800" fill="#e6e6f0">${fmtShortBRL(avg)}</text>`;
+        });
+        labs += `<text x="42" y="${(ri * 33 + 24).toFixed(0)}" text-anchor="end" font-size="10" fill="#a0a0bd">${bins[ri][1]}</text>`;
+      });
+      colLabels.forEach((cl, ci) => { labs += `<text x="${(81 + ci * 74).toFixed(0)}" y="14" text-anchor="middle" font-size="10" fill="#a0a0bd">${cl}</text>`; });
+      const flatVals = m.flat().filter(c => c.n).map(c => c.g / c.n).sort((a, b) => a - b);
+      box.innerHTML = `<svg viewBox="0 0 560 240" width="100%">${rects}${labs}</svg>` +
+        `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Escalado do menor ${fmtShortBRL(flatVals[0])} ao maior ${fmtShortBRL(flatVals[flatVals.length - 1])} • células claras = poucos dados</div>`;
+    }
+    return;
+  }
+
+  if (chartType === 'goalline') {
+    titleEl.innerHTML = '🎯 Meta Mensal Acumulada';
+    const ymNow = getTodayString().slice(0, 7);
+    const monthGrossC = state.shifts.filter(s => (s.date || '').startsWith(ymNow))
+                      .reduce((a, s) => a + getShiftTotalGrossC(s), 0);
+    const paceInfo = buildMonthPaceInfo(monthGrossC, today);
+    subEl.innerText = `Acumulado ${today.slice(5, 7)}/${today.slice(0, 4)} vs meta ${brlC(paceInfo.goalC)} • projeção ${brlC(paceInfo.projC)} (${paceInfo.pct}%)`;
+    legendEl.style.display = 'none';
+    box.innerHTML = cumulativeGoalSVG(state.shifts, paceInfo.goalC, paceInfo.dayElapsed,
+                                      paceInfo.daysInMonth, paceInfo.projC);
     return;
   }
 
   // padrão: evolução (trend)
-  const isMonthly = nDays === null || nDays > 62;
+  const isMonthly = nDaysEff === null || nDaysEff > 62;
   const points = isMonthly
     ? buildMonthlySeries(state.shifts, state.expenses, { months: CHART_MONTHS_FOR[chartPeriod] ?? null, reserveRate, today })
-    : buildDailySeries(state.shifts, state.expenses, { days: nDays, reserveRate, today });
+    : buildDailySeries(state.shifts, state.expenses, { days: nDaysEff, reserveRate, today });
   titleEl.innerHTML = '📈 Evolução de Ganhos e Custos';
   subEl.innerText = isMonthly
-    ? `Gráfico mensal • ${chartPeriod === 'all' ? 'todo o histórico' : `últimos ${CHART_MONTHS_FOR[chartPeriod]} meses`}`
-    : `Gráfico diário • últimos ${nDays} dias`;
+    ? `Gráfico mensal • ${chartPeriod === 'all' ? 'todo o histórico' : `últimos ${CHART_MONTHS_FOR[chartPeriod] ?? '∞'} meses`}${hintTxt}`
+    : `Gráfico diário • últimos ${nDaysEff} dias${hintTxt}`;
   legendEl.style.display = points.some(p => p.hasData) ? 'flex' : 'none';
   box.innerHTML = seriesLineSVG(points);
   const step = isMonthly ? 1 : Math.max(1, Math.ceil(points.length / 9));

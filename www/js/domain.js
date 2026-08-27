@@ -4,6 +4,14 @@
 // ---------- Período do painel ----------
 let dashPeriod = 'month';
 
+// ---------- Dia selecionado no Resumo do Dia ('' = hoje) ----------
+let dashboardDay = '';
+
+function setDashboardDay(d) {
+  dashboardDay = d || '';
+  render();
+}
+
 function inPeriod(dateStr) {
   if (dashPeriod === 'all') return true;
   if (!dateStr) return false;
@@ -19,7 +27,11 @@ function inPeriod(dateStr) {
 
 function setDashPeriod(p, btn) {
   dashPeriod = p;
-  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.period-btn').forEach(b => {
+    const on = b === btn;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
   render();
 }
 
@@ -186,7 +198,7 @@ let chartType = 'trend';
 let chartPeriod = '90';
 
 const CHART_PERIODS = { '7': 7, '30': 30, '90': 90, '180': 180, '365': 365, all: null };
-const CHART_MONTHS_FOR = { '180': 6, '365': 12 };
+const CHART_MONTHS_FOR = { '90': 3, '180': 6, '365': 12 };
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTH_LONG = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -243,21 +255,11 @@ function costOfBucket(bkt, reserveRate) {
 // Totais consolidados num intervalo inclusivo [aISO..bISO] (null = aberto)
 function rangeTotals(shifts, expenses, aISO, bISO, reserveRate) {
   const within = dt => dt && (!aISO || dt >= aISO) && (!bISO || dt <= bISO);
-  let grossC = 0, km = 0, trips = 0;
+  const parts = costPartsForRange(shifts, expenses, aISO, bISO);
   const days = new Set();
-  shifts.forEach(s => {
-    if (!within(s.date)) return;
-    grossC += getShiftTotalGrossC(s);
-    km += (s.km || 0);
-    trips += getShiftTotalTrips(s);
-    days.add(s.date);
-  });
-  let costC = 0;
-  const bmap = dayBuckets(shifts, expenses, aISO);
-  Object.keys(bmap).forEach(k => {
-    if (within(k)) costC += costOfBucket(bmap[k], reserveRate);
-  });
-  return { grossC, costC, netC: grossC - costC, km, trips, workedDays: days.size };
+  shifts.forEach(s => { if (within(s.date)) days.add(s.date); });
+  return { grossC: parts.grossC, costC: parts.totalCostC, netC: parts.netC,
+           km: parts.km, trips: parts.trips, workedDays: days.size };
 }
 
 // Série diária dos últimos N dias calendário
@@ -359,7 +361,7 @@ function expenseBreakdown(shifts, expenses, aISO, bISO) {
     .sort((a, b) => b.total - a.total);
 }
 
-// Faturamento por aplicativo no intervalo
+// Faturamento por aplicativo no intervalo (com ticket médio por corrida)
 function appBreakdown(shifts, aISO, bISO) {
   const byApp = {};
   shifts.forEach(s => {
@@ -369,9 +371,118 @@ function appBreakdown(shifts, aISO, bISO) {
     const apps = Array.isArray(s.apps) ? s.apps : (s.apps && typeof s.apps === 'object' ? Object.values(s.apps) : []);
     apps.forEach(a => {
       const k = (a && a.name) || 'Outro';
-      byApp[k] = byApp[k] || { name: k, total: 0 };
+      byApp[k] = byApp[k] || { name: k, total: 0, trips: 0 };
       byApp[k].total += toC(a.gross) + toC(a.tips);
+      byApp[k].trips += (a.trips || 0);
     });
   });
-  return Object.values(byApp).sort((a, b) => b.total - a.total);
+  return Object.values(byApp).map(z => ({
+    name: z.name, total: z.total, trips: z.trips,
+    ticket: z.trips > 0 ? Math.round(z.total / z.trips) : null
+  })).sort((a, b) => b.total - a.total);
+}
+function costPartsForRange(shifts, expenses, aISO, bISO) {
+  const within = dt => dt && dt.length === 10 && (!aISO || dt >= aISO) && (!bISO || dt <= bISO);
+  let grossC = 0, km = 0, trips = 0, hours = 0, shiftFuelC = 0;
+  shifts.forEach(s => {
+    if (!within(s.date)) return;
+    grossC += getShiftTotalGrossC(s);
+    km += (s.km || 0);
+    trips += getShiftTotalTrips(s);
+    hours += parseFloat(s.hours) || 0;
+    shiftFuelC += toC(s.fuelCost);
+  });
+  const reserveRate = state.vehicle.maintenanceReservePerKm || 0.18;
+  const reserveC = Math.round(km * reserveRate * 100);
+  let otherOpC = 0, fixedC = 0;
+  expenses.forEach(e => {
+    if (!within(e.date) || e.category === 'combustivel') return;
+    if ((e.category || '') === 'fixo') fixedC += toC(e.amount);
+    else otherOpC += toC(e.amount);
+  });
+  const opCostC = shiftFuelC + reserveC + otherOpC;
+  return {
+    grossC, km, trips, hours, shiftFuelC, reserveC, otherOpC, fixedC,
+    opCostC, totalCostC: opCostC + fixedC,
+    netC: grossC - (opCostC + fixedC),
+    rsKm: km > 0 ? grossC / km : 0,
+    rsH: hours > 0 ? grossC / hours : 0
+  };
+}
+
+
+// Pace da meta mensal: projeção, dias restantes e necessário por dia
+function buildMonthPaceInfo(grossMonthC, todayStr) {
+  const goalC = toC(state.vehicle.monthlyGoal || 7000);
+  const parts = todayStr.split('-').map(Number);
+  const daysInMonth = new Date(parts[0], parts[1], 0).getDate();
+  const dayElapsed = Number(todayStr.slice(8, 10));
+  const daysLeft = Math.max(1, daysInMonth - dayElapsed);
+  const projC = dayElapsed > 0 ? Math.round(grossMonthC / dayElapsed * daysInMonth) : 0;
+  const dailyNeededC = Math.round(Math.max(0, goalC - grossMonthC) / daysLeft);
+  const pct = goalC > 0 ? Math.min(999, Math.round(projC / goalC * 100)) : 0;
+  return { goalC, daysInMonth, dayElapsed, daysLeft, projC, dailyNeededC, pct, onTrack: projC >= goalC };
+}
+
+const DOW_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// Estatística por dia da semana: média bruto/dia e R$/h ponderado
+function weekdayStats(shifts) {
+  const agg = {};
+  shifts.forEach(s => {
+    if (!s.date || s.date.length !== 10) return;
+    const w = new Date(s.date + 'T12:00:00').getDay();
+    const a = agg[w] || (agg[w] = { g: 0, h: 0, dates: {} });
+    a.g += getShiftTotalGrossC(s);
+    a.h += parseFloat(s.hours) || 0;
+    a.dates[s.date] = true;
+  });
+  return Object.entries(agg).map(([w, a]) => {
+    const nd = Object.keys(a.dates).length;
+    return { wd: Number(w), nDays: nd, grossAvgC: nd > 0 ? Math.round(a.g / nd) : 0,
+             rsHCents: a.h > 0 ? Math.round(a.g / a.h) : 0 };
+  }).filter(x => x.nDays > 0 && x.rsHCents > 0).sort((x, y) => y.rsHCents - x.rsHCents);
+}
+
+
+// Chips-insight automáticos do Painel (top-3, best-effort, nunca quebram o boot)
+function buildAutoInsights() {
+  const tips = [];
+  try {
+    const ws = weekdayStats(state.shifts);
+    if (ws.length >= 2 && ws[0].nDays >= 2 && ws[ws.length - 1].rsHCents > 0) {
+      const best = ws[0], worst = ws[ws.length - 1];
+      const lift = Math.round((best.rsHCents / worst.rsHCents - 1) * 100);
+      if (lift >= 10) tips.push(`🗓️ ${DOW_PT[best.wd]} é seu melhor dia (${fmtShortBRL(best.grossAvgC)}/dia, ${lift}% acima de ${DOW_PT[worst.wd]} em R$/h)`);
+    }
+    const perAgg = {};
+    state.shifts.forEach(s => {
+      const p = s.period || '?';
+      const a = perAgg[p] || (perAgg[p] = { g: 0, h: 0 });
+      a.g += getShiftTotalGrossC(s);
+      a.h += parseFloat(s.hours) || 0;
+    });
+    const perArr = Object.entries(perAgg)
+      .map(([p, z]) => ({ p, rsh: z.h > 0 ? z.g / z.h : 0 }))
+      .filter(x => x.rsh > 0).sort((x, y) => x.rsh - y.rsh);
+    const thRate = state.vehicle.targetHourlyRate || 35;
+    if (perArr.length >= 2 && perArr[0].rsh < thRate * 0.95) {
+      const best = perArr[perArr.length - 1];
+      tips.push(`⏰ Turnos de ${String(perArr[0].p).toLowerCase()} rendem ${formatBRL(perArr[0].rsh)}/h — priorize ${String(best.p).toLowerCase()} (${formatBRL(best.rsh)}/h)`);
+    }
+    const f = state.fuelSettings;
+    if (f && f.gasolinePrice > 0 && f.ethanolPrice > 0 && f.gasolineKmPerL > 0 && f.ethanolKmPerL > 0) {
+      const gasPerKm = f.gasolinePrice / f.gasolineKmPerL;
+      const ethPerKm = f.ethanolPrice / f.ethanolKmPerL;
+      if (ethPerKm < gasPerKm) {
+        const ds = state.shifts.map(s => s.date).filter(Boolean).sort();
+        let span = 30;
+        if (ds.length >= 2) span = Math.max(1, (new Date(ds[ds.length - 1]) - new Date(ds[0])) / 86400000 + 1);
+        const km30 = (state.shifts.reduce((a, s) => a + (s.km || 0), 0) / span) * 30;
+        const savC = Math.round((gasPerKm - ethPerKm) * km30 * 100);
+        if (savC > 5000) tips.push(`⛽ Etanol está economizando ~${brlC(savC)}/mês vs gasolina nos seus números`);
+      }
+    }
+  } catch (e) { /* best-effort */ }
+  return tips.slice(0, 3);
 }

@@ -620,7 +620,77 @@ header {
   margin-top: 6px;
 }
 
-/* Period switch (painel) */
+/* Chips-insight automáticos do Painel */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.chip-insight {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: #ddd6fe;
+  padding: 7px 10px;
+  border-radius: 999px;
+  line-height: 1.25;
+}
+
+/* Tabela compacta ticket médio (aba Gráficos) */
+.ticket-mini {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.ticket-mini th {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-sub);
+}
+.ticket-mini td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #e6e6f0;
+  white-space: nowrap;
+}
+
+/* Seletor de dia no Resumo do Dia */
+.day-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #22d3ee;
+  text-transform: capitalize;
+  margin-bottom: 4px;
+}
+.day-picker-input {
+  background: var(--bg, #151528);
+  color: #e6e6f0;
+  border: 1px solid var(--border-sub, #2b2b45);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color-scheme: dark;
+}
+.day-picker-today {
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: #67e8f9;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.day-picker-today:active {
+  background: rgba(34, 211, 238, 0.25);
+}
 .period-switch {
   display: flex;
   gap: 4px;

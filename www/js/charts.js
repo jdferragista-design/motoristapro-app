@@ -57,9 +57,16 @@ function donutSVG(items, total, centerTop, centerBottom) {
 
 function trendPillHTML(cur, prev) {
   if (!prev) return '<span class="trend-pill trend-flat">—</span>';
-  const pct = ((cur - prev) / prev) * 100;
-  const cls = pct >= 0 ? 'trend-up' : 'trend-down';
-  return `<span class="trend-pill ${cls}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%</span>`;
+  const deltaC = cur - prev;
+  const rawPct = (deltaC / Math.abs(prev)) * 100;
+  // Clamp legível: variações absurdas (>±300%) mostram Δ absoluto em R$,
+  // evitando pills como "▼ 901%" quando um custo fixo pontual distorce a semana.
+  if (Math.abs(rawPct) > 300) {
+    const cls = deltaC >= 0 ? 'trend-up' : 'trend-down';
+    return `<span class="trend-pill ${cls}" title="Variação de ${brlC(Math.abs(deltaC))} vs semana anterior">${deltaC >= 0 ? '▲' : '▼'} ${brlC(Math.abs(deltaC))}</span>`;
+  }
+  const cls = rawPct >= 0 ? 'trend-up' : 'trend-down';
+  return `<span class="trend-pill ${cls}">${rawPct >= 0 ? '▲' : '▼'} ${Math.abs(rawPct).toFixed(0)}%</span>`;
 }
 
 
@@ -68,6 +75,67 @@ function fmtShortBRL(cents) {
   return 'R$ ' + Math.round(cents / 100).toLocaleString('pt-BR');
 }
 
+
+// ----- R$/hora por semana com linha da meta -----
+function weeklyBarsSVG(items, targetRate) {
+  const W = 620, H = 210, P = 30, BASE = H - 26;
+  const top = BASE - 46;
+  const maxV = Math.max(...items.map(i => i.rsH), targetRate * 1.05);
+  const bw = (W - P - 20) / Math.max(items.length, 1);
+  const y = v => top - (v / maxV) * top;
+  const tgtY = y(targetRate);
+  let bars = '', labs = '';
+  items.forEach((it, i) => {
+    const x = P + i * bw;
+    const yTop = y(it.rsH);
+    const bh = Math.max(BASE - yTop, 1);
+    const color = it.rsH >= targetRate ? 'rgba(52,211,153,0.85)' : 'rgba(251,146,60,0.85)';
+    bars += `<rect x="${x.toFixed(0)}" y="${yTop.toFixed(0)}" width="${(bw - 6).toFixed(0)}" height="${bh.toFixed(0)}" rx="5" fill="${color}"/>` +
+            `<text x="${(x + (bw - 6) / 2).toFixed(0)}" y="${(yTop - 6).toFixed(0)}" text-anchor="middle" font-size="10" font-weight="800" fill="#e6e6f0">${it.rsH.toFixed(1)}</text>`;
+    labs += `<text x="${(x + (bw - 6) / 2).toFixed(0)}" y="${(BASE + 8).toFixed(0)}" text-anchor="middle" font-size="10" fill="#a0a0bd">${it.label}</text>`;
+  });
+  const leg = `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;">` +
+    `<span><span style="display:inline-block;width:10px;height:10px;background:rgba(52,211,153,0.85);border-radius:2px;"></span> acima da meta</span>` +
+    `<span><span style="display:inline-block;width:10px;height:10px;background:rgba(251,146,60,0.85);border-radius:2px;"></span> abaixo da meta</span></div>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">` +
+    `<line x1="${P}" y1="${tgtY.toFixed(1)}" x2="${(W - 14).toFixed(1)}" y2="${tgtY.toFixed(1)}" stroke="#f59e0b" stroke-dasharray="5 4" stroke-width="1.4"/>` +
+    `<text x="${(W - 16).toFixed(1)}" y="${(tgtY - 5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#fbbf24">Meta: R$ ${targetRate}/h</text>` +
+    `${bars}${labs}</svg>${leg}`;
+}
+
+// ----- Acumulado do mês vs meta diária prorrateada + projeção -----
+function cumulativeGoalSVG(shifts, goalC, dayElapsed, daysInMonth, projC) {
+  const ym = getTodayString().slice(0, 7);
+  const dayMap = {};
+  shifts.forEach(s => { if ((s.date || '').startsWith(ym)) dayMap[s.date] = (dayMap[s.date] || 0) + getShiftTotalGrossC(s); });
+  const days = Object.keys(dayMap).sort();
+  const W = 520, H = 200, P = 34, BASE = H - 30;
+  const xs = i => P + i * ((W - P - 16) / (daysInMonth - 1 || 1));
+  const ys = v => BASE - (Math.min(v, goalC) / Math.max(goalC, 1)) * (BASE - 52);
+  const metaYs = ys(goalC);
+  let running = 0, line = '', area = '', dots = '';
+  days.forEach((dt, i) => {
+    running += dayMap[dt];
+    const x = xs(i), y = ys(running);
+    if (i === 0) { line += `M ${x.toFixed(1)} ${y.toFixed(1)}`; area += `M ${x.toFixed(1)} ${y.toFixed(1)}`; }
+    else { line += ` L ${x.toFixed(1)} ${y.toFixed(1)}`; area += ` L ${x.toFixed(1)} ${y.toFixed(1)}`; }
+    dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="#8b5cf6"/>`;
+  });
+  const firstX = days.length ? xs(0) : P;
+  if (area) area += ` L ${xs(daysInMonth - 1).toFixed(1)} ${BASE.toFixed(1)} L ${firstX.toFixed(1)} ${BASE.toFixed(1)} Z`;
+  const meta = `<line x1="${xs(0).toFixed(1)}" y1="${metaYs.toFixed(1)}" x2="${xs(daysInMonth - 1).toFixed(1)}" y2="${metaYs.toFixed(1)}" stroke="#f59e0b" stroke-dasharray="5 4" stroke-width="1.4"/>` +
+    `<text x="${(P + (W - P - 10)) - 4}" y="${(metaYs - 5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#fbbf24">Meta ${fmtShortBRL(goalC)}</text>`;
+  const projY = ys(projC);
+  const proj = running > 0
+    ? `<line x1="${xs(dayElapsed - 1).toFixed(1)}" y1="${ys(running).toFixed(1)}" x2="${xs(daysInMonth - 1).toFixed(1)}" y2="${projY.toFixed(1)}" stroke="#22d3ee" stroke-dasharray="3 3" stroke-width="1.4"/>` +
+      `<text x="${(xs(daysInMonth - 1) - 6).toFixed(1)}" y="${(projY - 6).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#67e8f9">Proj. ${fmtShortBRL(projC)}</text>`
+    : '';
+  let dl = '';
+  [1, 8, 15, 22, daysInMonth].forEach(d => { dl += `<text x="${xs(d - 1).toFixed(1)}" y="${(BASE + 14).toFixed(1)}" text-anchor="middle" font-size="9" fill="#a0a0bd">${d}</text>`; });
+  const onTrack = projC >= goalC;
+  const note = `<div style="font-size:12px;color:${onTrack ? '#34d399' : '#fb7185'};font-weight:800;margin-top:6px;">Projeção ${onTrack ? 'no ritmo' : 'abaixo'} da meta (${Math.round(projC / goalC * 100)}%)</div>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${meta}${proj}${area ? `<path d="${area}" fill="rgba(139,92,246,0.15)"/>` : ''}${line ? `<path d="${line}" fill="none" stroke="#8b5cf6" stroke-width="2"/>` : ''}${dots}${dl}</svg>${note}`;
+}
 
 function seriesLineSVG(points) {
   const W = 640, H = 200, P = 14, BASE = H - 16;

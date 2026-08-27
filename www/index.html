@@ -2,7 +2,7 @@
 <html lang="pt-BR" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Google Drive</title>
-  <link rel="stylesheet" href="css/style.css?v=21" />
+  <link rel="stylesheet" href="css/style.css?v=25" />
 </head>
 <body>
 
@@ -104,18 +104,18 @@
 
       <!-- Seletor de Período do Painel -->
       <div class="period-switch" role="tablist" aria-label="Período do painel">
-        <button class="period-btn" onclick="setDashPeriod('day', this)">Hoje</button>
-        <button class="period-btn" onclick="setDashPeriod('7', this)">7 dias</button>
-        <button class="period-btn active" onclick="setDashPeriod('month', this)">Este mês</button>
-        <button class="period-btn" onclick="setDashPeriod('30', this)">30 dias</button>
-        <button class="period-btn" onclick="setDashPeriod('all', this)">Tudo</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('day', this)">Hoje</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('7', this)">7 dias</button>
+        <button class="period-btn active" role="tab" aria-selected="true" onclick="setDashPeriod('month', this)">Este mês</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('30', this)">30 dias</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('all', this)">Tudo</button>
       </div>
 
       <!-- Top Overview Card -->
       <div class="card" style="background: linear-gradient(135deg, #151528 0%, #1c1c36 100%); border-color: rgba(139, 92, 246, 0.25);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
-            <div class="card-title">Resumo Financeiro Consolidado</div>
+            <h1 class="card-title">Resumo Financeiro Consolidado</h1>
             <div class="card-subtitle" id="dashPeriodLabel">Faturamento Bruto de Todos os Apps vs Lucro Líquido Real</div>
           </div>
           <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);" id="dashMargin">68% Margem</span>
@@ -136,7 +136,7 @@
               <div class="metric-label">Gastos + Desgaste (CPK)</div>
             </div>
             <div class="metric-val val-rose" id="dashExpenses">R$ 537,70</div>
-            <div class="metric-sub" id="dashExpensesSub">Combustível + Provisão</div>
+            <div class="metric-sub" id="dashExpensesSub">Composição dinâmica por categoria</div>
             <div class="kpi-spark" id="sparkExp"></div>
           </div>
           <div class="metric-box" id="dashNetCard" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6));">
@@ -155,8 +155,12 @@
       <div class="card" style="border-color: rgba(34, 211, 238, 0.25);">
         <div class="card-title">
           📅 Resumo do Dia
-          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: capitalize;" id="todayDateLabel"></span>
+          <span style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+            <button type="button" class="day-picker-today" onclick="setDashboardDay('')">Hoje</button>
+            <input type="date" id="dashboardDayInput" class="day-picker-input" aria-label="Selecionar dia para ver o resumo" onchange="setDashboardDay(this.value)" />
+          </span>
         </div>
+        <div class="day-label" id="todayDateLabel"></div>
         <div class="card-subtitle" style="margin-bottom: 14px;" id="todaySubtitle">Sua atividade de hoje, em tempo real</div>
         <div class="grid grid-4" id="todayGrid"></div>
         <div id="todayAppsRow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;"></div>
@@ -192,6 +196,9 @@
             <div class="metric-sub" id="dashAvgTripSub">10,1 km por viagem</div>
           </div>
         </div>
+
+        <!-- Chips-insight automáticos -->
+        <div id="insightChips" class="chip-row" style="display: none;"></div>
         <div class="highlight-pill" id="outsideKmPill" style="display: none;"></div>
       </div>
 
@@ -213,6 +220,7 @@
         <div style="font-size: 12px; color: var(--text-muted);">
           Faltam <strong class="val-amber" id="goalRemaining">R$ 5.299,50</strong> para atingir sua meta do mês.
         </div>
+        <div id="goalPace" style="display: none;"></div>
       </div>
 
       <!-- Todos os gráficos vivem agora na Central de Gráficos (aba Gráficos) -->
@@ -327,6 +335,9 @@
           <button class="period-btn" onclick="setChartType('weekday', this)">🗓️ Dia da semana</button>
           <button class="period-btn" onclick="setChartType('catdonut', this)">💸 Despesas</button>
           <button class="period-btn" onclick="setChartType('appdonut', this)">🍩 Por aplicativo</button>
+          <button class="period-btn" onclick="setChartType('rsweek', this)">📊 R$/h semanal</button>
+          <button class="period-btn" onclick="setChartType('heat', this)">🔥 Melhores horários</button>
+          <button class="period-btn" onclick="setChartType('goalline', this)">🎯 Meta acumulada</button>
         </div>
 
         <div class="form-label" style="margin-bottom: 8px;">Período</div>
@@ -962,14 +973,14 @@
     </div>
   </div>
 
-  <script src="js/capacitor.js?v=22"></script>
-  <script src="js/utils.js?v=22"></script>
-  <script src="js/charts.js?v=22"></script>
-  <script src="js/data.js?v=22"></script>
-  <script src="js/domain.js?v=22"></script>
-  <script src="js/ui.js?v=22"></script>
-  <script src="js/render.js?v=22"></script>
-  <script src="js/init.js?v=22"></script>
+  <script src="js/capacitor.js?v=25"></script>
+  <script src="js/utils.js?v=25"></script>
+  <script src="js/charts.js?v=25"></script>
+  <script src="js/data.js?v=25"></script>
+  <script src="js/domain.js?v=25"></script>
+  <script src="js/ui.js?v=25"></script>
+  <script src="js/render.js?v=25"></script>
+  <script src="js/init.js?v=25"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {
