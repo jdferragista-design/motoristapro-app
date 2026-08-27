@@ -73,7 +73,7 @@ function donutSVG(items, total, centerTop, centerBottom) {
   items.forEach((it, i) => {
     const len = total > 0 ? (it.total / total) * C : 0;
     const seg = Math.max(len - 2.5, 0.6);
-    circles += `<circle r="${R}" cx="80" cy="80" fill="none" stroke="${DONUT_COLORS[i % DONUT_COLORS.length]}" stroke-width="22" stroke-dasharray="${seg} ${C - seg}" stroke-dashoffset="${(-cum).toFixed(2)}"/>`;
+    circles += `<circle r="${R}" cx="80" cy="80" fill="none" stroke="${it.color || DONUT_COLORS[i % DONUT_COLORS.length]}" stroke-width="22" stroke-dasharray="${seg} ${C - seg}" stroke-dashoffset="${(-cum).toFixed(2)}"/>`;
     cum += len;
   });
   return `<svg viewBox="0 0 160 160" style="width:172px;height:172px;transform:rotate(-90deg);flex-shrink:0;">
@@ -92,4 +92,69 @@ function trendPillHTML(cur, prev) {
   const pct = ((cur - prev) / prev) * 100;
   const cls = pct >= 0 ? 'trend-up' : 'trend-down';
   return `<span class="trend-pill ${cls}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%</span>`;
+}
+
+
+// ---------- Evolução mensal (Bruto × Custos × Líquido) ----------
+function fmtShortBRL(cents) {
+  return 'R$ ' + Math.round(cents / 100).toLocaleString('pt-BR');
+}
+
+
+function monthlyLineSVG(months) {
+  const W = 640, H = 200, P = 14, BASE = H - 16;
+  const maxV = Math.max(...months.map(m => Math.max(m.grossC, m.netC, m.expC)), 1);
+  const xs = i => P + i * ((W - 2 * P) / (months.length - 1 || 1));
+  const ys = v => BASE - (v / maxV) * (H - 46);
+  const pt = key => months.map((m, i) => ({ x: xs(i), y: ys(m[key]) }));
+  const gPts = pt('grossC'), ePts = pt('expC'), nPts = pt('netC');
+  const gLine = smoothPath(gPts), eLine = smoothPath(ePts), nLine = smoothPath(nPts);
+  const grid = [1, 0.66, 0.33].map(f =>
+    `<line x1="${P}" y1="${ys(maxV * f).toFixed(1)}" x2="${W - P}" y2="${ys(maxV * f).toFixed(1)}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`).join('');
+  const dots = months.map((m, i) => `
+    <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${m.label} — Bruto: ${brlC(m.grossC)}</title></circle>
+    <circle cx="${ePts[i].x.toFixed(1)}" cy="${ePts[i].y.toFixed(1)}" r="3" fill="#fb7185" stroke="#0a0a14" stroke-width="1.5"><title>${m.label} — Custos: ${brlC(m.expC)} (combustível + provisão + despesas)</title></circle>
+    <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3.5" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${m.label} — Líquido: ${brlC(m.netC)}</title></circle>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:200px;display:block;">
+    <defs>
+      <linearGradient id="monG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.30"/>
+        <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    <path d="${gLine} L ${W - P} ${BASE} L ${P} ${BASE} Z" fill="url(#monG)"/>
+    <path d="${eLine}" fill="none" stroke="#fb7185" stroke-width="1.8" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>
+    <path d="${gLine}" fill="none" stroke="#8b5cf6" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+    <path d="${nLine}" fill="none" stroke="#22d3ee" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    ${dots}
+  </svg>`;
+}
+
+
+// ---------- Média por dia da semana (barras verticais) ----------
+function weekdayBarsSVG(items) {
+  const W = 640, H = 180, P = 14, BASE = H - 18;
+  const maxV = Math.max(...items.map(d => d.avgC), 1);
+  const slot = (W - 2 * P) / items.length;
+  const bw = Math.min(slot * 0.52, 64);
+  let bestIdx = -1, bestVal = 0;
+  items.forEach((d, i) => { if (d.avgC > bestVal) { bestVal = d.avgC; bestIdx = i; } });
+  const bars = items.map((d, i) => {
+    const cx = P + slot * i + slot / 2;
+    const h = d.avgC > 0 ? Math.max((d.avgC / maxV) * (H - 50), 4) : 2;
+    const y = BASE - h;
+    const isBest = i === bestIdx && d.avgC > 0;
+    const fill = isBest ? '#8b5cf6' : (d.avgC > 0 ? 'rgba(139,92,246,0.35)' : 'rgba(255,255,255,0.07)');
+    const valFill = isBest ? '#c4b5fd' : (d.avgC > 0 ? '#a0a0bd' : 'rgba(160,160,189,0.45)');
+    const tip = `${d.label} — média ${brlC(d.avgC)} em ${d.count} dia(s) com turno`;
+    return `
+    <rect x="${(cx - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="5" fill="${fill}"><title>${tip}</title></rect>
+    <text x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="800" fill="${valFill}">${d.avgC > 0 ? fmtShortBRL(d.avgC) : '—'}<title>${tip}</title></text>
+    <text x="${cx.toFixed(1)}" y="${(BASE + 13).toFixed(1)}" text-anchor="middle" font-size="10"${isBest ? ' font-weight="800" fill="#e9d5ff"' : ' fill="#a0a0bd"'}>${d.label}<title>${tip}</title></text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:180px;display:block;">
+    <line x1="${P}" y1="${BASE}" x2="${W - P}" y2="${BASE}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+    ${bars}
+  </svg>`;
 }

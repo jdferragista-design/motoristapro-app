@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Google Drive</title>
-  <link rel="stylesheet" href="css/style.css?v=19" />
+  <link rel="stylesheet" href="css/style.css?v=20" />
 </head>
 <body>
 
@@ -236,6 +236,34 @@
           </div>
           <div class="chart-xlabels" id="dashChartLabels"></div>
         </div>
+      </div>
+
+      <!-- Evolução Mensal + Despesas por Categoria -->
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-title">📈 Evolução Mensal</div>
+          <div class="card-subtitle">Bruto × custos × lucro líquido por mês</div>
+          <div class="chart-legend" id="monthlyLegend" style="display: none;">
+            <span class="legend-chip"><i style="background: #8b5cf6;"></i>Bruto</span>
+            <span class="legend-chip"><i style="background: #fb7185;"></i>Custos</span>
+            <span class="legend-chip"><i style="background: #22d3ee;"></i>Líquido</span>
+          </div>
+          <div class="chart-container chart-area" id="monthlyLine"></div>
+          <div class="chart-xlabels" id="monthlyChartLabels"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">💸 Despesas por Categoria</div>
+          <div class="card-subtitle" style="margin-bottom: 14px;">Distribuição dos gastos no período selecionado</div>
+          <div id="expenseDonut"></div>
+        </div>
+      </div>
+
+      <!-- Média por Dia da Semana -->
+      <div class="card">
+        <div class="card-title">🗓️ Seus Melhores Dias da Semana</div>
+        <div class="card-subtitle" style="margin-bottom: 10px;" id="weekdaySubtitle">Média de faturamento bruto por dia trabalhado</div>
+        <div class="chart-container chart-area" id="weekdayBars"></div>
       </div>
 
     </div>
@@ -921,14 +949,14 @@
     </div>
   </div>
 
-  <script src="js/capacitor.js?v=19"></script>
-  <script src="js/utils.js?v=19"></script>
-  <script src="js/charts.js?v=19"></script>
-  <script src="js/data.js?v=19"></script>
-  <script src="js/domain.js?v=19"></script>
-  <script src="js/ui.js?v=19"></script>
-  <script src="js/render.js?v=19"></script>
-  <script src="js/init.js?v=19"></script>
+  <script src="js/capacitor.js?v=20"></script>
+  <script src="js/utils.js?v=20"></script>
+  <script src="js/charts.js?v=20"></script>
+  <script src="js/data.js?v=20"></script>
+  <script src="js/domain.js?v=20"></script>
+  <script src="js/ui.js?v=20"></script>
+  <script src="js/render.js?v=20"></script>
+  <script src="js/init.js?v=20"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {
