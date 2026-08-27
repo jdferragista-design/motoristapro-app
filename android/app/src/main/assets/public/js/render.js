@@ -53,21 +53,10 @@ function render() {
 
   let totalGrossC = 0;
   let totalTrips = 0;
-  const appTotals = {};
 
   pShifts.forEach(s => {
     totalGrossC += getShiftTotalGrossC(s);
     totalTrips += getShiftTotalTrips(s);
-
-    if (Array.isArray(s.apps)) {
-      s.apps.forEach(a => {
-        const k = a.name;
-        if (!appTotals[k]) {
-          appTotals[k] = { name: a.name, badgeClass: a.badgeClass || 'badge-uber', total: 0 };
-        }
-        appTotals[k].total += toC(a.gross) + toC(a.tips);
-      });
-    }
   });
 
   const totalKm = pShifts.reduce((a, s) => a + (s.km || 0), 0);
@@ -200,29 +189,7 @@ function render() {
     ).join(' ');
   }
 
-  // Platform Breakdown — donut + legenda (visual novo)
-  const pbGrid = document.getElementById('platformBreakdownGrid');
-  const appKeys = Object.keys(appTotals);
-  if (appKeys.length === 0) {
-    pbGrid.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 10px;">Nenhum ganho registrado por app.</div>';
-  } else {
-    const items = appKeys.map(k => appTotals[k]).sort((a, b) => b.total - a.total);
-    const legend = items.map((item, i) => {
-      const pct = totalGrossC > 0 ? ((item.total / totalGrossC) * 100).toFixed(0) : 0;
-      return `<div class="legend-row">
-        <span class="legend-dot" style="background: ${DONUT_COLORS[i % DONUT_COLORS.length]};"></span>
-        <span class="legend-name">${esc(item.name)}</span>
-        <strong style="color: #fff;">${brlC(item.total)}</strong>
-        <span style="color: var(--text-dim); font-size: 11px; min-width: 34px; text-align: right;">${pct}%</span>
-      </div>`;
-    }).join('');
-    pbGrid.innerHTML = `<div class="donut-flex">
-      ${donutSVG(items, totalGrossC, brlC(totalGrossC), 'Faturamento total')}
-      <div class="donut-legend">${legend}</div>
-    </div>`;
-  }
-
-  // Goal — meta MENSAL: compara apenas com o bruto do mês corrente (independe do período do painel)
+// Goal — meta MENSAL: compara apenas com o bruto do mês corrente (independe do período do painel)
   const goalC = toC(state.vehicle.monthlyGoal || 7000);
   const ym = getTodayString().slice(0, 7);
   const monthGrossC = state.shifts
@@ -271,106 +238,6 @@ function render() {
   document.getElementById('sparkExp').innerHTML = sparkSVG(perDay.map(x => x.exp), '#f43f5e', 'sgExp');
   document.getElementById('sparkNet').innerHTML = sparkSVG(perDay.map(x => x.net), '#22d3ee', 'sgNet');
 
-  document.getElementById('dashChart').innerHTML = areaChartSVG(perDay);
-  document.getElementById('dashChartLabels').innerHTML = perDay.map(d => `<span>${d.label}</span>`).join('');
-
-  // Evolução mensal — bruto × custos × líquido por mês (todos os dados, mostra os últimos 6 meses)
-  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const monthBuckets = {}; // ym -> { grossC, fuelC, km, expOtherC }
-  const bucketOf = ym => (monthBuckets[ym] = monthBuckets[ym] || { grossC: 0, fuelC: 0, km: 0, expOtherC: 0 });
-  state.shifts.forEach(s => {
-    if (!s.date) return;
-    const b = bucketOf(s.date.slice(0, 7));
-    b.grossC += getShiftTotalGrossC(s);
-    b.fuelC += toC(s.fuelCost);
-    b.km += (s.km || 0);
-  });
-  state.expenses.forEach(e => {
-    if (!e.date || e.category === 'combustivel') return; // combustível já entra via turno
-    bucketOf(e.date.slice(0, 7)).expOtherC += toC(e.amount);
-  });
-  const todayD = new Date();
-  const monthsData = [];
-  for (let back = 5; back >= 0; back--) {
-    const d = new Date(todayD.getFullYear(), todayD.getMonth() - back, 1);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const b = monthBuckets[ym] || { grossC: 0, fuelC: 0, km: 0, expOtherC: 0 };
-    monthsData.push({
-      label: monthNames[d.getMonth()],
-      ym,
-      grossC: b.grossC,
-      expC: b.fuelC + Math.round(b.km * reserveRate * 100) + b.expOtherC,
-      netC: b.grossC - b.fuelC - Math.round(b.km * reserveRate * 100) - b.expOtherC,
-      hasData: !!monthBuckets[ym]
-    });
-  }
-  while (monthsData.length > 1 && !monthsData[0].hasData && !monthsData[1].hasData) monthsData.shift(); // mostra só meses futuros válidos
-  const mLabelsEl = document.getElementById('monthlyChartLabels');
-  const mLegendEl = document.getElementById('monthlyLegend');
-  const chartBox = document.getElementById('monthlyLine');
-  if (!chartBox) {
-    // blocos ainda não existem (HTML antigo em cache) — nada a fazer
-  } else {
-    mLegendEl.style.display = monthsData.some(m => m.hasData) ? 'flex' : 'none';
-    chartBox.innerHTML = monthlyLineSVG(monthsData);
-    mLabelsEl.innerHTML = monthsData.map(m =>
-      `<span${m.ym === getTodayString().slice(0, 7) ? ' style="color:#c4b5fd;font-weight:800;"' : ''}>${m.label}</span>`).join('');
-  }
-
-  // Média por dia da semana — médias de bruto/líquido apenas nos dias que tiveram turno
-  const wdAgg = Array.from({ length: 7 }, () => ({ days: new Set(), grossC: 0 }));
-  state.shifts.forEach(s => {
-    if (!s.date) return;
-    const dow = new Date(`${s.date}T12:00:00`).getDay();
-    wdAgg[dow].days.add(s.date);
-    wdAgg[dow].grossC += getShiftTotalGrossC(s);
-  });
-  const weekdayItems = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label, i) => ({
-    label,
-    avgC: wdAgg[i].days.size > 0 ? Math.round(wdAgg[i].grossC / wdAgg[i].days.size) : 0,
-    count: wdAgg[i].days.size
-  }));
-  const wdWrap = document.getElementById('weekdayBars');
-  const wdSub = document.getElementById('weekdaySubtitle');
-  if (wdWrap) {
-    const withShifts = weekdayItems.filter(d => d.count > 0);
-    if (wdSub) wdSub.innerText = withShifts.length > 0
-      ? `Média de faturamento bruto por dia trabalhado (${withShifts.reduce((a, d) => a + d.count, 0)} dias registrados)`
-      : 'Nenhum turno registrado ainda';
-    wdWrap.innerHTML = withShifts.length > 0 ? weekdayBarsSVG(weekdayItems)
-      : '<div style="text-align:center;color:var(--text-muted);padding:14px;">Lance turnos para ver seus melhores dias da semana 📈</div>';
-  }
-
-  // Donut de despesas por categoria (mesmo período ativo do painel; combustível do turno conta como categoria)
-  const CAT_LABELS = { combustivel: 'Combustível', alimentacao: 'Alimentação', lavagem: 'Lavagem', manutencao: 'Manutenção', fixo: 'Custo Fixo', outros: 'Outros' };
-  const CAT_COLORS = { combustivel: '#f43f5e', alimentacao: '#fbbf24', lavagem: '#38bdf8', manutencao: '#a855f7', fixo: '#64748b', outros: '#34d399' };
-  const expByCat = {};
-  state.shifts.forEach(s => { if (inPeriod(s.date)) expByCat.combustivel = (expByCat.combustivel || 0) + toC(s.fuelCost); });
-  state.expenses.forEach(e => {
-    if (!inPeriod(e.date)) return;
-    const cat = e.category || 'outros';
-    expByCat[cat] = (expByCat[cat] || 0) + toC(e.amount);
-  });
-  const expEntries = Object.entries(expByCat).map(([cat, total]) => ({ name: CAT_LABELS[cat] || cat, color: CAT_COLORS[cat] || DONUT_COLORS[7], total })).sort((a, b) => b.total - a.total);
-  const expDonutEl = document.getElementById('expenseDonut');
-  if (expDonutEl) {
-    const expTotal = expEntries.reduce((a, x) => a + x.total, 0);
-    if (expEntries.length === 0) {
-      expDonutEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 10px;">Nenhuma despesa neste período.</div>';
-    } else {
-      const legendExp = expEntries.map(it =>
-        `<div class="legend-row">
-          <span class="legend-dot" style="background: ${it.color};"></span>
-          <span class="legend-name">${esc(it.name)}</span>
-          <strong style="color: #fff;">${brlC(it.total)}</strong>
-          <span style="color: var(--text-dim); font-size: 11px; min-width: 34px; text-align: right;">${Math.round((it.total / expTotal) * 100)}%</span>
-        </div>`).join('');
-      expDonutEl.innerHTML = `<div class="donut-flex">
-        ${donutSVG(expEntries, expTotal, brlC(expTotal), 'Despesas no período')}
-        <div class="donut-legend">${legendExp}</div>
-      </div>`;
-    }
-  }
 
   renderChartsView();
 

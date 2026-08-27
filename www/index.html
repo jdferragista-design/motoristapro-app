@@ -195,81 +195,27 @@
         <div class="highlight-pill" id="outsideKmPill" style="display: none;"></div>
       </div>
 
-      <!-- Platform Breakdown Cards -->
+      <!-- Progresso da Meta Mensal -->
       <div class="card">
-        <div class="card-title">Divisão de Faturamento por Aplicativo</div>
-        <div class="card-subtitle" style="margin-bottom: 14px;">Total acumulado gerado em cada plataforma</div>
-
-        <div id="platformBreakdownGrid">
-          <!-- Dynamically populated (donut + legenda) -->
+        <div class="card-title">
+          <svg class="icon val-emerald" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+          Progresso da Meta Mensal
+        </div>
+        <div style="margin: 14px 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700;">
+            <span id="goalLabel">R$ 1.700,50 de R$ 7.000,00</span>
+            <span class="val-emerald" id="goalPercent">24%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="goalFill" style="width: 24%; background: linear-gradient(90deg, #8b5cf6, #22d3ee);"></div>
+          </div>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted);">
+          Faltam <strong class="val-amber" id="goalRemaining">R$ 5.299,50</strong> para atingir sua meta do mês.
         </div>
       </div>
 
-      <!-- Goal & 7-Day Chart Grid -->
-      <div class="grid grid-2">
-        <!-- Goal Progress -->
-        <div class="card">
-          <div class="card-title">
-            <svg class="icon val-emerald" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
-            Progresso da Meta Mensal
-          </div>
-          <div style="margin: 14px 0;">
-            <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700;">
-              <span id="goalLabel">R$ 1.700,50 de R$ 7.000,00</span>
-              <span class="val-emerald" id="goalPercent">24%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="goalFill" style="width: 24%; background: linear-gradient(90deg, #8b5cf6, #22d3ee);"></div>
-            </div>
-          </div>
-          <div style="font-size: 12px; color: var(--text-muted);">
-            Faltam <strong class="val-amber" id="goalRemaining">R$ 5.299,50</strong> para atingir sua meta do mês.
-          </div>
-        </div>
-
-        <!-- 7 Days Area Chart -->
-        <div class="card">
-          <div class="card-title">Ganhos dos Últimos 7 Dias</div>
-          <div class="card-subtitle">Faturamento bruto × lucro líquido por dia</div>
-          <div class="chart-legend">
-            <span class="legend-chip"><i style="background: #8b5cf6;"></i>Bruto</span>
-            <span class="legend-chip"><i style="background: #22d3ee;"></i>Líquido</span>
-          </div>
-          <div class="chart-container chart-area" id="dashChart">
-            <!-- Dynamically populated -->
-          </div>
-          <div class="chart-xlabels" id="dashChartLabels"></div>
-        </div>
-      </div>
-
-      <!-- Evolução Mensal + Despesas por Categoria -->
-      <div class="grid grid-2">
-        <div class="card">
-          <div class="card-title">📈 Evolução Mensal</div>
-          <div class="card-subtitle">Bruto × custos × lucro líquido por mês</div>
-          <div class="chart-legend" id="monthlyLegend" style="display: none;">
-            <span class="legend-chip"><i style="background: #8b5cf6;"></i>Bruto</span>
-            <span class="legend-chip"><i style="background: #fb7185;"></i>Custos</span>
-            <span class="legend-chip"><i style="background: #22d3ee;"></i>Líquido</span>
-          </div>
-          <div class="chart-container chart-area" id="monthlyLine"></div>
-          <div class="chart-xlabels" id="monthlyChartLabels"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">💸 Despesas por Categoria</div>
-          <div class="card-subtitle" style="margin-bottom: 14px;">Distribuição dos gastos no período selecionado</div>
-          <div id="expenseDonut"></div>
-        </div>
-      </div>
-
-      <!-- Média por Dia da Semana -->
-      <div class="card">
-        <div class="card-title">🗓️ Seus Melhores Dias da Semana</div>
-        <div class="card-subtitle" style="margin-bottom: 10px;" id="weekdaySubtitle">Média de faturamento bruto por dia trabalhado</div>
-        <div class="chart-container chart-area" id="weekdayBars"></div>
-      </div>
-
+      <!-- Todos os gráficos vivem agora na Central de Gráficos (aba Gráficos) -->
     </div>
 
     <!-- VIEW 2: SHIFTS -->
@@ -1016,14 +962,14 @@
     </div>
   </div>
 
-  <script src="js/capacitor.js?v=21"></script>
-  <script src="js/utils.js?v=21"></script>
-  <script src="js/charts.js?v=21"></script>
-  <script src="js/data.js?v=21"></script>
-  <script src="js/domain.js?v=21"></script>
-  <script src="js/ui.js?v=21"></script>
-  <script src="js/render.js?v=21"></script>
-  <script src="js/init.js?v=21"></script>
+  <script src="js/capacitor.js?v=22"></script>
+  <script src="js/utils.js?v=22"></script>
+  <script src="js/charts.js?v=22"></script>
+  <script src="js/data.js?v=22"></script>
+  <script src="js/domain.js?v=22"></script>
+  <script src="js/ui.js?v=22"></script>
+  <script src="js/render.js?v=22"></script>
+  <script src="js/init.js?v=22"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {

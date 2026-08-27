@@ -34,38 +34,6 @@ function sparkSVG(values, color, gradId) {
 }
 
 
-function areaChartSVG(perDay) {
-  const W = 640, H = 170, P = 12;
-  const maxV = Math.max(...perDay.map(d => Math.max(d.gross, d.net)), 1);
-  const xs = i => P + i * ((W - 2 * P) / (perDay.length - 1 || 1));
-  const ys = v => H - 12 - (v / maxV) * (H - 34);
-  const mk = key => perDay.map((d, i) => ({ x: xs(i), y: ys(d[key]) }));
-  const gPts = mk('gross'), nPts = mk('net');
-  const gLine = smoothPath(gPts), nLine = smoothPath(nPts);
-  const base = H - 12;
-  const dots = perDay.map((d, i) => `
-    <circle cx="${gPts[i].x.toFixed(1)}" cy="${gPts[i].y.toFixed(1)}" r="3.5" fill="#8b5cf6" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Bruto: ${brlC(d.gross)} • Líquido: ${brlC(d.net)}</title></circle>
-    <circle cx="${nPts[i].x.toFixed(1)}" cy="${nPts[i].y.toFixed(1)}" r="3" fill="#22d3ee" stroke="#0a0a14" stroke-width="1.5"><title>${d.label} — Líquido: ${brlC(d.net)}</title></circle>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:170px;display:block;">
-    <defs>
-      <linearGradient id="areaG" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.35"/>
-        <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
-      </linearGradient>
-      <linearGradient id="areaN" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#22d3ee" stop-opacity="0.25"/>
-        <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <path d="${gLine} L ${W - P} ${base} L ${P} ${base} Z" fill="url(#areaG)"/>
-    <path d="${nLine} L ${W - P} ${base} L ${P} ${base} Z" fill="url(#areaN)"/>
-    <path d="${gLine}" fill="none" stroke="#8b5cf6" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
-    <path d="${nLine}" fill="none" stroke="#22d3ee" stroke-width="2" vector-effect="non-scaling-stroke"/>
-    ${dots}
-  </svg>`;
-}
-
-
 function donutSVG(items, total, centerTop, centerBottom) {
   const R = 62, C = 2 * Math.PI * R;
   let cum = 0;
@@ -129,12 +97,6 @@ function seriesLineSVG(points) {
     <path d="${nLine}" fill="none" stroke="#22d3ee" stroke-width="2" vector-effect="non-scaling-stroke"/>
     ${dots}
   </svg>`;
-}
-
-
-// Retrocompatibilidade com o card "Evolução Mensal" do painel
-function monthlyLineSVG(months) {
-  return seriesLineSVG(months);
 }
 
 
