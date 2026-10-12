@@ -1,5 +1,5 @@
 /* MotoristaPro Service Worker — suporte offline 100% (network-first p/ HTML + cache-first p/ assets) */
-const CACHE = 'motoristapro-v26';
+const CACHE = 'motoristapro-v27';
 const ASSETS = [
   'index.html',
   'manifest.json',
@@ -58,7 +58,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(event.request, { ignoreSearch: true }).then(cached => {
       const network = fetch(event.request).then(response => {
         if (response && response.ok) {
           const clone = response.clone();

@@ -1,5 +1,8 @@
 // MotoristaPro — renderização, relatórios, exportações e backup
 
+// Rótulos do período do painel (usados pelo render, WhatsApp e afins)
+const PERIOD_LABELS = { day: 'hoje', '7': 'últimos 7 dias', '30': 'últimos 30 dias', month: 'este mês', all: 'todo o histórico' };
+
 
 function renderStagedApps() {
   const container = document.getElementById('stagedAppsList');
@@ -42,14 +45,13 @@ function renderStagedApps() {
 
 
 function render() {
-  document.getElementById('topCarInfo').innerText = `${state.vehicle.model} • ${state.vehicle.plate} (100% Local + Google Drive)`;
+  document.getElementById('topCarInfo').innerText = `${state.vehicle.model} • ${state.vehicle.plate} (100% Local + Backup)`;
 
   // Aggregates — escopadas pelo período selecionado no painel
   const pShifts = state.shifts.filter(s => inPeriod(s.date));
   const pExpenses = state.expenses.filter(e => inPeriod(e.date));
-  const periodLabels = { day: 'hoje', '7': 'últimos 7 dias', '30': 'últimos 30 dias', month: 'este mês', all: 'todo o histórico' };
   const periodLabelEl = document.getElementById('dashPeriodLabel');
-  if (periodLabelEl) periodLabelEl.innerText = `Faturamento Bruto vs Lucro Líquido Real • Período: ${periodLabels[dashPeriod]}`;
+  if (periodLabelEl) periodLabelEl.innerText = `Faturamento Bruto vs Lucro Líquido Real • Período: ${PERIOD_LABELS[dashPeriod]}`;
 
   let totalGrossC = 0;
   let totalTrips = 0;
@@ -127,7 +129,8 @@ function render() {
 
   const outsidePill = document.getElementById('outsideKmPill');
   if (outsidePill) {
-    const foraInfo = getTotalKmFora();
+    // Escopo do período selecionado (mesmo recorte do restante do painel)
+    const foraInfo = pShifts.reduce((a, s) => a + (getKmFora(s) || 0), 0);
     if (foraInfo > 20) {
       const pct = totalKm > 0 ? Math.round(foraInfo / (totalKm + foraInfo) * 100) : 0;
       outsidePill.style.display = 'block';
@@ -282,12 +285,10 @@ function render() {
   };
   const dayStats = (offset) => {
     const key = dayKeyOf(offset);
-    const ds = state.shifts.filter(s => s.date === key);
-    const grossC = ds.reduce((a, s) => a + getShiftTotalGrossC(s), 0);
-    const fuelC = ds.reduce((a, s) => a + toC(s.fuelCost), 0);
-    const km = ds.reduce((a, s) => a + (s.km || 0), 0);
-    const expC = state.expenses.filter(e => e.date === key).reduce((a, e) => a + toC(e.amount), 0);
-    return { grossC, netC: grossC - fuelC - Math.round(km * reserveRate * 100) - expC, expC };
+    // Mesmo modelo unificado do painel: combustível = fuelCost do turno,
+    // despesas de abastecimento NÃO somam de novo (evita contar duas vezes).
+    const parts = costPartsForRange(state.shifts, state.expenses, key, key);
+    return { grossC: parts.grossC, netC: parts.netC, expC: parts.totalCostC };
   };
   const perDay = [];
   for (let i = 6; i >= 0; i--) {
@@ -317,17 +318,25 @@ function render() {
 
   // Health
   document.getElementById('healthOdo').innerText = `${Math.round(state.vehicle.odometer).toLocaleString('pt-BR')} km`;
+  const reserveLabelEl = document.getElementById('healthReserveLabel');
+  if (reserveLabelEl) reserveLabelEl.innerText = `Fundo de Reserva (${formatBRL(state.vehicle.maintenanceReservePerKm || 0.18)}/km)`;
   document.getElementById('healthReserve').innerText = brlC(reserveAllC);
   const maintSpentC = state.expenses.filter(e => e.category === 'manutencao').reduce((a, b) => a + toC(b.amount), 0);
   document.getElementById('healthSpent').innerText = brlC(maintSpentC);
   renderMaintenance();
 
-  // Parity inputs fill
-  document.getElementById('fuelGasPrice').value = (state.fuelSettings.gasolinePrice || 5.89).toFixed(2).replace('.', ',');
-  document.getElementById('fuelGasKml').value = (state.fuelSettings.gasolineKmPerL || 11.5).toFixed(2).replace('.', ',');
-  document.getElementById('fuelEthPrice').value = (state.fuelSettings.ethanolPrice || 3.89).toFixed(2).replace('.', ',');
-  document.getElementById('fuelEthKml').value = (state.fuelSettings.ethanolKmPerL || 8.2).toFixed(2).replace('.', ',');
-  calcFuel();
+  // Parity inputs fill (não pisa o campo que o usuário está a digitar)
+  const fillIfUnfocused = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = val;
+  };
+  fillIfUnfocused('fuelGasPrice', (state.fuelSettings.gasolinePrice || 5.89).toFixed(2).replace('.', ','));
+  fillIfUnfocused('fuelGasKml', (state.fuelSettings.gasolineKmPerL || 11.5).toFixed(2).replace('.', ','));
+  fillIfUnfocused('fuelEthPrice', (state.fuelSettings.ethanolPrice || 3.89).toFixed(2).replace('.', ','));
+  fillIfUnfocused('fuelEthKml', (state.fuelSettings.ethanolKmPerL || 8.2).toFixed(2).replace('.', ','));
+  const fuelFocused = ['fuelGasPrice', 'fuelGasKml', 'fuelEthPrice', 'fuelEthKml']
+    .some(id => document.activeElement === document.getElementById(id));
+  if (!fuelFocused) calcFuel();
 
   // Configurações
   document.getElementById('cfgModel').value = state.vehicle.model || '';
@@ -775,14 +784,22 @@ function handleRestoreFile(event) {
 
 
 function renderWhatsApp() {
-  let totalGrossC = 0;
-  let totalTrips = 0;
+  // Mesmo modelo unificado do painel (costPartsForRange), escopado ao
+  // período selecionado — antes usava TODAS as despesas (contava combustível
+  // duas vezes), ignorava o fuelCost dos turnos e o período do painel.
+  const pShifts = state.shifts.filter(s => inPeriod(s.date));
+  const pExpenses = state.expenses.filter(e => inPeriod(e.date));
+  const parts = costPartsForRange(pShifts, pExpenses, null, null);
+
+  const totalGrossC = parts.grossC;
+  const totalTrips = parts.trips;
+  const totalKm = parts.km;
+  const totalHours = parts.hours;
+  const netC = parts.netC;
+  const otherExpC = parts.otherOpC + parts.fixedC;
   const appTotals = {};
 
-  state.shifts.forEach(s => {
-    totalGrossC += getShiftTotalGrossC(s);
-    totalTrips += getShiftTotalTrips(s);
-
+  pShifts.forEach(s => {
     if (Array.isArray(s.apps)) {
       s.apps.forEach(a => {
         const k = a.name;
@@ -794,12 +811,7 @@ function renderWhatsApp() {
     }
   });
 
-  const totalKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
-  const totalHours = state.shifts.reduce((a, s) => a + (s.hours || 0), 0);
-  const totalExpC = state.expenses.reduce((a, e) => a + toC(e.amount), 0);
-  const reserveC = Math.round(totalKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
-  const netC = totalGrossC - totalExpC - reserveC;
-  const totalKmFora = getTotalKmFora();
+  const totalKmFora = pShifts.reduce((a, s) => a + (getKmFora(s) || 0), 0);
 
   let appLines = '';
   Object.keys(appTotals).forEach(k => {
@@ -812,14 +824,16 @@ function renderWhatsApp() {
 
   const text = `📊 *FECHAMENTO CONSOLIDADO - MOTORISTAPRO*
 🚗 Veículo: ${state.vehicle.model} (${state.vehicle.plate})
+📅 Período: *${PERIOD_LABELS[dashPeriod]}*
 ⛽ Combustível Ativo: *${lastFuel.fuelType}* (${lastFuel.avgKml.toFixed(1)} km/L @ ${formatBRL(lastFuel.priceL)}/L)
 
 💰 *GANHOS POR APLICATIVO:*
 ${appLines || '• Nenhum app registrado\n'}👉 *Faturamento Bruto Total:* *${brlC(totalGrossC)}*
 
 📉 *DESPESAS & DESGASTE:*
-• Despesas do Período: *-${brlC(totalExpC)}*
-• Provisão de Manutenção (${formatBRL(state.vehicle.maintenanceReservePerKm)}/km): *-${brlC(reserveC)}*
+• Combustível (estimado pelos turnos): *-${brlC(parts.shiftFuelC)}*
+• Outras despesas: *-${brlC(otherExpC)}*
+• Provisão de Manutenção (${formatBRL(state.vehicle.maintenanceReservePerKm)}/km): *-${brlC(parts.reserveC)}*
 ${profitBadge} *LUCRO LÍQUIDO REAL: ${brlC(netC)}*
 
 📈 *EFICIÊNCIA OPERACIONAL:*
@@ -1124,7 +1138,7 @@ function renderChartsView() {
     titleEl.innerHTML = '🔥 Melhores Horários de Início';
     subEl.innerText = 'Bruto médio dos turnos conforme a hora de início';
     legendEl.style.display = 'none';
-    const bins = [[5, '05–07h'], [8, '08–10h'], [11, '11–13h'], [14, '14–16h'], [17, '17–19h'], [20, '20–22h'], [23, '23–02h']];
+    const bins = [[5, '05–07h'], [8, '08–10h'], [11, '11–13h'], [14, '14–16h'], [17, '17–19h'], [20, '20–22h'], [23, '23–04h']];
     const colLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
     const m = bins.map(() => colLabels.map(() => ({ g: 0, n: 0 })));
     let used = 0;
@@ -1132,9 +1146,14 @@ function renderChartsView() {
       if (!s.timeStart || !s.date || s.date.length !== 10) return;
       if (aDyn && s.date < aDyn) return;
       const hh = parseInt(String(s.timeStart).slice(0, 2), 10) || 0;
-      let bi = bins.findIndex(([h]) => hh >= h && hh < h + 3);
-      if (hh >= 23) bi = 6;
-      if (bi < 0) bi = 0;
+      // Madrugada (23h–04h59) pertence à faixa noturna;antes caía em 05–07h
+      let bi;
+      if (hh >= 23 || hh < 5) {
+        bi = 6;
+      } else {
+        bi = bins.findIndex(([h]) => hh >= h && hh < h + 3);
+        if (bi < 0) bi = 0;
+      }
       const ci = (new Date(s.date + 'T12:00:00').getDay() + 6) % 7;
       m[bi][ci].g += getShiftTotalGrossC(s);
       m[bi][ci].n += 1;

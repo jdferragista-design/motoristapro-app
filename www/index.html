@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
-  <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Google Drive</title>
+  <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Backup</title>
   <link rel="stylesheet" href="css/style.css?v=25" />
 </head>
 <body>
@@ -38,6 +38,20 @@
     </div>
   </div>
 
+  <!-- PRIMEIRO USO: começar do zero ou ver dados de exemplo -->
+  <div id="mpFirstUseScreen" class="mp-login-screen" style="display:none; z-index:2010;">
+    <div class="mp-login-card">
+      <div class="mp-login-logo" style="background: linear-gradient(135deg, #22d3ee, #6366f1); font-size: 28px;">👋</div>
+      <h1 class="mp-login-title">Bem-vindo ao Motorista<span>Pro</span></h1>
+      <p class="mp-login-sub">Como quer começar? Pode mudar de ideia nas Configurações.</p>
+      <button type="button" class="mp-login-btn" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;" onclick="mpFirstUse('zero')">
+        🚀 Começar do zero
+      </button>
+      <button type="button" class="mp-login-offline" onclick="mpFirstUse('demo')">👁️ Ver com dados de exemplo</button>
+      <div class="mp-login-note">Os exemplos servem para conhecer o app e podem ser apagados depois.</div>
+    </div>
+  </div>
+
 
   <!-- Top Header Navbar -->
   <header>
@@ -48,7 +62,7 @@
         </div>
         <div>
           <div class="brand-title">Motorista<span>Pro</span> <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">v1.18</span></div>
-          <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Google Drive)</div>
+          <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Backup)</div>
         </div>
       </div>
 
@@ -97,7 +111,7 @@
       </button>
       <button class="nav-tab" onclick="switchTab('reports')">
         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-        <span>Relatórios & Google Drive</span>
+        <span>Relatórios & Backup</span>
       </button>
     </div>
   </nav>
@@ -326,7 +340,7 @@
           <div class="metric-sub"><a href="#" onclick="openModal('modalSettings'); return false;" style="color: #38bdf8; text-decoration: none;">Atualizar odômetro</a></div>
         </div>
         <div class="metric-box" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.05);">
-          <div class="metric-label" style="color: #818cf8;">Fundo de Reserva (R$ 0,18/km)</div>
+          <div class="metric-label" style="color: #818cf8;" id="healthReserveLabel">Fundo de Reserva (R$ 0,18/km)</div>
           <div class="metric-val val-indigo" id="healthReserve">R$ 131,40</div>
           <div class="metric-sub">Saldo acumulado p/ peças</div>
         </div>
@@ -520,8 +534,8 @@
     <!-- VIEW 6: REPORTS, WHATSAPP & GOOGLE DRIVE -->
     <div id="viewReports" style="display: none;">
       <div style="margin-bottom: 14px;">
-        <h2 style="font-size: 18px; font-weight: 900;">Relatórios, WhatsApp & Google Drive</h2>
-        <p style="font-size: 12px; color: var(--text-muted);">Sincronização na nuvem com seu Google Drive pessoal e relatórios diários</p>
+        <h2 style="font-size: 18px; font-weight: 900;">Relatórios, WhatsApp & Backup</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">Backup dos seus dados e relatórios de fechamento</p>
       </div>
 
       <!-- GOOGLE DRIVE CLOUD SYNC CARD -->
@@ -530,28 +544,28 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 20px;">☁️</span>
             <div>
-              <div style="font-size: 14px; font-weight: 800; color: #fff;">Sincronização com Google Drive</div>
-              <div style="font-size: 11px; color: var(--text-muted);">Mantenha seus dados seguros na sua conta Google para nunca perder nada</div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Backup dos seus dados</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Guarde seus dados para nunca perder nada</div>
             </div>
           </div>
           <span class="badge" style="background: rgba(26,115,232,0.2); color:#60a5fa; border-color: rgba(26,115,232,0.4);">
-            Drive Sync
+            Backup
           </span>
         </div>
 
         <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 14px;">
-          Salve o backup do banco de dados na sua nuvem pessoal do <strong>Google Drive</strong>. Ao trocar de celular ou reinstalar o aplicativo, basta restaurar o arquivo em 1 segundo.
+          Salve o arquivo de backup do banco de dados — pelo compartilhamento você pode enviar direto para o <strong>Google Drive</strong>. Ao trocar de celular ou reinstalar o aplicativo, basta restaurar o arquivo em 1 segundo.
         </p>
 
         <div class="grid grid-2">
           <button class="btn btn-gdrive" onclick="saveToGoogleDrive()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-            ☁️ Salvar Backup no Google Drive
+            ☁️ Salvar Backup (compartilhar)
           </button>
           
           <button class="btn btn-secondary" onclick="triggerRestoreFromGoogleDrive()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-            📥 Restaurar do Google Drive / Arquivo
+            📥 Restaurar de arquivo
           </button>
         </div>
         <input type="file" id="gdriveFileInput" accept=".json" style="display: none;" onchange="handleRestoreFile(event)" />
@@ -844,7 +858,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div style="font-size: 15px; font-weight: 800;" id="modalExpenseTitle">Lançar Despesa / Abastecimento</div>
-        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalExpense')">✕</button>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="cancelExpenseModal()">✕</button>
       </div>
       <form onsubmit="saveExpense(event)">
         <div class="modal-body">
@@ -902,7 +916,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalExpense')">Cancelar</button>
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="cancelExpenseModal()">Cancelar</button>
           <button type="submit" class="btn btn-danger" style="flex:1;" id="btnSaveExpenseSubmit">Salvar Gasto</button>
         </div>
       </form>

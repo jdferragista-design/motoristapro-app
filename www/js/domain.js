@@ -202,8 +202,8 @@ const CHART_MONTHS_FOR = { '90': 3, '180': 6, '365': 12 };
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTH_LONG = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const EXPENSE_CAT_LABELS = { combustivel: 'Combustível', alimentacao: 'Alimentação', lavagem: 'Lavagem', manutencao: 'Manutenção', fixo: 'Custo Fixo', outros: 'Outros' };
-const EXPENSE_CAT_COLORS = { combustivel: '#f43f5e', alimentacao: '#fbbf24', lavagem: '#38bdf8', manutencao: '#a855f7', fixo: '#64748b', outros: '#34d399' };
+const EXPENSE_CAT_LABELS = { combustivel: 'Combustível', alimentacao: 'Alimentação', lavagem: 'Lavagem', manutencao: 'Manutenção', fixo: 'Custo Fixo', pedagio: 'Pedágio/Estacionamento', outros: 'Outros' };
+const EXPENSE_CAT_COLORS = { combustivel: '#f43f5e', alimentacao: '#fbbf24', lavagem: '#38bdf8', manutencao: '#a855f7', fixo: '#64748b', pedagio: '#f97316', outros: '#34d399' };
 
 function isoAddDays(iso, delta) {
   const d = new Date(`${iso}T12:00:00`);
