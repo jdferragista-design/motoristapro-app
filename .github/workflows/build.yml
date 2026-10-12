@@ -26,12 +26,17 @@ jobs:
         cache: 'npm'
 
     - name: Configurar Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
 
-    - name: Instalar Dependencias e Sincronizar
+    - name: Instalar dependências e sincronizar
       run: |
         npm ci
         npx cap sync android
+
+    - name: Aceitar licenças e instalar SDK 36
+      run: |
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
+        sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
     - name: Compilar APK Android
       working-directory: android
