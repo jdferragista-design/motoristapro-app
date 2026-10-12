@@ -123,7 +123,8 @@ function mpRegisterDeepLink() {
       } catch (e) {
         logEvent('error', 'Deep link OAuth falhou', { message: e.message });
         mpSetLoginStatus('Falha ao concluir login com Google.', true);
-        mpShowLoginScreen(true);
+        // Não bloquear a app: o login é opcional (Configurações → Conta & Nuvem)
+        mpShowLoginScreen(false);
       }
     });
   } catch (e) {
@@ -133,11 +134,12 @@ function mpRegisterDeepLink() {
 
 function mpApplySessionUI() {
   const hasSession = !!mpSession;
-  const offlineChosen = localStorage.getItem(MP_OFFLINE_KEY) === '1';
-  mpShowLoginScreen(!hasSession && !offlineChosen);
+  // Login nunca bloqueia a abertura: o app abre sempre direto (como antes).
+  // O login Google é opcional e faz-se em Configurações → Conta & Nuvem.
+  mpShowLoginScreen(false);
   mpUpdateAccountUI();
   if (hasSession) mpSetSyncStatus('synced');
-  else if (!offlineChosen) mpSetSyncStatus('anon');
+  else mpSetSyncStatus('anon');
 }
 
 function mpUpdateAccountUI() {

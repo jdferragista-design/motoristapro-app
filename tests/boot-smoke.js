@@ -71,7 +71,7 @@ server.listen(0, '127.0.0.1', () => {
       const g = id => d.getElementById(id);
 
       check('boot concluído', w.__MP_BOOTED === true);
-      check('login visível sem sessão', g('mpLoginScreen').style.display === 'flex');
+      check('login NÃO bloqueia abertura', g('mpLoginScreen').style.display !== 'flex');
       check('primeiro uso visível sem dados', g('mpFirstUseScreen').style.display === 'flex');
       check('rótulo dinâmico da reserva', /Fundo de Reserva \(R\$ [\d,]+\/km\)/.test(txt(d, 'healthReserveLabel')), txt(d, 'healthReserveLabel'));
 
