@@ -1,11 +1,13 @@
 /* MotoristaPro Service Worker — suporte offline 100% (network-first p/ HTML + cache-first p/ assets) */
-const CACHE = 'motoristapro-v25';
+const CACHE = 'motoristapro-v26';
 const ASSETS = [
   'index.html',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
   'css/style.css',
+  'js/vendor/supabase.js',
+  'js/config.js',
   'js/capacitor.js',
   'js/utils.js',
   'js/charts.js',
@@ -13,7 +15,8 @@ const ASSETS = [
   'js/domain.js',
   'js/ui.js',
   'js/render.js',
-  'js/init.js'
+  'js/init.js',
+  'js/auth.js'
 ];
 
 self.addEventListener('install', (event) => {

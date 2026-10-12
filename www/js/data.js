@@ -133,6 +133,7 @@ logEvent('info', 'Estado inicial do app carregado', { version: APP_VERSION });
 function saveState() {
   localStorage.setItem('mp_html_state_v8', JSON.stringify(state));
   render();
+  if (typeof scheduleCloudSync === 'function') scheduleCloudSync();
 }
 
 

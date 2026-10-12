@@ -720,3 +720,150 @@ header {
   color: #fff;
   box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
 }
+
+/* ============ MotoristaPro — Supabase (login, conta, sync) ============ */
+.mp-login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: radial-gradient(1100px 500px at 85% -10%, rgba(139, 92, 246, 0.18), transparent 60%),
+              radial-gradient(900px 420px at -10% 0%, rgba(34, 211, 238, 0.10), transparent 60%),
+              #0a0a14;
+}
+.mp-login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 34px 26px 26px;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.mp-login-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+}
+.mp-login-title {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+.mp-login-title span { color: var(--primary); }
+.mp-login-sub {
+  color: var(--text-muted);
+  font-size: 13.5px;
+  margin: 8px 0 22px;
+  line-height: 1.55;
+}
+.mp-login-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  color: #1f1f2e;
+  font-weight: 800;
+  font-size: 15px;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.mp-login-btn:hover { transform: translateY(-1px); }
+.mp-login-btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+.mp-login-offline {
+  width: 100%;
+  margin-top: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px dashed var(--border-sub);
+  border-radius: 12px;
+  padding: 11px 14px;
+  cursor: pointer;
+}
+.mp-login-offline:hover { color: var(--text); border-color: var(--primary); }
+.mp-login-status {
+  min-height: 18px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.mp-login-status--error { color: var(--danger); }
+.mp-login-note {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.mp-account-box {
+  background: var(--card-sub);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.mp-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mp-account-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+.mp-account-email {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  word-break: break-all;
+}
+.mp-account-sync {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.mp-notify {
+  position: fixed;
+  left: 50%;
+  bottom: 100px;
+  transform: translate(-50%, 16px);
+  z-index: 3000;
+  background: var(--card-bg);
+  border: 1px solid var(--primary);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 12px 18px;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  max-width: 90vw;
+  text-align: center;
+}
+.mp-notify--show { opacity: 1; transform: translate(-50%, 0); }
+.mp-notify--error { border-color: var(--danger); }
+
