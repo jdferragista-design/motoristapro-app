@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        A-06: allowBackup estava true sem regras. Com true e sem
+        fullBackupContent/dataExtractionRules, o Android enviava para o Google
+        Drive TODO o diretório de dados do app — incluindo o WebView
+        (app_webview) com localStorage, onde vive o histórico financeiro.
+        Ficam permitidas apenas as preferências nativas; o resto do estado é
+        coberto pelo backup próprio do app (backup.js, 3 cópias rotativas).
+    -->
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

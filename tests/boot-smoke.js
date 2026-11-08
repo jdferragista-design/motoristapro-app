@@ -498,12 +498,140 @@ server.listen(0, '127.0.0.1', () => {
               localStorage.removeItem('mp_backup_v8_1');
               return r.ok === false && /vazia/.test(r.motivo);
             })()`) === true);
+          check('C-02: painel lista as cópias existentes', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              state.shifts = [{ id: 'p1' }];
+              onForceBackup();
+              const box = document.getElementById('backupListBox');
+              const txt = (box.innerText !== undefined ? box.innerText : box.textContent) || '';
+              return /Cópia 1/.test(txt) && /Restaurar/.test(txt) && /Nenhuma cópia/.test(txt) === false;
+            })()`) === true);
+          check('C-02: botão de restauro funciona pela UI (com confirmação)', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              const bk = JSON.parse(JSON.stringify(state));
+              state.shifts = [{ id: 'b1' }, { id: 'b2' }];
+              onForceBackup();          // cópia com 2 turnos
+              state.shifts = [{ id: 'b1' }];  // estado atual com 1
+              const confirmOriginal = confirm;
+              confirm = () => true;
+              const notifyOriginal = mpNotify;
+              let aviso = '';
+              mpNotify = (m, tipo) => { aviso = m + '|' + (tipo || ''); };
+              try { onRestoreBackup(1); } finally { confirm = confirmOriginal; mpNotify = notifyOriginal; }
+              const turnos = state.shifts.length;
+              state = bk; render();
+              return turnos === 2 && /restaurada/i.test(aviso);
+            })()`) === true);
           check('C-02: backup nunca altera o estado atual', w2.eval(`
             (() => {
               const antes = JSON.stringify(state.shifts);
               mpBackupRotate();
               return JSON.stringify(state.shifts) === antes;
             })()`) === true);
+
+          // ============================================================
+          // FASE 2 — M-06: todos os <label> de formulário apontam para o campo
+          // ============================================================
+          check('M-06: 57 labels associados a um campo existente', w2.eval(`
+            (() => {
+              const labels = Array.from(document.querySelectorAll('label'));
+              const semFor = labels.filter(l => !l.getAttribute('for'));
+              const orfaos = labels.filter(l => l.getAttribute('for') && !document.getElementById(l.getAttribute('for')));
+              return { total: labels.length, semFor: semFor.length, orfaos: orfaos.length };
+            })()`).total === 57);
+          check('M-06: nenhum label sem for= nem a apontar para id inexistente', w2.eval(`
+            (() => {
+              const labels = Array.from(document.querySelectorAll('label'));
+              return labels.every(l => {
+                const alvo = l.getAttribute('for');
+                return alvo ? !!document.getElementById(alvo) : l.querySelector('input,select,textarea') !== null;
+              });
+            })()`) === true);
+          // O jsdom não implementa a ativação de <label> (verificado: click em
+          // label com for= não move o foco), por isso a asserção é estrutural:
+          // o for= tem de ser o id do primeiro campo que vem a seguir ao label.
+          check('M-06: o for= corresponde ao campo imediatamente a seguir', w2.eval(`
+            (() => {
+              const comFor = Array.from(document.querySelectorAll('label[for]'));
+              const mal = comFor.filter(l => {
+                let n = l.nextElementSibling;
+                if (n && /^(input|select|textarea)$/i.test(n.tagName)) return n.id !== l.getAttribute('for');
+                if (!n) return true;
+                const campo = n.querySelector('input,select,textarea');
+                return !campo || campo.id !== l.getAttribute('for');
+              });
+              return { total: comFor.length, mal: mal.map(l => l.getAttribute('for')) };
+            })()`).mal.length === 0);
+
+          // ============================================================
+          // FASE 2 — M-07: idioma declarado
+          // ============================================================
+          check('M-07: <html lang> = pt-BR', w2.eval('document.documentElement.lang') === 'pt-BR');
+
+          // ============================================================
+          // FASE 2 — A-05/M-09: versão única e versionCode incremental
+          // ============================================================
+          const versaoPkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
+          check('A-05: UI mostra a versão do package.json', w2.eval('APP_VERSION') === 'v' + versaoPkg,
+            w2.eval('APP_VERSION') + ' vs v' + versaoPkg);
+          check('A-05: meta app-version == package.json', w2.eval(`document.querySelector('meta[name="app-version"]').content`) === versaoPkg);
+          const gradle = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'build.gradle'), 'utf8');
+          const [vmaj, vmin, vpat] = versaoPkg.split('.').map(Number);
+          const vcEsperado = vmaj * 10000 + vmin * 100 + vpat;
+          check('A-05: versionCode derivado da versão (não fixo em 1)', Number((/versionCode\s+(\d+)/.exec(gradle) || [])[1]) === vcEsperado,
+            (/versionCode\s+(\d+)/.exec(gradle) || [])[1] + ' vs ' + vcEsperado);
+          check('M-09: versionName == package.json', (/versionName\s+"([^"]*)"/.exec(gradle) || [])[1] === versaoPkg,
+            (/versionName\s+"([^"]*)"/.exec(gradle) || [])[1]);
+          check('A-05: versionCode > 1 (permite atualização na Play Store)', vcEsperado > 1);
+
+          // ============================================================
+          // FASE 2 — A-06: backup do Android restrito, sem o WebView
+          // ============================================================
+          const raiz = path.join(__dirname, '..');
+          const manifest = fs.readFileSync(path.join(raiz, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+          check('A-06: manifest declara regras de backup', /android:fullBackupContent="@xml\/backup_rules"/.test(manifest) &&
+            /android:dataExtractionRules="@xml\/data_extraction_rules"/.test(manifest));
+          const backupRules = fs.readFileSync(path.join(raiz, 'android/app/src/main/res/xml/backup_rules.xml'), 'utf8');
+          const extractRules = fs.readFileSync(path.join(raiz, 'android/app/src/main/res/xml/data_extraction_rules.xml'), 'utf8');
+          check('A-06: backup_rules exclui app_webview (localStorage)', /<exclude domain="root" path="app_webview"/.test(backupRules));
+          check('A-06: data_extraction_rules exclui app_webview no cloud e na transferência',
+            (extractRules.match(/<exclude domain="root" path="app_webview"/g) || []).length === 2);
+          check('A-06: nenhuma das regras inclui todo o sistema de ficheiros',
+            !/<include domain="file" path="\."/.test(backupRules) && !/<include domain="file" path="\."/.test(extractRules));
+
+          // ============================================================
+          // FASE 2 — M-10: @capacitor/android sem a vulnerabilidade crítica
+          // ============================================================
+          const pkgDeps = JSON.parse(fs.readFileSync(path.join(raiz, 'package.json'), 'utf8')).dependencies;
+          const capAndroid = (pkgDeps['@capacitor/android'] || '');
+          const numVersao = s => String(s).replace(/[^0-9.]/g, '').split('.').map(Number);
+          const [cMaj, cMin, cPat] = numVersao(capAndroid);
+          const vulneravel = cMaj === 8 && cMin === 5 && cPat === 0; // >=8.5.0 <8.5.1
+          check('M-10: @capacitor/android fora do intervalo vulnerável (>=8.5.0 <8.5.1)', !vulneravel && cMaj >= 8, capAndroid);
+          check('M-10: @capacitor/android e core na mesma minor', (() => {
+            const core = numVersao(pkgDeps['@capacitor/core'] || '');
+            return core[0] === cMaj && core[1] === cMin;
+          })(), capAndroid + ' / ' + pkgDeps['@capacitor/core']);
+
+          // ============================================================
+          // FASE 2 — sincronização dos assets Android e cache
+          // ============================================================
+          const semBackupNoAndroid = !fs.existsSync(path.join(raiz, 'android/app/src/main/assets/public/js/backup.js'));
+          check('assets Android sincronizados (backup.js presente)', !semBackupNoAndroid);
+          const sw = fs.readFileSync(path.join(raiz, 'www/sw.js'), 'utf8');
+          check('SW: versão da cache avançou para v32 ou mais', Number((/motoristapro-v(\d+)/.exec(sw) || [])[1]) >= 32,
+            (/motoristapro-v(\d+)/.exec(sw) || [])[1]);
+          // Todo o JS carregado pelo index.html tem de estar na lista offline do
+          // SW, senão em modo avião o script não carrega e as funções que dele
+          // dependem (ex.: backup) desaparecem sem aviso.
+          const scriptsHtml = [...fs.readFileSync(path.join(WWW, 'index.html'), 'utf8')
+            .matchAll(/<script src="([^"]+?)(?:\?[^"]*)?"/g)].map(m => m[1]);
+          const assetsSw = [...(/const ASSETS = \[([\s\S]*?)\]/.exec(sw) || [, ''])[1]
+            .matchAll(/'([^']+)'/g)].map(m => m[1]);
+          const foraDoSw = scriptsHtml.filter(s => !assetsSw.includes(s));
+          check('SW: todos os scripts do index.html estão na lista offline', foraDoSw.length === 0, foraDoSw.join(', ') || 'nenhum em falta');
 
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 

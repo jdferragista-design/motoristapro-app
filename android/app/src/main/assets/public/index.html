@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a14" />
+  <meta name="app-version" content="1.18.2" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="MotoristaPro v1.18" />
@@ -11,7 +12,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Backup</title>
-  <link rel="stylesheet" href="css/style.css?v=27" />
+  <link rel="stylesheet" href="css/style.css?v=28" />
 </head>
 <body>
 
@@ -139,6 +140,10 @@
         </div>
         <button class="btn btn-primary btn-sm" onclick="promptInstallPWA()">Instalar</button>
       </div>
+
+      <!-- Aviso persistente de falha de gravação (M-04) -->
+      <div id="persistWarn" style="display:none; background:rgba(244,63,94,.15); border:1px solid rgba(244,63,94,.45);
+           color:#fb7185; border-radius:10px; padding:10px 12px; font-size:12px; font-weight:700; margin-bottom:10px;"></div>
 
       <!-- Seletor de Período do Painel -->
       <div class="period-switch" role="tablist" aria-label="Período do painel">
@@ -370,6 +375,24 @@
         </div>
       </div>
 
+      <!-- Cópias de segurança automáticas (C-02) -->
+      <div class="card" style="margin-top: 16px; border-color: rgba(52, 211, 153, 0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div>
+            <div class="card-title" style="margin:0;">🛟 Cópias de Segurança</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">
+              Até 3 cópias rotativas, criadas automaticamente a cada 6h quando há alterações. Seus dados atuais nunca são apagados por elas.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="onForceBackup()">+ Criar cópia agora</button>
+            <button class="btn btn-secondary btn-sm" onclick="saveToGoogleDrive()">☁️ Exportar ficheiro</button>
+          </div>
+        </div>
+        <div id="backupMetaBox" style="margin-top:10px;font-size:12px;color:var(--text-muted);"></div>
+        <div id="backupListBox" style="margin-top:10px;"></div>
+      </div>
+
       <!-- Compras parceladas -->
       <div class="card" style="margin-top: 16px; border-color: rgba(129, 140, 248, 0.3);">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -504,21 +527,21 @@
         <div class="grid grid-2">
           <div>
             <div class="form-group">
-              <label class="form-label">Valor Oferecido pelo App (R$)</label>
+              <label class="form-label" for="simOffer">Valor Oferecido pelo App (R$)</label>
               <input type="text" inputmode="decimal" id="simOffer" class="form-control" value="28,50" />
             </div>
             <div class="grid grid-2">
               <div class="form-group">
-                <label class="form-label">Busca Pax (KM)</label>
+                <label class="form-label" for="simPickup">Busca Pax (KM)</label>
                 <input type="text" inputmode="decimal" id="simPickup" class="form-control" value="2,00" />
               </div>
               <div class="form-group">
-                <label class="form-label">Viagem Pax (KM)</label>
+                <label class="form-label" for="simTrip">Viagem Pax (KM)</label>
                 <input type="text" inputmode="decimal" id="simTrip" class="form-control" value="8,50" />
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">Tempo Total Estimado (Minutos)</label>
+              <label class="form-label" for="simMinutes">Tempo Total Estimado (Minutos)</label>
               <input type="number" inputmode="numeric" id="simMinutes" class="form-control" value="22" oninput="calculateTripSim()" />
             </div>
           </div>
@@ -561,19 +584,19 @@
         <div class="grid grid-2">
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Preço Gasolina (R$/L)</label>
+              <label class="form-label" for="fuelGasPrice">Preço Gasolina (R$/L)</label>
               <input type="text" inputmode="decimal" id="fuelGasPrice" class="form-control" value="5,89" />
             </div>
             <div class="form-group">
-              <label class="form-label">Média Gasolina (km/L)</label>
+              <label class="form-label" for="fuelGasKml">Média Gasolina (km/L)</label>
               <input type="text" inputmode="decimal" id="fuelGasKml" class="form-control" value="11,50" />
             </div>
             <div class="form-group">
-              <label class="form-label">Preço Etanol (R$/L)</label>
+              <label class="form-label" for="fuelEthPrice">Preço Etanol (R$/L)</label>
               <input type="text" inputmode="decimal" id="fuelEthPrice" class="form-control" value="3,89" />
             </div>
             <div class="form-group">
-              <label class="form-label">Média Etanol (km/L)</label>
+              <label class="form-label" for="fuelEthKml">Média Etanol (km/L)</label>
               <input type="text" inputmode="decimal" id="fuelEthKml" class="form-control" value="8,20" />
             </div>
           </div>
@@ -732,11 +755,11 @@
         <!-- Shift Date & Shift Period -->
         <div class="grid grid-2" style="margin-bottom: 12px;">
           <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label">Data do Turno</label>
+            <label class="form-label" for="shiftDate">Data do Turno</label>
             <input type="date" id="shiftDate" class="form-control" required onchange="updateOdoStartVisibility()" />
           </div>
           <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label">Período / Turno</label>
+            <label class="form-label" for="shiftPeriod">Período / Turno</label>
             <select id="shiftPeriod" class="form-control">
               <option value="Integral">Dia Completo / Integral</option>
               <option value="Manhã">Manhã</option>
@@ -756,7 +779,7 @@
           <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
             <!-- Select Dropdown -->
             <div class="form-group">
-              <label class="form-label">Escolha o Aplicativo na Caixa de Seleção:</label>
+              <label class="form-label" for="currentAppSelect">Escolha o Aplicativo na Caixa de Seleção:</label>
               <select id="currentAppSelect" class="form-control" style="border-color: #38bdf8; font-weight: 700;">
                 <option value="uber">🚗 Uber</option>
                 <option value="pop">🚕 99Pop</option>
@@ -770,22 +793,22 @@
 
             <!-- Custom App Name -->
             <div class="form-group" id="customAppNameBox" style="display: none;">
-              <label class="form-label">Nome do Outro App:</label>
+              <label class="form-label" for="customAppNameInput">Nome do Outro App:</label>
               <input type="text" id="customAppNameInput" class="form-control" placeholder="Ex: Maxim, Mobizap, Buser" />
             </div>
 
             <!-- Inputs for Selected App -->
             <div class="grid grid-3">
               <div>
-                <label class="form-label">Ganhos (R$) *</label>
+                <label class="form-label" for="appGrossInput">Ganhos (R$) *</label>
                 <input type="text" inputmode="decimal" id="appGrossInput" class="form-control" placeholder="Ex: 285,50" />
               </div>
               <div>
-                <label class="form-label">Qtd. Viagens</label>
+                <label class="form-label" for="appTripsInput">Qtd. Viagens</label>
                 <input type="number" inputmode="numeric" id="appTripsInput" class="form-control" placeholder="Ex: 14" />
               </div>
               <div>
-                <label class="form-label">Gorjetas (R$)</label>
+                <label class="form-label" for="appTipsInput">Gorjetas (R$)</label>
                 <input type="text" inputmode="decimal" id="appTipsInput" class="form-control" placeholder="0,00" />
               </div>
             </div>
@@ -824,11 +847,11 @@
           <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
             <div class="grid grid-2">
               <div class="form-group" style="margin-bottom: 6px;">
-                <label class="form-label">Hora Início do Turno</label>
+                <label class="form-label" for="shiftTimeStart">Hora Início do Turno</label>
                 <input type="time" id="shiftTimeStart" class="form-control" value="07:00" oninput="calculateShiftHoursAuto()" />
               </div>
               <div class="form-group" style="margin-bottom: 6px;">
-                <label class="form-label">Hora Fim do Turno</label>
+                <label class="form-label" for="shiftTimeEnd">Hora Fim do Turno</label>
                 <input type="time" id="shiftTimeEnd" class="form-control" value="16:00" oninput="calculateShiftHoursAuto()" />
               </div>
             </div>
@@ -865,22 +888,22 @@
           <div style="background: var(--card-sub); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
             <!-- Odômetro no início: aparece só no 1º lançamento do dia -->
             <div class="form-group" id="odoStartGroup" style="display: none; margin-bottom: 10px;">
-              <label class="form-label">🏠 Odômetro no Início do Turno (1º lançamento do dia)</label>
+              <label class="form-label" for="shiftOdoStart">🏠 Odômetro no Início do Turno (1º lançamento do dia)</label>
               <input type="number" inputmode="numeric" id="shiftOdoStart" class="form-control" placeholder="Ex: 64850" oninput="recalcShiftLive()" />
               <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;" id="odoStartHint">Usado apenas nos relatórios para calcular km fora de serviço até a próxima jornada.</div>
             </div>
             <div class="grid grid-2">
               <div class="form-group" style="margin-bottom: 6px;">
-                <label class="form-label">KM Total Rodado no Turno *</label>
+                <label class="form-label" for="shiftKmTotal">KM Total Rodado no Turno *</label>
                 <input type="text" inputmode="decimal" id="shiftKmTotal" class="form-control" placeholder="Ex: 168,40" required />
               </div>
               <div class="form-group" style="margin-bottom: 6px;">
-                <label class="form-label">Gasto Combustível Calculado (R$)</label>
+                <label class="form-label" for="shiftFuelCost">Gasto Combustível Calculado (R$)</label>
                 <input type="text" inputmode="decimal" id="shiftFuelCost" class="form-control" placeholder="0,00" />
               </div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label">Observações (opcional)</label>
+              <label class="form-label" for="shiftNotes">Observações (opcional)</label>
               <input type="text" id="shiftNotes" class="form-control" placeholder="Ex: Manhã no centro, dinâmico à tarde" />
             </div>
           </div>
@@ -930,7 +953,7 @@
       <form onsubmit="saveExpense(event)">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label">Categoria</label>
+            <label class="form-label" for="expCat">Categoria</label>
             <select id="expCat" class="form-control" onchange="toggleFuelFields()">
               <option value="combustivel">⛽ Combustível (Abastecimento)</option>
               <option value="manutencao">🔧 Manutenção e Peças</option>
@@ -942,7 +965,7 @@
           </div>
 
           <div id="fuelTypeRow" class="form-group" style="display: block;">
-            <label class="form-label">Tipo de Combustível Abastecido</label>
+            <label class="form-label" for="expRadioEthanol">Tipo de Combustível Abastecido</label>
             <div class="grid grid-2">
               <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; background: var(--bg); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-sub); cursor: pointer;">
                 <input type="radio" name="expFuelRadio" value="Etanol" id="expRadioEthanol" checked />
@@ -957,17 +980,17 @@
 
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Data</label>
+              <label class="form-label" for="expDate">Data</label>
               <input type="date" id="expDate" class="form-control" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Valor Total Pago (R$)</label>
+              <label class="form-label" for="expAmount">Valor Total Pago (R$)</label>
               <input type="text" inputmode="decimal" id="expAmount" class="form-control" placeholder="0,00" required />
             </div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Título / Descrição</label>
+            <label class="form-label" for="expTitle">Título / Descrição</label>
             <input type="text" id="expTitle" class="form-control" placeholder="Ex: Abastecimento Etanol Posto Shell" required />
           </div>
 
@@ -982,12 +1005,12 @@
             <div id="expInstallmentFields" style="display: none; margin-top: 10px;">
               <div class="grid grid-2">
                 <div class="form-group">
-                  <label class="form-label">Em quantas vezes?</label>
+                  <label class="form-label" for="expParcelasInput">Em quantas vezes?</label>
                   <input type="number" inputmode="numeric" min="1" max="60" id="expParcelasInput"
                          class="form-control" value="10" oninput="updateExpenseInstallmentPreview()" />
                 </div>
                 <div class="form-group">
-                  <label class="form-label">1ª parcela em</label>
+                  <label class="form-label" for="expParcelaStart">1ª parcela em</label>
                   <input type="month" id="expParcelaStart" class="form-control" />
                 </div>
               </div>
@@ -998,11 +1021,11 @@
 
           <div id="fuelFieldsBox" class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Litros Abastecidos</label>
+              <label class="form-label" for="expLitersInput">Litros Abastecidos</label>
               <input type="text" inputmode="decimal" id="expLitersInput" class="form-control" placeholder="Ex: 30,50" />
             </div>
             <div class="form-group">
-              <label class="form-label">Odômetro no Posto (KM)</label>
+              <label class="form-label" for="expOdoInput">Odômetro no Posto (KM)</label>
               <input type="number" inputmode="numeric" id="expOdoInput" class="form-control" placeholder="Ex: 64850" />
             </div>
           </div>
@@ -1050,42 +1073,42 @@
 
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Modelo do Carro</label>
+              <label class="form-label" for="cfgModel">Modelo do Carro</label>
               <input type="text" id="cfgModel" class="form-control" value="Chevrolet Onix Plus 1.0" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Placa</label>
+              <label class="form-label" for="cfgPlate">Placa</label>
               <input type="text" id="cfgPlate" class="form-control" value="BRA-2E19" />
             </div>
           </div>
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Odômetro Atual (KM)</label>
+              <label class="form-label" for="cfgOdo">Odômetro Atual (KM)</label>
               <input type="number" inputmode="numeric" id="cfgOdo" class="form-control" value="64850" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Reserva Manutenção (R$/KM)</label>
+              <label class="form-label" for="cfgReserve">Reserva Manutenção (R$/KM)</label>
               <input type="text" inputmode="decimal" id="cfgReserve" class="form-control" value="0,18" required />
             </div>
           </div>
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Meta Bruta Mensal (R$)</label>
+              <label class="form-label" for="cfgMonthlyGoal">Meta Bruta Mensal (R$)</label>
               <input type="number" inputmode="numeric" id="cfgMonthlyGoal" class="form-control" value="7000" />
             </div>
             <div class="form-group">
-              <label class="form-label">Meta R$/KM Mínima</label>
+              <label class="form-label" for="cfgTargetKm">Meta R$/KM Mínima</label>
               <input type="text" inputmode="decimal" id="cfgTargetKm" class="form-control" value="2,20" />
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Meta R$/Hora Mínima</label>
+            <label class="form-label" for="cfgTargetHour">Meta R$/Hora Mínima</label>
             <input type="text" inputmode="decimal" id="cfgTargetHour" class="form-control" value="35,00" />
           </div>
         </div>
 
         <div class="form-group">
-          <label class="form-label">% do Carro Usado no Trabalho</label>
+          <label class="form-label" for="cfgRateio">% do Carro Usado no Trabalho</label>
           <input type="number" inputmode="numeric" min="10" max="100" id="cfgRateio" class="form-control" value="90" />
           <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
             Quanto do uso do carro é trabalho de app. Se você usa o carro na vida pessoal, o custo fixo não deve recair 100% sobre a renda — 85% a 95% é o comum.
@@ -1110,21 +1133,21 @@
       <form onsubmit="saveMaintenanceItem(event)">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label">Nome da Revisão / Peça</label>
+            <label class="form-label" for="maintNameInput">Nome da Revisão / Peça</label>
             <input type="text" id="maintNameInput" class="form-control" placeholder="Ex: Troca de Fluido de Freio DOT4" required />
           </div>
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Intervalo de Troca (a cada X km)</label>
+              <label class="form-label" for="maintIntervalInput">Intervalo de Troca (a cada X km)</label>
               <input type="number" inputmode="numeric" id="maintIntervalInput" class="form-control" placeholder="Ex: 10000" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Custo Médio Estimado (R$)</label>
+              <label class="form-label" for="maintCostInput">Custo Médio Estimado (R$)</label>
               <input type="text" inputmode="decimal" id="maintCostInput" class="form-control" placeholder="Ex: 150,00" required />
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Odômetro da Última Troca (KM)</label>
+            <label class="form-label" for="maintLastKmInput">Odômetro da Última Troca (KM)</label>
             <input type="number" inputmode="numeric" id="maintLastKmInput" class="form-control" placeholder="Ex: 60000" required />
           </div>
         </div>
@@ -1146,17 +1169,17 @@
       <form onsubmit="saveRecurring(event)">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label">Nome da Despesa *</label>
+            <label class="form-label" for="recNameInput">Nome da Despesa *</label>
             <input type="text" id="recNameInput" class="form-control" placeholder="Ex: Prestação do carro, Seguro, MEI, Internet" required />
           </div>
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Valor (R$) *</label>
+              <label class="form-label" for="recValueInput">Valor (R$) *</label>
               <input type="text" inputmode="decimal" id="recValueInput" class="form-control" placeholder="Ex: 3.147,57"
                      oninput="maskCents(this); if (typeof updateRecurringPreview === 'function') updateRecurringPreview();" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Categoria</label>
+              <label class="form-label" for="recCatSelect">Categoria</label>
               <select id="recCatSelect" class="form-control">
                 <option value="fixo">Custo Fixo</option>
                 <option value="combustivel">Combustível</option>
@@ -1170,7 +1193,7 @@
           </div>
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Periodicidade</label>
+              <label class="form-label" for="recPeriodSelect">Periodicidade</label>
               <select id="recPeriodSelect" class="form-control" onchange="updateRecurringPreview()">
                 <option value="mensal">Mensal</option>
                 <option value="bimestral">Bimestral</option>
@@ -1180,7 +1203,7 @@
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Dia do Vencimento</label>
+              <label class="form-label" for="recDayInput">Dia do Vencimento</label>
               <input type="number" inputmode="numeric" min="1" max="31" id="recDayInput" class="form-control" value="5" />
             </div>
           </div>
@@ -1188,7 +1211,7 @@
                border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; margin-bottom: 14px;"></div>
 
           <div class="form-group">
-            <label class="form-label">A partir de (mês)</label>
+            <label class="form-label" for="recStartInput">A partir de (mês)</label>
             <input type="month" id="recStartInput" class="form-control" />
             <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
               O app lança essa despesa automaticamente em todos os meses a partir daqui — você não precisa lembrar.
@@ -1213,18 +1236,18 @@
       <form onsubmit="saveInstallment(event)">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label">O que você comprou? *</label>
+            <label class="form-label" for="parNameInput">O que você comprou? *</label>
             <input type="text" id="parNameInput" class="form-control" placeholder="Ex: Pneus, Óleo e filtros, Celular novo" required />
           </div>
 
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Valor Total (R$) *</label>
+              <label class="form-label" for="parTotalInput">Valor Total (R$) *</label>
               <input type="text" inputmode="decimal" id="parTotalInput" class="form-control"
                      placeholder="Ex: 2.828,17" required oninput="maskCents(this); updateInstallmentPreview()" />
             </div>
             <div class="form-group">
-              <label class="form-label">Em quantas vezes?</label>
+              <label class="form-label" for="parCountInput">Em quantas vezes?</label>
               <input type="number" inputmode="numeric" min="1" max="60" id="parCountInput"
                      class="form-control" value="10" oninput="updateInstallmentPreview()" />
             </div>
@@ -1235,7 +1258,7 @@
 
           <div class="grid grid-2">
             <div class="form-group">
-              <label class="form-label">Categoria</label>
+              <label class="form-label" for="parCatSelect">Categoria</label>
               <select id="parCatSelect" class="form-control">
                 <option value="manutencao">🔧 Manutenção e Peças</option>
                 <option value="fixo">🛡️ Custo Fixo</option>
@@ -1244,14 +1267,14 @@
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Dia do Vencimento</label>
+              <label class="form-label" for="parDayInput">Dia do Vencimento</label>
               <input type="number" inputmode="numeric" min="1" max="31" id="parDayInput"
                      class="form-control" value="10" />
             </div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">1ª parcela em (mês)</label>
+            <label class="form-label" for="parStartInput">1ª parcela em (mês)</label>
             <input type="month" id="parStartInput" class="form-control" />
             <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
               O app lança uma parcela por mês a partir daqui. Parcelas de meses futuros não entram no resultado até vencerem.
@@ -1266,17 +1289,18 @@
     </div>
   </div>
 
-  <script src="js/vendor/supabase.js?v=27"></script>
-  <script src="js/config.js?v=27"></script>
-  <script src="js/capacitor.js?v=27"></script>
-  <script src="js/utils.js?v=27"></script>
-  <script src="js/charts.js?v=27"></script>
-  <script src="js/data.js?v=27"></script>
-  <script src="js/domain.js?v=27"></script>
-  <script src="js/ui.js?v=27"></script>
-  <script src="js/render.js?v=27"></script>
-  <script src="js/init.js?v=27"></script>
-  <script src="js/auth.js?v=27"></script>
+  <script src="js/vendor/supabase.js?v=28"></script>
+  <script src="js/config.js?v=28"></script>
+  <script src="js/capacitor.js?v=28"></script>
+  <script src="js/utils.js?v=28"></script>
+  <script src="js/charts.js?v=28"></script>
+  <script src="js/data.js?v=28"></script>
+  <script src="js/backup.js?v=28"></script>
+  <script src="js/domain.js?v=28"></script>
+  <script src="js/ui.js?v=28"></script>
+  <script src="js/render.js?v=28"></script>
+  <script src="js/init.js?v=28"></script>
+  <script src="js/auth.js?v=28"></script>
 
   <!-- No preview (sandbox), o servidor estático responde 304 ao sw.js e o
        browser reutiliza o SW antigo indefinidamente. Aqui forçamos a

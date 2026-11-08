@@ -36,6 +36,14 @@ syncInstallmentExpenses();
 // Remove lançamentos cuja origem (fixa/parcelada) foi excluída.
 pruneOrphanGeneratedExpenses();
 
+// C-02: garante que existe pelo menos uma cópia antes de o utilizador
+// continuar a trabalhar. `force` só quando não há nenhuma.
+if (typeof mpBackupMaybe === 'function') {
+  try {
+    if (mpBackupList().length === 0) mpBackupMaybe(true);
+  } catch (e) { logEvent('warn', 'Backup de arranque falhou', { message: e && e.message }); }
+}
+
 // Versão real, vinda de utils.js. É o único indicador fiável de qual build
 // está a correr: o texto do cabeçalho era hardcoded e nunca mudava.
 (function stampVersion() {

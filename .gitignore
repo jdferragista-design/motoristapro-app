@@ -13,3 +13,4 @@ dist/
 Thumbs.db
 *.log
 supabase/credenciais-teste.local.txt
+.probe/

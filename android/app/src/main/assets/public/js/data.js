@@ -135,24 +135,66 @@ let editingInstallmentId = null;
 
 logEvent('info', 'Estado inicial do app carregado', { version: APP_VERSION });
 
+// Última falha de persistência. A UI consulta isto para NÃO anunciar
+// sucesso quando a gravação falhou (M-04 da auditoria): antes, saveState()
+// falhava, avisava... e continuava a chamar render() e o sync para a nuvem,
+// mostrando a alteração aplicada — com os dados NÃO gravados no aparelho.
+let lastPersistError = null;
+
+// Ponto único de gravação local. Existe para que a falha de quota possa ser
+// provocada em teste (no jsdom, localStorage é um Proxy e a substituição
+// direta de setItem não tem efeito) e para centralizar o tratamento.
+function mpLocalSet(key, value) { localStorage.setItem(key, value); }
+
 function saveState() {
   // localStorage pode falhar por quota (≈5 MB) ou modo privado. Sem este
   // try/catch a exceção sobe, o render() não acontece e a alteração é perdida
   // em silêncio — o pior desfecho possível para um app financeiro.
   let persistError = null;
   try {
-    localStorage.setItem('mp_html_state_v8', JSON.stringify(state));
+    mpLocalSet('mp_html_state_v8', JSON.stringify(state));
   } catch (e) {
     persistError = e;
     logEvent('error', 'Falha ao gravar no armazenamento local', {
       message: e && e.message, bytes: (() => { try { return JSON.stringify(state).length; } catch (_) { return null; } })()
     });
   }
+  lastPersistError = persistError;
+
+  // A interface reflete sempre o estado em memória (senão o utilizador perde
+  // o contexto), mas o estado de gravação fica visível e o sync para a nuvem
+  // NÃO é agendado: enviar para a nuvem algo que não se conseguiu gravar
+  // localmente esconderia a falha e tornaria o estado irreconciliável.
   render();
   if (persistError) {
     mpNotify('⚠️ Não foi possível salvar no aparelho (armazenamento cheio). Exporte um backup agora.', 'error');
+    const selo = document.getElementById('persistWarn');
+    if (selo) {
+      selo.style.display = 'block';
+      selo.textContent = '⚠️ Alterações NÃO guardadas no aparelho — exporte um backup';
+    }
+    return false;
+  }
+  const seloOk = document.getElementById('persistWarn');
+  if (seloOk) seloOk.style.display = 'none';
+  // C-02: cópia rotativa (3 slots) após gravação bem-sucedida. Best-effort:
+  // qualquer falha do backup é registada e ignorada, nunca impede o fluxo.
+  if (typeof mpBackupMaybe === 'function') {
+    try { mpBackupMaybe(); } catch (e) { logEvent('warn', 'Backup automático falhou', { message: e && e.message }); }
   }
   if (typeof scheduleCloudSync === 'function') scheduleCloudSync();
+  return true;
+}
+
+// Helper para os fluxos que prometem sucesso ao utilizador.
+function saveStateOrWarn(mensagemSucesso) {
+  const ok = saveState();
+  if (!ok && typeof mpNotify === 'function') {
+    mpNotify('Alteração feita, mas NÃO foi salva no aparelho. Exporte um backup.', 'error');
+  } else if (ok && mensagemSucesso && typeof mpNotify === 'function') {
+    mpNotify(mensagemSucesso);
+  }
+  return ok;
 }
 
 
@@ -202,7 +244,9 @@ function migrateState(s) {
     fuelSettings: Object.assign({}, base.fuelSettings, (s && s.fuelSettings) || {}),
     shifts,
     expenses,
-    maintenance: Array.isArray(s && s.maintenance) ? s.maintenance : [],
+    // normalizeMaintenance garante interval/lastKm numéricos: sem isto um
+    // único registo inválido derrubava o render() inteiro (C-01).
+    maintenance: normalizeMaintenance(s && s.maintenance),
     recurring: normalizeRecurring(s && s.recurring),
     installments: normalizeInstallments(s && s.installments)
   };
@@ -437,6 +481,32 @@ function getRateioAtividade() {
   const pct = Number(v.rateioAtividade);
   if (!(pct > 0)) return 1;
   return Math.min(1, Math.max(0.1, pct));
+}
+
+// ---------- Manutenções: normalização defensiva ----------
+// C-01 da auditoria: renderMaintenance() faz m.interval.toLocaleString()
+// sem guarda. Um registo sem `interval` (backup antigo, restauro parcial,
+// estado vindo da nuvem) lançava TypeError e DERRUBAVA o render() inteiro —
+// o utilizador ficava com o app congelado e sem saída.
+// Aqui garantimos que todo registo que chega ao render tem forma válida.
+function normalizeMaintenanceItem(m, idx) {
+  if (!m || typeof m !== 'object') return null;
+  const interval = Number(m.interval);
+  const lastKm = Number(m.lastKm);
+  const cost = Number(m.cost);
+  return {
+    ...m,
+    id: (m.id != null ? m.id : 'mt_' + idx + '_' + Date.now()),
+    name: String(m.name || 'Manutenção sem nome'),
+    interval: Number.isFinite(interval) && interval > 0 ? interval : 10000,
+    lastKm: Number.isFinite(lastKm) && lastKm >= 0 ? lastKm : 0,
+    cost: Number.isFinite(cost) && cost >= 0 ? cost : 0
+  };
+}
+
+function normalizeMaintenance(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(normalizeMaintenanceItem).filter(Boolean);
 }
 
 // ============================================================

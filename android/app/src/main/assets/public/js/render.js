@@ -44,6 +44,21 @@ function renderStagedApps() {
 }
 
 
+// Executa um bloco de render sem deixar a exceção subir.
+// C-01: antes, um único registo inválido (ex.: manutenção sem `interval`)
+// abortava render() e NENHUMA das 7 views atualizava. Com contenção, a view
+// afetada falha e as restantes continuam a funcionar.
+function renderSafe(nome, fn) {
+  try {
+    fn();
+  } catch (e) {
+    logEvent('error', 'Falha ao renderizar bloco', { bloco: nome, message: e && e.message });
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[render] bloco "' + nome + '" falhou:', e && e.message);
+    }
+  }
+}
+
 function render() {
   document.getElementById('topCarInfo').innerText = `${state.vehicle.model} • ${state.vehicle.plate} (100% Local + Backup)`;
 
@@ -345,13 +360,13 @@ function render() {
   document.getElementById('sparkNet').innerHTML = sparkSVG(perDay.map(x => x.net), '#22d3ee', 'sgNet');
 
 
-  renderChartsView();
+  renderSafe('graficos', renderChartsView);
 
   // Shifts list
-  renderShiftsList();
+  renderSafe('turnos', renderShiftsList);
 
   // Expenses list
-  renderExpensesList();
+  renderSafe('despesas', renderExpensesList);
 
   // Health
   document.getElementById('healthOdo').innerText = `${Math.round(state.vehicle.odometer).toLocaleString('pt-BR')} km`;
@@ -360,7 +375,7 @@ function render() {
   document.getElementById('healthReserve').innerText = brlC(reserveAllC);
   const maintSpentC = state.expenses.filter(e => e.category === 'manutencao').reduce((a, b) => a + toC(b.amount), 0);
   document.getElementById('healthSpent').innerText = brlC(maintSpentC);
-  renderMaintenance();
+  renderSafe('manutencao', renderMaintenance);
 
   // Parity inputs fill (não pisa o campo que o usuário está a digitar)
   const fillIfUnfocused = (id, val) => {
@@ -393,7 +408,7 @@ function render() {
   }
 
   // WhatsApp text
-  renderWhatsApp();
+  renderSafe('whatsapp', renderWhatsApp);
 }
 
 
@@ -591,9 +606,10 @@ function renderExpensesList() {
   document.getElementById('expLiters').innerText = `${liters.toFixed(1)} L`;
   document.getElementById('expAvgPrice').innerText = liters > 0 ? `${brlC(Math.round(fuelExpC / liters))}/L` : 'R$ 0,00/L';
 
-  renderRecurringList();
-  renderRecurringPresets();
-  renderInstallmentList();
+  renderSafe('recorrentes', renderRecurringList);
+  renderSafe('presets', renderRecurringPresets);
+  renderSafe('parceladas', renderInstallmentList);
+  renderSafe('backup', renderBackupPanel);
 
   // Média REAL do carro: Δodômetro ÷ litros entre os 2 últimos abastecimentos com odômetro
   const kmlBox = document.getElementById('realKmlBox');
@@ -621,9 +637,13 @@ function renderMaintenance() {
   container.innerHTML = '';
 
   state.maintenance.forEach(m => {
-    const kmSince = Math.max(0, state.vehicle.odometer - m.lastKm);
-    const remaining = m.interval - kmSince;
-    const pct = m.interval > 0 ? Math.min(100, Math.max(0, (kmSince / m.interval) * 100)) : 100;
+    // guarda local: mesmo que algo escape à normalização, não derruba a lista
+    const intervaloKm = Number(m.interval);
+    const intervalo = Number.isFinite(intervaloKm) && intervaloKm > 0 ? intervaloKm : 10000;
+    const kmBase = Number(m.lastKm);
+    const kmSince = Math.max(0, (Number(state.vehicle.odometer) || 0) - (Number.isFinite(kmBase) ? kmBase : 0));
+    const remaining = intervalo - kmSince;
+    const pct = Math.min(100, Math.max(0, (kmSince / intervalo) * 100));
     const isUrgent = remaining <= 1000;
 
     const el = document.createElement('div');
@@ -633,7 +653,7 @@ function renderMaintenance() {
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
         <div>
           <strong style="font-size: 13px; color: #fff;">${esc(m.name)}</strong>
-          <div style="font-size: 11px; color: var(--text-muted);">A cada ${m.interval.toLocaleString('pt-BR')} km</div>
+          <div style="font-size: 11px; color: var(--text-muted);">A cada ${intervalo.toLocaleString('pt-BR')} km</div>
         </div>
         <div style="display: flex; align-items: center; gap: 4px;">
           <span class="badge" style="background: ${isUrgent ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; color: ${isUrgent ? '#fb7185' : '#34d399'};">

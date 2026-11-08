@@ -27,7 +27,15 @@ function brlC(cents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 }
 
-const APP_VERSION = 'v1.18.2';
+// Versão única do app: vem do <meta name="app-version"> no index.html, que é
+// sincronizado com o package.json por `npm run version:sync` e verificado em
+// `npm test` (A-05/M-09: antes havia 3 valores divergentes — v1.18.2 na UI,
+// 1.18.1 no package.json e versionName "1.0"/versionCode 1 no Android).
+const APP_VERSION = (() => {
+  const meta = typeof document !== 'undefined' && document.querySelector('meta[name="app-version"]');
+  const v = meta && meta.getAttribute('content');
+  return v ? (v.charAt(0) === 'v' ? v : 'v' + v) : 'v0.0.0-desconhecida';
+})();
 const LOG_STORAGE_KEY = 'mp_html_logs_v1';
 const LOG_LIMIT = 400;
 
