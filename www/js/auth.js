@@ -39,6 +39,15 @@ function mpSetLoginStatus(msg, isError) {
   if (el) {
     el.textContent = msg || '';
     el.className = 'mp-login-status' + (isError ? ' mp-login-status--error' : '');
+    // O status nasceu no ecrã de login, que já não aparece no arranque.
+    // Sem isto, um erro de login ficava invisível e parecia "não fazer nada".
+    el.style.display = msg ? 'block' : 'none';
+    const box = document.getElementById('mpAccountBoxStatus');
+    if (box) {
+      box.textContent = msg || '';
+      box.className = 'mp-login-status' + (isError ? ' mp-login-status--error' : '');
+      box.style.display = msg ? 'block' : 'none';
+    }
   }
 }
 
@@ -470,6 +479,29 @@ function mpRestorePrePullBackup() {
     logEvent('error', 'Restauro do backup falhou', { message: e.message });
     mpNotify('Não foi possível restaurar a cópia.', 'error');
     return false;
+  }
+}
+
+// Força a atualização do app: apaga as caches do service worker e recarrega.
+// Existe porque o SW antigo servia JS do cache primeiro, deixando o
+// utilizador preso a um build anterior (ex.: config.js a apontar para um
+// projeto Supabase que já não resolve). NÃO toca nos dados do app —
+// o estado vive em localStorage, não na Cache API.
+async function mpForceUpdate() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    mpNotify('Versão atualizada. Recarregando…');
+    setTimeout(() => window.location.reload(true), 600);
+  } catch (e) {
+    logEvent('error', 'Falha ao forçar atualização', { message: e.message });
+    mpNotify('Não foi possível atualizar. Tente limpar os dados do site.', 'error');
   }
 }
 

@@ -1,5 +1,14 @@
 /* MotoristaPro Service Worker — suporte offline 100% (network-first p/ HTML + cache-first p/ assets) */
-const CACHE = 'motoristapro-v28';
+// Versão da cache: SUBIR SEMPRE que se altera qualquer ficheiro de código.
+// Se não subir, o browser continua a servir a versão antiga do cache e o
+// utilizador fica preso a um build anterior (foi o que aconteceu com o
+// config.js a apontar para um projeto Supabase que já não existe).
+const CACHE = 'motoristapro-v29';
+
+// Código NUNCA pode vir do cache primeiro: uma correção publicada tem de
+// chegar ao utilizador na visita seguinte. Antes era cache-first para tudo,
+// então o JS antigo ganhava mesmo com o ficheiro novo no servidor.
+const NETWORK_FIRST = /\/(js|css)\//;
 const ASSETS = [
   'index.html',
   'manifest.json',
@@ -57,6 +66,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const url = event.request.url;
+  const ehCodigo = NETWORK_FIRST.test(url);
+
+  // Código (JS/CSS): REDE primeiro, cache só como recurso quando offline.
+  if (ehCodigo) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request, { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // Restantes assets (ícones, manifest): cache-first com refresh em background.
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then(cached => {
       const network = fetch(event.request).then(response => {
@@ -66,8 +93,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => cached);
-
-      // Assets: cache-first com atualização em background
       return cached || network;
     })
   );

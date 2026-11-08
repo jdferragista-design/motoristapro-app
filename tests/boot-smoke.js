@@ -323,6 +323,15 @@ server.listen(0, '127.0.0.1', () => {
               return r.estado.shifts.length === 1 && r.recuperados === 0;
             })()`) === true);
 
+          // ---------- Service worker: código nunca cache-first ----------
+          const swSrc = fs.readFileSync(path.join(WWW, 'sw.js'), 'utf8');
+          check('sw.js serve JS/CSS pela rede primeiro', /const NETWORK_FIRST = \/\\\/\(js\|css\)/.test(swSrc));
+          check('cache do sw tem versão explícita (bump manual)', /const CACHE = 'motoristapro-v\d+'/.test(swSrc));
+          check('config.js aponta para o projeto atual', (() => {
+            const cfg = fs.readFileSync(path.join(WWW, 'js', 'config.js'), 'utf8');
+            return /xncxzczftetctpazzecu/.test(cfg) && !/ewmtphddypfcllewkgzl/.test(cfg);
+          })());
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();
