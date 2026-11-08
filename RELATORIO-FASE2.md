@@ -2,7 +2,7 @@
 
 **Base da auditoria:** `97d89c8` — **Ponto de restauro:** tag `pre-fase2-97d89c8`
 **Trabalho em:** branch `arena/a5269d1c-motoristapro-app` (sem PR, sem merge em `main`, sem APK publicado)
-**Commits:** `226c740` · `f13b4e0` · `5c45ad4` · `5c08891` · HEAD `5c08891`
+**Commits:** `226c740` · `f13b4e0` · `5c45ad4` · `5c08891` · `302dc02`
 **Data:** 2026-11-08
 
 Escopo executado: exatamente os 7 itens autorizados. Nada além disso foi alterado,
@@ -281,7 +281,7 @@ Nada disto é enviado no APK, mas a cadeia de build ficou limpa.
 
 ## Estado final
 
-- Branch `arena/a526d1c-motoristapro-app` @ `5c08891` · árvore limpa · **sem PR**, **sem merge**, **sem APK**.
+- Branch `arena/a5269d1c-motoristapro-app` @ `302dc02` · árvore limpa · **sem PR**, **sem merge**, **sem APK**.
 - Ponto de restauro: `git tag pre-fase2-97d89c8` (ou `git reset --hard pre-fase2-97d89c8` para reverter tudo).
 - `npm test`: **87/87**. `npm audit`: **0**. `npm run version:check`: **sincronizado**.
 - Cálculos financeiros: **0 diferenças** face a `97d89c8` em todos os indicadores e períodos.
