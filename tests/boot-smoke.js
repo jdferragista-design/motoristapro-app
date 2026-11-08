@@ -344,6 +344,18 @@ server.listen(0, '127.0.0.1', () => {
             !/class="brand-title">Motorista<span>Pro<\/span>\s*<span[^>]*>v\d/.test(
               fs.readFileSync(path.join(WWW, 'index.html'), 'utf8')));
 
+          // O install do SW tem de ignorar o HTTP cache do browser; sem
+          // cache:'reload', uma cache nova enchia-se com ficheiros velhos.
+          check('install do sw usa cache reload (não herda ficheiros velhos)', (() => {
+            const sw = fs.readFileSync(path.join(WWW, 'sw.js'), 'utf8');
+            return /new Request\(url, \{ cache: 'reload' \}\)/.test(sw);
+          })());
+          check('sw não reescreve a cache de JS/CSS a cada visita', (() => {
+            const sw = fs.readFileSync(path.join(WWW, 'sw.js'), 'utf8');
+            const blocoCodigo = sw.slice(sw.indexOf('if (ehCodigo)'), sw.indexOf('Restantes assets'));
+            return !/cache\.put/.test(blocoCodigo);
+          })());
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();

@@ -3,7 +3,7 @@
 // Se não subir, o browser continua a servir a versão antiga do cache e o
 // utilizador fica preso a um build anterior (foi o que aconteceu com o
 // config.js a apontar para um projeto Supabase que já não existe).
-const CACHE = 'motoristapro-v30';
+const CACHE = 'motoristapro-v31';
 
 // Código NUNCA pode vir do cache primeiro: uma correção publicada tem de
 // chegar ao utilizador na visita seguinte. Antes era cache-first para tudo,
@@ -40,9 +40,19 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('install', (event) => {
+  // cache:'reload' obriga a ir à rede e ignorar o HTTP cache do browser.
+  // Sem isto, o install de uma cache nova podia encher-se com os ficheiros
+  // VELHOS que o browser tinha em disco — a cache mudava de nome mas não de
+  // conteúdo (foi exactamente o que aconteceu na v29).
   event.waitUntil(
     caches.open(CACHE)
-      .then(cache => cache.addAll(ASSETS))
+      .then(cache => Promise.all(
+        ASSETS.map(url =>
+          fetch(new Request(url, { cache: 'reload' }))
+            .then(res => { if (res && res.ok) return cache.put(url, res); })
+            .catch(() => {})
+        )
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -81,15 +91,14 @@ self.addEventListener('fetch', (event) => {
   const ehCodigo = NETWORK_FIRST.test(url);
 
   // Código (JS/CSS): REDE primeiro, cache só como recurso quando offline.
+  // IMPORTANTE: NÃO se faz cache.put aqui. Antes, cada visita reescrevia a
+  // cache do próprio SW antigo, renovando o prazo do build errado. Sem
+  // put, a única cópia é a do install (que carrega com cache:'reload').
   if (ehCodigo) {
     event.respondWith(
-      fetch(event.request).then(response => {
-        if (response && response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => caches.match(event.request, { ignoreSearch: true }))
+      fetch(event.request, { cache: 'no-store' }).catch(() =>
+        caches.match(event.request, { ignoreSearch: true })
+      )
     );
     return;
   }

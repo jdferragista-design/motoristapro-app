@@ -1277,6 +1277,20 @@
   <script src="js/render.js?v=26"></script>
   <script src="js/init.js?v=26"></script>
   <script src="js/auth.js?v=26"></script>
+
+  <!-- Fallback de diagnóstico: se o JS não carregar (cache a servir versão
+       antiga), o cabeçalho dizia "v—" e não havia forma de distinguir. Aqui
+       escrevemos a versão do próprio HTML, o único ficheiro que é sempre
+       re-buscado na navegação. -->
+  <script>
+    (function () {
+      var el = document.getElementById('brandVersion');
+      if (!el || !el.textContent || el.textContent === 'v—') {
+        if (el) el.textContent = 'código desatualizado — abra atualizar.html';
+        el && (el.style.color = '#f43f5e');
+      }
+    })();
+  </script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {
