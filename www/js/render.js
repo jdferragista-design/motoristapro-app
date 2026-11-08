@@ -191,6 +191,8 @@ function render() {
     .filter(e => e.date === todayKey && e.category !== 'combustivel')
     .reduce((a, e) => a + toC(e.amount), 0);
   const tNetC = tGrossC - tFuelC - Math.round(tKm * rr * 100) - tOtherExpDayC;
+  // R$/km do dia contra a meta (mesmo critério do painel de período)
+  const todayRateKmHit = tKm > 0 && ((tGrossC / 100) / tKm) >= (state.vehicle.targetKmRate || 2.20);
 
   document.getElementById('todayDateLabel').innerText =
     (isTodayView ? 'Hoje · ' : '') + dayObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
@@ -248,9 +250,9 @@ function render() {
         <div class="metric-sub">${tTrips} corridas</div>
       </div>
       <div class="metric-box">
-        <div class="metric-label">KM ${doLabel}</div>
-        <div class="metric-val">${tKm.toFixed(1)}</div>
-        <div class="metric-sub">somente turnos</div>
+        <div class="metric-label">R$/KM ${doLabel}</div>
+        <div class="metric-val ${todayRateKmHit ? 'val-emerald' : 'val-rose'}">${tKm > 0 ? brlC(Math.round(tGrossC / tKm)) + '/km' : '—'}</div>
+        <div class="metric-sub">${tKm.toFixed(1)} km em turnos • meta ${formatBRL(state.vehicle.targetKmRate || 2.20)}/km ${todayRateKmHit ? '✅' : '⚠️'}</div>
       </div>
       <div class="metric-box">
         <div class="metric-label">Horas ${doLabel}</div>
