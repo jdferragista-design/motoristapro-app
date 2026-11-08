@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Backup</title>
-  <link rel="stylesheet" href="css/style.css?v=26" />
+  <link rel="stylesheet" href="css/style.css?v=27" />
 </head>
 <body>
 
@@ -1266,17 +1266,32 @@
     </div>
   </div>
 
-  <script src="js/vendor/supabase.js?v=26"></script>
-  <script src="js/config.js?v=26"></script>
-  <script src="js/capacitor.js?v=26"></script>
-  <script src="js/utils.js?v=26"></script>
-  <script src="js/charts.js?v=26"></script>
-  <script src="js/data.js?v=26"></script>
-  <script src="js/domain.js?v=26"></script>
-  <script src="js/ui.js?v=26"></script>
-  <script src="js/render.js?v=26"></script>
-  <script src="js/init.js?v=26"></script>
-  <script src="js/auth.js?v=26"></script>
+  <script src="js/vendor/supabase.js?v=27"></script>
+  <script src="js/config.js?v=27"></script>
+  <script src="js/capacitor.js?v=27"></script>
+  <script src="js/utils.js?v=27"></script>
+  <script src="js/charts.js?v=27"></script>
+  <script src="js/data.js?v=27"></script>
+  <script src="js/domain.js?v=27"></script>
+  <script src="js/ui.js?v=27"></script>
+  <script src="js/render.js?v=27"></script>
+  <script src="js/init.js?v=27"></script>
+  <script src="js/auth.js?v=27"></script>
+
+  <!-- No preview (sandbox), o servidor estático responde 304 ao sw.js e o
+       browser reutiliza o SW antigo indefinidamente. Aqui forçamos a
+       verificação do sw.js com cache:'no-store', em segundos planos. -->
+  <script>
+    (function () {
+      if (!navigator.serviceWorker || !window.caches) return;
+      navigator.serviceWorker.getRegistrations().then(function (rs) {
+        rs.forEach(function (r) { try { r.update(); } catch (e) {} });
+      }).catch(function () {});
+      fetch('sw.js?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.text(); })
+        .catch(function () {});
+    })();
+  </script>
 
   <!-- Fallback de diagnóstico: se o JS não carregar (cache a servir versão
        antiga), o cabeçalho dizia "v—" e não havia forma de distinguir. Aqui
@@ -1285,10 +1300,34 @@
   <script>
     (function () {
       var el = document.getElementById('brandVersion');
-      if (!el || !el.textContent || el.textContent === 'v—') {
-        if (el) el.textContent = 'código desatualizado — abra atualizar.html';
-        el && (el.style.color = '#f43f5e');
+      if (el && el.textContent && el.textContent !== 'v—') return; // JS carregou
+
+      // JS não carregou: o service worker está a servir uma versão antiga.
+      // Em vez de pedir ao utilizador que abra outra página, limpamos a cache
+      // automaticamente e recarregamos UMA vez (o marcador evita loop).
+      var KEY = 'mp_selfheal_v1';
+      var jaTentou = false;
+      try { jaTentou = sessionStorage.getItem(KEY) === '1'; } catch (e) {}
+
+      if (el) {
+        el.textContent = jaTentou ? 'falha ao atualizar' : 'atualizando…';
+        el.style.color = jaTentou ? '#f43f5e' : '#fbbf24';
       }
+
+      if (jaTentou || !window.caches) return;
+
+      try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+      caches.keys().then(function (ks) {
+        return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      }).then(function () {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+          return navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          });
+        }
+      }).then(function () {
+        location.replace(location.pathname + '?heal=' + Date.now());
+      }).catch(function () {});
     })();
   </script>
   <script>

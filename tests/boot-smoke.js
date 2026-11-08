@@ -356,6 +356,19 @@ server.listen(0, '127.0.0.1', () => {
             return !/cache\.put/.test(blocoCodigo);
           })());
 
+          // Auto-resgate: se o JS não carregar, o HTML limpa a cache e
+          // recarrega sozinho uma vez (com marcador para não entrar em loop).
+          check('HTML tem auto-resgate de cache com marcador anti-loop', (() => {
+            const html = fs.readFileSync(path.join(WWW, 'index.html'), 'utf8');
+            return /mp_selfheal_v1/.test(html) && /caches\.delete/.test(html)
+              && /location\.replace/.test(html);
+          })());
+          check('query strings dos scripts não ficam para trás', (() => {
+            const html = fs.readFileSync(path.join(WWW, 'index.html'), 'utf8');
+            const versoes = [...html.matchAll(/\.(?:js|css)\?v=(\d+)/g)].map(m => m[1]);
+            return versoes.length > 5 && new Set(versoes).size === 1;
+          })());
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();
