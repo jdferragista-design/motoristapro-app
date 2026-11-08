@@ -95,14 +95,29 @@ document.getElementById('btn').addEventListener('click', async () => {
     }
   } catch (e) { log('Erro ao remover service worker: ' + e.message); }
 
-  // 4. confirma que o servidor já entrega o config novo ANTES de recarregar
+  // 4. confirma que o servidor já entrega o config novo ANTES de recarregar.
+  //    Antes isto comparava com o ref de um projeto que já não existe; agora
+  //    testa o que interessa: o endereço configurado responde? Se o domínio
+  //    estiver morto (projeto apagado), o login e o sync nunca vão funcionar.
   try {
     const r = await fetch('js/config.js?nocache=' + Date.now(), { cache: 'no-store' });
     const txt = await r.text();
     const m = txt.match(/MP_SUPABASE_URL\s*=\s*'([^']+)'/);
     log('config.js no servidor: ' + (m ? m[1] : 'não encontrado'));
-    if (m && m[1].includes('ewmtphddypfcllewkgzl')) {
-      log('⚠ O SERVIDOR ainda serve o projeto antigo. Isto não é cache.');
+    if (m) {
+      try {
+        const c = new AbortController();
+        const t = setTimeout(() => c.abort(), 6000);
+        const h = await fetch(m[1] + '/auth/v1/health', { cache: 'no-store', signal: c.signal });
+        clearTimeout(t);
+        log(h.ok
+          ? 'Servidor responde (' + h.status + ') — endereço válido.'
+          : '⚠ Servidor responde com ' + h.status + ' — verificar projeto.');
+      } catch (e) {
+        log('⚠ O endereço configurado não responde (' + e.message + '). '
+          + 'Se o domínio não existir, o projeto Supabase foi apagado — '
+          + 'é preciso atualizar js/config.js.');
+      }
     }
   } catch (e) { log('Não foi possível ler config.js: ' + e.message); }
 

@@ -660,6 +660,64 @@ server.listen(0, '127.0.0.1', () => {
           const foraDoSw = scriptsHtml.filter(s => !assetsSw.includes(s));
           check('SW: todos os scripts do index.html estão na lista offline', foraDoSw.length === 0, foraDoSw.join(', ') || 'nenhum em falta');
 
+          // ============================================================
+          // ANDROID — consistência dos assets e do APK (verificação estática)
+          // ============================================================
+          const { execFileSync } = require('child_process');
+          const raizProj = path.join(__dirname, '..');
+          let assetsOk = false, assetsSaida = '';
+          try {
+            assetsSaida = execFileSync(process.execPath, [path.join(raizProj, 'scripts/verify-android-assets.js')],
+              { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+            assetsOk = true;
+          } catch (e) {
+            assetsSaida = String((e.stdout || '') + (e.stderr || ''));
+          }
+          check('Android: assets empacotados apontam para o projeto correto e estão sincronizados',
+            assetsOk, assetsOk ? '' : assetsSaida.split('\n').filter(l => l.includes('✘')).join(' | '));
+
+          // O verificador tem de REPROVAR um APK com o projeto antigo ou versão
+          // errada — senão é um selo que aprova tudo e não protege nada.
+          const axml = require('./lib/axml-fixture.js');
+          const cfgTexto = fs.readFileSync(path.join(WWW, 'js/config.js'), 'utf8');
+          const versaoAtual = JSON.parse(fs.readFileSync(path.join(raizProj, 'package.json'), 'utf8')).version;
+          const [pmaj, pmin, ppat] = versaoAtual.split('.').map(Number);
+          const vcAtual = pmaj * 10000 + pmin * 100 + ppat;
+          const manifestOk = () => axml.build({ pkg: 'com.pro.driver', versionName: versaoAtual, versionCode: vcAtual });
+          const tmpApk = (nome, ficheiros) => {
+            const destino = path.join(require('os').tmpdir(), 'mp-teste-' + nome + '.zip');
+            axml.zip(ficheiros, destino);
+            return destino;
+          };
+          const correrVerificador = apk => {
+            try {
+              execFileSync(process.execPath, [path.join(raizProj, 'scripts/verify-apk.js'), apk],
+                { encoding: 'utf8', stdio: 'pipe' });
+              return { ok: true, saida: '' };
+            } catch (e) {
+              return { ok: false, saida: String((e.stdout || '') + (e.stderr || '')) };
+            }
+          };
+          check('Android: verificador APROVA um APK correto (fixture)', correrVerificador(tmpApk('bom', [
+            ['AndroidManifest.xml', manifestOk()],
+            ['assets/public/js/config.js', Buffer.from(cfgTexto)]
+          ])).ok === true);
+          const rVelho = correrVerificador(tmpApk('velho', [
+            ['AndroidManifest.xml', axml.build({ pkg: 'com.pro.driver', versionName: '1.0', versionCode: 1 })],
+            ['assets/public/js/config.js', Buffer.from(cfgTexto)]
+          ]));
+          check('Android: verificador REPROVA versionCode/versionName antigos', rVelho.ok === false && /versionCode/.test(rVelho.saida));
+          const rAntigo = correrVerificador(tmpApk('antigo', [
+            ['AndroidManifest.xml', manifestOk()],
+            ['assets/public/js/config.js', Buffer.from(cfgTexto.replace('xncxzczftetctpazzecu', 'ewmtphddypfcllewkgzl'))]
+          ]));
+          check('Android: verificador REPROVA o projeto Supabase antigo', rAntigo.ok === false && /projeto antigo/.test(rAntigo.saida));
+          const rSegredo = correrVerificador(tmpApk('segredo', [
+            ['AndroidManifest.xml', manifestOk()],
+            ['assets/public/js/config.js', Buffer.from(cfgTexto.replace(/sb_publishable_[A-Za-z0-9_]+/, 'sb_secret_abc123'))]
+          ]));
+          check('Android: verificador REPROVA chave secreta no pacote', rSegredo.ok === false && /secreta/.test(rSegredo.saida));
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();

@@ -1,0 +1,113 @@
+# PROPOSTA de workflow — NÃO é lido pelo GitHub Actions neste local.
+#
+# Porquê aqui: o token da GitHub App desta sessão não tem a permissão
+# `workflows`, por isso o push de .github/workflows/build.yml é rejeitado com
+# "refusing to allow a GitHub App to create or update workflow (...) without
+# `workflows` permission". O ficheiro real ficou intacto.
+#
+# Como aplicar (precisa de um token com permissão workflows, ou de colar no
+# editor do GitHub):
+#   cp ci/build-workflow.proposta.yml .github/workflows/build.yml
+#   git add .github/workflows/build.yml && git commit -m "ci: build APK em main e arena/**" && git push
+#
+# Enquanto não for aplicado, o APK de teste pode ser gerado com o workflow
+# ATUAL via workflow_dispatch na branch (o núcleo já faz `npm ci` +
+# `npx cap sync android` + `assembleDebug`).
+#
+name: Gerar APK do MotoristaPro
+
+on:
+  push:
+    branches: [ main, master, 'arena/**' ]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch/tag a compilar (vazio = a branch do disparo)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Baixar Repositorio
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref || github.ref }}
+
+    # O build tem de provar que sabe qual é a versão ANTES de compilar.
+    # "npm version" devolve o campo version do package.json; o script
+    # version:check falha se index.html ou build.gradle estiverem diferentes.
+    - name: Configurar Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
+
+    - name: Instalar dependências
+      run: npm ci
+
+    - name: Verificar versão unificada (package.json == app == Gradle)
+      run: npm run version:check
+
+    # Testes automatizados correm ANTES da compilação: não faz sentido gastar
+    # 8 minutos a compilar um app que já falha no smoke test.
+    - name: Testes automatizados (jsdom)
+      run: npm test
+
+    # Sincroniza os assets web -> Android. Sem este passo o APK levava a cópia
+    # antiga de assets/public (foi o que deixou o APK com o projeto Supabase
+    # eliminado). O passo seguinte confirma que a sincronização pegou.
+    - name: Sincronizar assets web -> Android
+      run: npx cap copy android
+
+    - name: Confirmar projeto Supabase esperado nos assets
+      run: node scripts/verify-android-assets.js
+
+    - name: Configurar Java 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: 21
+
+    - name: Configurar Android SDK
+      uses: android-actions/setup-android@v4
+
+    - name: Instalar SDK 36 e build-tools
+      run: |
+        sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+    - name: Compilar APK de teste (debug)
+      working-directory: android
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon
+
+    # Validação sobre o artefacto real, não sobre o código-fonte: lê a versão
+    # do APK gerado e confirma que a URL/chave do Supabase dentro do pacote
+    # são as do projeto correto.
+    - name: Verificar o APK gerado (versão e projeto Supabase)
+      run: node scripts/verify-apk.js android/app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Disponibilizar APK para Download
+      uses: actions/upload-artifact@v4
+      with:
+        name: MotoristaPro-APK-de-teste
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        if-no-files-found: error
+        retention-days: 14
+
+    - name: Resumo do build
+      run: |
+        VERSAO=$(node -p "require('./package.json').version")
+        echo "### APK de teste gerado" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Versão: \`$VERSAO\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Commit: \`$GITHUB_SHA\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Projeto Supabase: \`xncxzczftetctpazzecu\` (verificado dentro do APK)" >> $GITHUB_STEP_SUMMARY
+        echo "- Artefacto: \`MotoristaPro-APK-de-teste\` (14 dias)" >> $GITHUB_STEP_SUMMARY
+        echo "- Não publicado na loja. Instalação manual." >> $GITHUB_STEP_SUMMARY
