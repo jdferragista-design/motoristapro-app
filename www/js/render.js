@@ -583,6 +583,9 @@ function renderExpensesList() {
   const fuelExpC = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + toC(b.amount), 0);
   const liters = state.expenses.filter(e => e.category === 'combustivel').reduce((a, b) => a + (b.liters || 0), 0);
 
+  const vtag = document.getElementById('mpVersionTag');
+  if (vtag) vtag.textContent = `${APP_VERSION} · ${navigator.onLine ? 'online' : 'offline'}`;
+
   document.getElementById('expTotal').innerText = brlC(totalExpC);
   document.getElementById('expFuel').innerText = brlC(fuelExpC);
   document.getElementById('expLiters').innerText = `${liters.toFixed(1)} L`;

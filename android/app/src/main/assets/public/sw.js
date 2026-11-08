@@ -3,7 +3,7 @@
 // Se não subir, o browser continua a servir a versão antiga do cache e o
 // utilizador fica preso a um build anterior (foi o que aconteceu com o
 // config.js a apontar para um projeto Supabase que já não existe).
-const CACHE = 'motoristapro-v29';
+const CACHE = 'motoristapro-v30';
 
 // Código NUNCA pode vir do cache primeiro: uma correção publicada tem de
 // chegar ao utilizador na visita seguinte. Antes era cache-first para tudo,
@@ -27,6 +27,17 @@ const ASSETS = [
   'js/init.js',
   'js/auth.js'
 ];
+
+// Limpeza de emergência: apagar manualmente uma cache específica pelo
+// nome, sem precisar de DevTools. Basta abrir sw.js?wipe=motoristapro-v28
+// (a página HTML do sw.js não é interceptada, então qualquer URL que
+// termine em sw.js cai aqui).
+self.addEventListener('message', (event) => {
+  const d = event.data || {};
+  if (d.type === 'WIPE_CACHE' && d.name) {
+    event.waitUntil(caches.delete(d.name));
+  }
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

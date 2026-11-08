@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MotoristaPro — Atualizar versão</title>
+<style>
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #0a0a14; color: #f5f5fb; padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  }
+  .box {
+    max-width: 460px; width: 100%; background: #12121f; border: 1px solid #2e2e4f;
+    border-radius: 18px; padding: 26px;
+  }
+  h1 { font-size: 19px; margin: 0 0 6px; }
+  p  { font-size: 13px; color: #a0a0bd; line-height: 1.55; margin: 0 0 14px; }
+  code { background: #191930; padding: 2px 6px; border-radius: 5px; font-size: 12px; color: #c4b5fd; }
+  button {
+    width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+    background: linear-gradient(145deg, #8b5cf6, #6d28d9); color: #fff;
+    font-size: 15px; font-weight: 800; margin-bottom: 10px;
+  }
+  button:active { transform: scale(0.985); }
+  .ok   { background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.4); color: #34d399; }
+  .warn { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.4); color: #fbbf24; }
+  .log {
+    background: #0a0a14; border: 1px solid #23233a; border-radius: 10px; padding: 12px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #a0a0bd;
+    white-space: pre-wrap; max-height: 210px; overflow: auto; margin-top: 8px;
+  }
+  .small { font-size: 11px; color: #6d6d8f; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>⟳ Atualizar o MotoristaPro</h1>
+  <p>
+    Esta página não vem do cache do app. Serve para limpar a versão antiga
+    quando o service worker insiste em servir um build desatualizado.
+    <strong>Seus dados não são apagados</strong> — eles ficam no
+    <code>localStorage</code>, e nada aqui toca neles.
+  </p>
+  <button id="btn">Limpar cache e recarregar o app</button>
+  <div class="log" id="log">Pronto.</div>
+  <p class="small">
+    Se mesmo assim o erro do Supabase continuar, o problema é outro:
+    abra o app e verifique a versão mostrada no topo do painel.
+  </p>
+</div>
+<script>
+const log = (m) => {
+  const el = document.getElementById('log');
+  el.textContent += '\n' + m;
+  el.scrollTop = el.scrollHeight;
+};
+
+document.getElementById('btn').addEventListener('click', async () => {
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+  document.getElementById('log').textContent = 'Limpando…';
+
+  // 1. pede ao service worker (novo) que apague caches antigas pelo nome
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      ['motoristapro-v28', 'motoristapro-v29'].forEach(name => {
+        navigator.serviceWorker.controller.postMessage({ type: 'WIPE_CACHE', name });
+      });
+      log('Pedido de limpeza enviado ao service worker.');
+    } else {
+      log('Sem service worker a controlar esta página.');
+    }
+  } catch (e) { log('Aviso (postMessage): ' + e.message); }
+
+  // 2. apaga TODAS as caches (o caminho fiável, não depende do SW responder)
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      log('Caches encontradas: ' + (keys.join(', ') || 'nenhuma'));
+      await Promise.all(keys.map(k => caches.delete(k)));
+      log('Caches apagadas.');
+    } else {
+      log('Este browser não expõe a Cache API.');
+    }
+  } catch (e) { log('Erro ao apagar caches: ' + e.message); }
+
+  // 3. desregista o service worker antigo
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      log('Service workers registados: ' + regs.length);
+      await Promise.all(regs.map(r => r.unregister()));
+      log('Service workers removidos.');
+    }
+  } catch (e) { log('Erro ao remover service worker: ' + e.message); }
+
+  // 4. confirma que o servidor já entrega o config novo ANTES de recarregar
+  try {
+    const r = await fetch('js/config.js?nocache=' + Date.now(), { cache: 'no-store' });
+    const txt = await r.text();
+    const m = txt.match(/MP_SUPABASE_URL\s*=\s*'([^']+)'/);
+    log('config.js no servidor: ' + (m ? m[1] : 'não encontrado'));
+    if (m && m[1].includes('ewmtphddypfcllewkgzl')) {
+      log('⚠ O SERVIDOR ainda serve o projeto antigo. Isto não é cache.');
+    }
+  } catch (e) { log('Não foi possível ler config.js: ' + e.message); }
+
+  log('A recarregar o app…');
+  btn.className = 'ok';
+  btn.textContent = '✓ Pronto — recarregando';
+  setTimeout(() => { window.location.href = 'index.html?fresh=' + Date.now(); }, 1400);
+});
+</script>
+</body>
+</html>

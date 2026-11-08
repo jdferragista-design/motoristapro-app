@@ -27,7 +27,7 @@ function brlC(cents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 }
 
-const APP_VERSION = 'v1.18.1';
+const APP_VERSION = 'v1.18.2';
 const LOG_STORAGE_KEY = 'mp_html_logs_v1';
 const LOG_LIMIT = 400;
 
