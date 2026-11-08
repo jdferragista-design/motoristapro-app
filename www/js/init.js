@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // Initialize
 wireCentsMasks();
 
+// Materializa as despesas fixas do mês (idempotente: nunca duplica).
+// Sem isto o utilizador tem de lembrar de lançar prestação/seguro/MEI todo mês
+// — e nos dados reais ele esqueceu: R$ 609,14/mês fora do histórico.
+syncRecurringExpenses();
+
 render();
 
 calculateTripSim();

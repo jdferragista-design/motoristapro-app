@@ -729,10 +729,27 @@ function saveSettings(e) {
     ? (state.vehicle.odometer || 0)
     : Math.max(0, parseVal(odoRaw));
   state.vehicle.manualOdometerBase = state.vehicle.odometer;
-  state.vehicle.maintenanceReservePerKm = parseVal(document.getElementById('cfgReserve').value) || 0.18;
-  state.vehicle.monthlyGoal = parseVal(document.getElementById('cfgMonthlyGoal').value) || 7000;
-  state.vehicle.targetKmRate = parseVal(document.getElementById('cfgTargetKm').value) || 2.20;
-  state.vehicle.targetHourlyRate = parseVal(document.getElementById('cfgTargetHour').value) || 35.00;
+
+  // `Number.isFinite` em vez de `||`: o `||` transformava intenção legítima em
+  // default. Quem quer zerar a provisão de desgaste (0,00/km) ou a meta
+  // mensal (0) não conseguia — o app revertia para 0,18 e 7.000 em silêncio.
+  const numOr = (id, fallback) => {
+    const raw = document.getElementById(id).value;
+    const n = parseVal(raw);
+    return (raw === null || String(raw).trim() === '' || !Number.isFinite(n)) ? fallback : n;
+  };
+  state.vehicle.maintenanceReservePerKm = Math.max(0, numOr('cfgReserve', 0.18));
+  state.vehicle.monthlyGoal = Math.max(0, numOr('cfgMonthlyGoal', 7000));
+  state.vehicle.targetKmRate = Math.max(0, numOr('cfgTargetKm', 2.20));
+  state.vehicle.targetHourlyRate = Math.max(0, numOr('cfgTargetHour', 35.00));
+
+  // Rateio do veículo na atividade (10% a 100%). Sem isto, todo o
+  // financiamento recai sobre a renda e a sobra real aparece subestimada.
+  const rateioEl = document.getElementById('cfgRateio');
+  if (rateioEl) {
+    const pct = Math.min(100, Math.max(10, parseVal(rateioEl.value) || 100));
+    state.vehicle.rateioAtividade = pct / 100;
+  }
 
   saveState();
   closeModal('modalSettings');

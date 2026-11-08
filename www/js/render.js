@@ -77,6 +77,41 @@ function render() {
   const rateHour = totalHours > 0 ? (totalGrossC / 100) / totalHours : 0;
   const cpk = totalKm > 0 ? (totalCostsC / 100) / totalKm : 0;
 
+  // ---------- SOBRA REAL: líquido do turno − custo fixo do período ----------
+  // `netProfitC` acima é o líquido DENTRO do turno. Ele ignora prestação,
+  // seguro, MEI e internet — que existem mesmo com o carro parado. Sem esse
+  // desconto o app exibe ganho por hora irreal (no histórico de referência,
+  // R$ 34,22/h contra R$ 2,51/h de sobra real).
+  const idleMinP = getIdleMinutes(pShifts);
+  const sobra = buildSobraReal(costs, { idleMinutes: idleMinP });
+  const sobraAtiva = (state.recurring || []).length > 0;
+  const sobraBox = document.getElementById('sobraRealBox');
+  const vazioBox = document.getElementById('custoFixoVazio');
+  if (sobraBox) sobraBox.style.display = sobraAtiva ? 'block' : 'none';
+  if (vazioBox) vazioBox.style.display = sobraAtiva ? 'none' : 'block';
+  if (sobraAtiva) {
+    const sobEl = document.getElementById('dashSobra');
+    sobEl.innerText = brlC(sobra.sobraC);
+    setSignedValueClass('dashSobra', sobra.sobraC);
+    const rateioPct = Math.round(getRateioAtividade() * 100);
+    document.getElementById('dashSobraSub').innerText = rateioPct >= 100
+      ? `${brlC(sobra.liquidoTurnoC)} de líquido, já descontado o custo fixo do período`
+      : `${brlC(sobra.liquidoTurnoC)} no turno + ${brlC(sobra.devolvidoPessoalC)} do custo fixo que é uso pessoal do carro (${100 - rateioPct}%)`;
+    document.getElementById('dashSobraHora').innerText = `${formatBRL(sobra.liquidoPorHoraNaRua)}/h`;
+    setSignedValueClass('dashSobraHora', sobra.sobraC);
+    document.getElementById('dashSobraHoraSub').innerText =
+      `bruto: ${formatBRL(sobra.brutoPorHoraNaRua)}/h • ${sobra.horasNaRua.toFixed(0)}h na rua (${sobra.horasOciosas.toFixed(0)}h parado)`;
+    const warn = document.getElementById('dashSobraWarn');
+    if (sobra.horasOciosas > 0 && dashPeriod !== 'day') {
+      warn.style.display = 'block';
+      warn.innerHTML = `⏱️ Você passou <strong>${sobra.horasOciosas.toFixed(0)}h parado</strong> entre turnos. ` +
+        `Seu R$/h cai de <strong>${formatBRL(sobra.liquidoTurnoC / 100 / (sobra.horasTrabalhadas || 1))}</strong> ` +
+        `(só turno) para <strong>${formatBRL(sobra.liquidoPorHoraNaRua)}</strong> (com a ociosidade).`;
+    } else {
+      warn.style.display = 'none';
+    }
+  }
+
   // Fundo de reserva da Saúde: sempre TODO o histórico (não o período do painel)
   const allKm = state.shifts.reduce((a, s) => a + (s.km || 0), 0);
   const reserveAllC = Math.round(allKm * (state.vehicle.maintenanceReservePerKm || 0.18) * 100);
@@ -342,10 +377,18 @@ function render() {
   document.getElementById('cfgModel').value = state.vehicle.model || '';
   document.getElementById('cfgPlate').value = state.vehicle.plate || '';
   document.getElementById('cfgOdo').value = Math.round(state.vehicle.odometer || 0);
-  document.getElementById('cfgReserve').value = (state.vehicle.maintenanceReservePerKm || 0.18).toFixed(2).replace('.', ',');
-  document.getElementById('cfgMonthlyGoal').value = Math.round(state.vehicle.monthlyGoal || 7000);
-  document.getElementById('cfgTargetKm').value = (state.vehicle.targetKmRate || 2.20).toFixed(2).replace('.', ',');
-  document.getElementById('cfgTargetHour').value = (state.vehicle.targetHourlyRate || 35.00).toFixed(2).replace('.', ',');
+  // `??` em vez de `||`: 0 é um valor legítimo (provisão desligada, meta zerada)
+  document.getElementById('cfgReserve').value = (state.vehicle.maintenanceReservePerKm ?? 0.18).toFixed(2).replace('.', ',');
+  document.getElementById('cfgMonthlyGoal').value = Math.round(state.vehicle.monthlyGoal ?? 7000);
+  document.getElementById('cfgTargetKm').value = (state.vehicle.targetKmRate ?? 2.20).toFixed(2).replace('.', ',');
+  document.getElementById('cfgTargetHour').value = (state.vehicle.targetHourlyRate ?? 35.00).toFixed(2).replace('.', ',');
+
+  // Rateio do carro na atividade (padrão 100% = todo o custo sobre a renda)
+  const rateioInput = document.getElementById('cfgRateio');
+  if (rateioInput) {
+    const pct = Math.round((state.vehicle.rateioAtividade != null ? state.vehicle.rateioAtividade : 1) * 100);
+    if (document.activeElement !== rateioInput) rateioInput.value = pct;
+  }
 
   // WhatsApp text
   renderWhatsApp();
@@ -431,6 +474,50 @@ function renderShiftsList() {
 }
 
 
+// ---------- Lista de despesas fixas (recorrentes) ----------
+function renderRecurringList() {
+  const box = document.getElementById('recurringListContainer');
+  const totalBox = document.getElementById('recurringTotalBox');
+  if (!box || !totalBox) return;
+
+  const list = state.recurring || [];
+  const mensalC = toC(getCustoFixoMensal());
+
+  if (list.length === 0) {
+    box.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:18px;background:rgba(0,0,0,0.2);border-radius:10px;">Nenhuma despesa fixa cadastrada ainda.<br>Cadastre prestação, seguro, MEI e internet para o app calcular sua sobra real.</div>';
+    totalBox.innerHTML = '';
+    return;
+  }
+
+  totalBox.innerHTML =
+    `Custo fixo mensal: <strong style="color:#fbbf24;">${brlC(mensalC)}</strong>` +
+    ` • rateio do carro na atividade: <strong>${Math.round(getRateioAtividade() * 100)}%</strong>` +
+    ` • no seu bolso: <strong>${brlC(Math.round(mensalC * getRateioAtividade()))}</strong>/mês`;
+
+  box.innerHTML = list.map(r => {
+    const meses = PERIODICIDADE_MESES[r.periodicidade] || 1;
+    const mensal = toC(parseVal(r.valor) / meses);
+    const off = r.ativo === false;
+    return `
+      <div class="list-item" style="opacity:${off ? '0.45' : '1'};display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div>
+          <strong style="font-size:13px;color:#fff;">${esc(r.nome)}</strong>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+            ${brlC(toC(r.valor))} • ${PERIODICIDADE_LABELS[r.periodicidade] || r.periodicidade}
+            ${meses > 1 ? ` = <strong>${brlC(mensal)}/mês</strong>` : ''} • vence dia ${r.diaVencimento}
+            ${off ? ' • <span style="color:#fbbf24;">pausada</span>' : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn btn-secondary btn-sm" onclick="toggleRecurring(${r.id})" title="${off ? 'Reativar' : 'Pausar'}">${off ? '▶️' : '⏸️'}</button>
+          <button class="action-btn action-btn-edit" onclick="openEditRecurringModal(${r.id})" title="Editar">✏️</button>
+          <button class="action-btn action-btn-danger" onclick="deleteRecurring(${r.id})" title="Excluir">🗑️</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+
 function renderExpensesList() {
   const container = document.getElementById('expensesListContainer');
   container.innerHTML = '';
@@ -498,6 +585,8 @@ function renderExpensesList() {
   document.getElementById('expFuel').innerText = brlC(fuelExpC);
   document.getElementById('expLiters').innerText = `${liters.toFixed(1)} L`;
   document.getElementById('expAvgPrice').innerText = liters > 0 ? `${brlC(Math.round(fuelExpC / liters))}/L` : 'R$ 0,00/L';
+
+  renderRecurringList();
 
   // Média REAL do carro: Δodômetro ÷ litros entre os 2 últimos abastecimentos com odômetro
   const kmlBox = document.getElementById('realKmlBox');

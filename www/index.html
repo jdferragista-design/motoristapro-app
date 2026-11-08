@@ -187,6 +187,28 @@
             <div class="kpi-spark" id="sparkNet"></div>
           </div>
         </div>
+
+        <!-- Sobra Real: líquido do turno menos o custo fixo do período.
+             É a leitura que decide se a atividade se paga. -->
+        <div id="sobraRealBox" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 12px; display: none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+            <div>
+              <div class="metric-label" style="color: #fde68a;">💡 Sobra Real (depois do custo fixo)</div>
+              <div class="metric-val" id="dashSobra" style="font-size: 22px;">R$ 0,00</div>
+              <div class="metric-sub" id="dashSobraSub">—</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="metric-label">💵 Sobra por hora na rua</div>
+              <div class="metric-val" id="dashSobraHora" style="font-size: 22px;">R$ 0,00/h</div>
+              <div class="metric-sub" id="dashSobraHoraSub">bruto: R$ 0,00/h</div>
+            </div>
+          </div>
+          <div id="dashSobraWarn" style="display: none; margin-top: 10px; font-size: 11px; color: #fbbf24; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 8px 10px;"></div>
+        </div>
+        <div id="custoFixoVazio" style="margin-top: 10px; font-size: 11px; color: var(--text-muted); display: none;">
+          💡 Você ainda não cadastrou custo fixo. Sem ele, o app não consegue calcular sua sobra real nem seu ponto de equilíbrio.
+          <button class="btn btn-secondary btn-sm" style="margin-top: 6px;" onclick="switchTab('expenses')">Cadastrar despesa fixa</button>
+        </div>
       </div>
 
       <!-- Resumo do Dia -->
@@ -320,6 +342,21 @@
 
       <div id="expensesListContainer">
         <!-- Rendered expenses -->
+      </div>
+
+      <!-- Despesas Fixas (recorrentes) — o que o usuário esquece de lançar -->
+      <div class="card" style="margin-top: 16px; border-color: rgba(251, 191, 36, 0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div>
+            <div class="card-title" style="margin: 0;">🔁 Despesas Fixas (custo mensal)</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+              Prestação, seguro, MEI, internet. O app lança todo mês por você — não precisa lembrar.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateRecurringModal()">+ Nova Fixa</button>
+        </div>
+        <div id="recurringTotalBox" style="margin-top: 10px; font-size: 12px; color: var(--text-muted);"></div>
+        <div id="recurringListContainer" style="margin-top: 10px;"></div>
       </div>
     </div>
 
@@ -982,6 +1019,15 @@
             <input type="text" inputmode="decimal" id="cfgTargetHour" class="form-control" value="35,00" />
           </div>
         </div>
+
+        <div class="form-group">
+          <label class="form-label">% do Carro Usado no Trabalho</label>
+          <input type="number" inputmode="numeric" min="10" max="100" id="cfgRateio" class="form-control" value="90" />
+          <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
+            Quanto do uso do carro é trabalho de app. Se você usa o carro na vida pessoal, o custo fixo não deve recair 100% sobre a renda — 85% a 95% é o comum.
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalSettings')">Cancelar</button>
           <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Ajustes</button>
@@ -1021,6 +1067,69 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalMaintItem')">Cancelar</button>
           <button type="submit" class="btn btn-primary" style="flex:1;" id="btnSaveMaintSubmit">Salvar Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 5: DESPESA FIXA (RECORRENTE) -->
+  <div class="modal-overlay" id="modalRecurring">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalRecurringTitle">Nova Despesa Fixa</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalRecurring')">✕</button>
+      </div>
+      <form onsubmit="saveRecurring(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nome da Despesa *</label>
+            <input type="text" id="recNameInput" class="form-control" placeholder="Ex: Prestação do carro, Seguro, MEI, Internet" required />
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Valor (R$) *</label>
+              <input type="text" inputmode="decimal" id="recValueInput" class="form-control" placeholder="Ex: 3147,57" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Categoria</label>
+              <select id="recCatSelect" class="form-control">
+                <option value="fixo">Custo Fixo</option>
+                <option value="combustivel">Combustível</option>
+                <option value="alimentacao">Alimentação</option>
+                <option value="lavagem">Lavagem</option>
+                <option value="manutencao">Manutenção</option>
+                <option value="pedagio">Pedágio/Estacionamento</option>
+                <option value="outros">Outros</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Periodicidade</label>
+              <select id="recPeriodSelect" class="form-control">
+                <option value="mensal">Mensal</option>
+                <option value="bimestral">Bimestral</option>
+                <option value="trimestral">Trimestral</option>
+                <option value="semestral">Semestral</option>
+                <option value="anual">Anual</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dia do Vencimento</label>
+              <input type="number" inputmode="numeric" min="1" max="31" id="recDayInput" class="form-control" value="5" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">A partir de (mês)</label>
+            <input type="month" id="recStartInput" class="form-control" />
+            <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
+              O app lança essa despesa automaticamente em todos os meses a partir daqui — você não precisa lembrar.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalRecurring')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Despesa Fixa</button>
         </div>
       </form>
     </div>

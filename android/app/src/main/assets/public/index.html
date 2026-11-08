@@ -2,7 +2,7 @@
 <html lang="pt-BR" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -10,10 +10,48 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
-  <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Google Drive</title>
-  <link rel="stylesheet" href="css/style.css?v=21" />
+  <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Backup</title>
+  <link rel="stylesheet" href="css/style.css?v=25" />
 </head>
 <body>
+
+  <!-- LOGIN SUPABASE (aparece quando não há sessão) -->
+  <div id="mpLoginScreen" class="mp-login-screen" style="display:none">
+    <div class="mp-login-card">
+      <div class="mp-login-logo">
+        <svg class="icon icon-lg" viewBox="0 0 24 24" style="width:34px;height:34px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><path d="M9 17h6"></path><circle cx="17" cy="17" r="2"></circle></svg>
+      </div>
+      <h1 class="mp-login-title">Motorista<span>Pro</span></h1>
+      <p class="mp-login-sub">Entre para manter seus dados seguros na nuvem e sincronizados em todos os aparelhos.</p>
+      <button type="button" class="mp-login-btn" id="mpBtnGoogle" onclick="mpLoginWithGoogle()">
+        <svg class="mp-login-gicon" viewBox="0 0 24 24" width="18" height="18">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Entrar com Google
+      </button>
+      <button type="button" class="mp-login-offline" onclick="mpContinueOffline()">Continuar sem conta (só neste aparelho)</button>
+      <div class="mp-login-status" id="mpLoginStatus"></div>
+      <div class="mp-login-note">🔒 Seus dados continuam salvos neste aparelho mesmo sem internet.</div>
+    </div>
+  </div>
+
+  <!-- PRIMEIRO USO: começar do zero ou ver dados de exemplo -->
+  <div id="mpFirstUseScreen" class="mp-login-screen" style="display:none; z-index:2010;">
+    <div class="mp-login-card">
+      <div class="mp-login-logo" style="background: linear-gradient(135deg, #22d3ee, #6366f1); font-size: 28px;">👋</div>
+      <h1 class="mp-login-title">Bem-vindo ao Motorista<span>Pro</span></h1>
+      <p class="mp-login-sub">Como quer começar? Pode mudar de ideia nas Configurações.</p>
+      <button type="button" class="mp-login-btn" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;" onclick="mpFirstUse('zero')">
+        🚀 Começar do zero
+      </button>
+      <button type="button" class="mp-login-offline" onclick="mpFirstUse('demo')">👁️ Ver com dados de exemplo</button>
+      <div class="mp-login-note">Os exemplos servem para conhecer o app e podem ser apagados depois.</div>
+    </div>
+  </div>
+
 
   <!-- Top Header Navbar -->
   <header>
@@ -24,7 +62,7 @@
         </div>
         <div>
           <div class="brand-title">Motorista<span>Pro</span> <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">v1.18</span></div>
-          <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Google Drive)</div>
+          <div class="brand-subtitle" id="topCarInfo">Onix Plus 1.0 • BRA-2E19 (100% Local + Backup)</div>
         </div>
       </div>
 
@@ -73,7 +111,7 @@
       </button>
       <button class="nav-tab" onclick="switchTab('reports')">
         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-        <span>Relatórios & Google Drive</span>
+        <span>Relatórios & Backup</span>
       </button>
     </div>
   </nav>
@@ -104,18 +142,18 @@
 
       <!-- Seletor de Período do Painel -->
       <div class="period-switch" role="tablist" aria-label="Período do painel">
-        <button class="period-btn" onclick="setDashPeriod('day', this)">Hoje</button>
-        <button class="period-btn" onclick="setDashPeriod('7', this)">7 dias</button>
-        <button class="period-btn active" onclick="setDashPeriod('month', this)">Este mês</button>
-        <button class="period-btn" onclick="setDashPeriod('30', this)">30 dias</button>
-        <button class="period-btn" onclick="setDashPeriod('all', this)">Tudo</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('day', this)">Hoje</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('7', this)">7 dias</button>
+        <button class="period-btn active" role="tab" aria-selected="true" onclick="setDashPeriod('month', this)">Este mês</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('30', this)">30 dias</button>
+        <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('all', this)">Tudo</button>
       </div>
 
       <!-- Top Overview Card -->
       <div class="card" style="background: linear-gradient(135deg, #151528 0%, #1c1c36 100%); border-color: rgba(139, 92, 246, 0.25);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
-            <div class="card-title">Resumo Financeiro Consolidado</div>
+            <h1 class="card-title">Resumo Financeiro Consolidado</h1>
             <div class="card-subtitle" id="dashPeriodLabel">Faturamento Bruto de Todos os Apps vs Lucro Líquido Real</div>
           </div>
           <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);" id="dashMargin">68% Margem</span>
@@ -136,7 +174,7 @@
               <div class="metric-label">Gastos + Desgaste (CPK)</div>
             </div>
             <div class="metric-val val-rose" id="dashExpenses">R$ 537,70</div>
-            <div class="metric-sub" id="dashExpensesSub">Combustível + Provisão</div>
+            <div class="metric-sub" id="dashExpensesSub">Composição dinâmica por categoria</div>
             <div class="kpi-spark" id="sparkExp"></div>
           </div>
           <div class="metric-box" id="dashNetCard" style="border-color: rgba(139, 92, 246, 0.4); background: linear-gradient(160deg, rgba(139, 92, 246, 0.12), rgba(21, 21, 39, 0.6));">
@@ -149,14 +187,40 @@
             <div class="kpi-spark" id="sparkNet"></div>
           </div>
         </div>
+
+        <!-- Sobra Real: líquido do turno menos o custo fixo do período.
+             É a leitura que decide se a atividade se paga. -->
+        <div id="sobraRealBox" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 12px; display: none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+            <div>
+              <div class="metric-label" style="color: #fde68a;">💡 Sobra Real (depois do custo fixo)</div>
+              <div class="metric-val" id="dashSobra" style="font-size: 22px;">R$ 0,00</div>
+              <div class="metric-sub" id="dashSobraSub">—</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="metric-label">💵 Sobra por hora na rua</div>
+              <div class="metric-val" id="dashSobraHora" style="font-size: 22px;">R$ 0,00/h</div>
+              <div class="metric-sub" id="dashSobraHoraSub">bruto: R$ 0,00/h</div>
+            </div>
+          </div>
+          <div id="dashSobraWarn" style="display: none; margin-top: 10px; font-size: 11px; color: #fbbf24; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 8px 10px;"></div>
+        </div>
+        <div id="custoFixoVazio" style="margin-top: 10px; font-size: 11px; color: var(--text-muted); display: none;">
+          💡 Você ainda não cadastrou custo fixo. Sem ele, o app não consegue calcular sua sobra real nem seu ponto de equilíbrio.
+          <button class="btn btn-secondary btn-sm" style="margin-top: 6px;" onclick="switchTab('expenses')">Cadastrar despesa fixa</button>
+        </div>
       </div>
 
       <!-- Resumo do Dia -->
       <div class="card" style="border-color: rgba(34, 211, 238, 0.25);">
         <div class="card-title">
           📅 Resumo do Dia
-          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: capitalize;" id="todayDateLabel"></span>
+          <span style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+            <button type="button" class="day-picker-today" onclick="setDashboardDay('')">Hoje</button>
+            <input type="date" id="dashboardDayInput" class="day-picker-input" aria-label="Selecionar dia para ver o resumo" onchange="setDashboardDay(this.value)" />
+          </span>
         </div>
+        <div class="day-label" id="todayDateLabel"></div>
         <div class="card-subtitle" style="margin-bottom: 14px;" id="todaySubtitle">Sua atividade de hoje, em tempo real</div>
         <div class="grid grid-4" id="todayGrid"></div>
         <div id="todayAppsRow" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;"></div>
@@ -192,6 +256,9 @@
             <div class="metric-sub" id="dashAvgTripSub">10,1 km por viagem</div>
           </div>
         </div>
+
+        <!-- Chips-insight automáticos -->
+        <div id="insightChips" class="chip-row" style="display: none;"></div>
         <div class="highlight-pill" id="outsideKmPill" style="display: none;"></div>
       </div>
 
@@ -213,6 +280,7 @@
         <div style="font-size: 12px; color: var(--text-muted);">
           Faltam <strong class="val-amber" id="goalRemaining">R$ 5.299,50</strong> para atingir sua meta do mês.
         </div>
+        <div id="goalPace" style="display: none;"></div>
       </div>
 
       <!-- Todos os gráficos vivem agora na Central de Gráficos (aba Gráficos) -->
@@ -275,6 +343,21 @@
       <div id="expensesListContainer">
         <!-- Rendered expenses -->
       </div>
+
+      <!-- Despesas Fixas (recorrentes) — o que o usuário esquece de lançar -->
+      <div class="card" style="margin-top: 16px; border-color: rgba(251, 191, 36, 0.25);">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div>
+            <div class="card-title" style="margin: 0;">🔁 Despesas Fixas (custo mensal)</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+              Prestação, seguro, MEI, internet. O app lança todo mês por você — não precisa lembrar.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateRecurringModal()">+ Nova Fixa</button>
+        </div>
+        <div id="recurringTotalBox" style="margin-top: 10px; font-size: 12px; color: var(--text-muted);"></div>
+        <div id="recurringListContainer" style="margin-top: 10px;"></div>
+      </div>
     </div>
 
     <!-- VIEW 4: VEHICLE HEALTH (DRIVVO) -->
@@ -294,7 +377,7 @@
           <div class="metric-sub"><a href="#" onclick="openModal('modalSettings'); return false;" style="color: #38bdf8; text-decoration: none;">Atualizar odômetro</a></div>
         </div>
         <div class="metric-box" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.05);">
-          <div class="metric-label" style="color: #818cf8;">Fundo de Reserva (R$ 0,18/km)</div>
+          <div class="metric-label" style="color: #818cf8;" id="healthReserveLabel">Fundo de Reserva (R$ 0,18/km)</div>
           <div class="metric-val val-indigo" id="healthReserve">R$ 131,40</div>
           <div class="metric-sub">Saldo acumulado p/ peças</div>
         </div>
@@ -327,6 +410,9 @@
           <button class="period-btn" onclick="setChartType('weekday', this)">🗓️ Dia da semana</button>
           <button class="period-btn" onclick="setChartType('catdonut', this)">💸 Despesas</button>
           <button class="period-btn" onclick="setChartType('appdonut', this)">🍩 Por aplicativo</button>
+          <button class="period-btn" onclick="setChartType('rsweek', this)">📊 R$/h semanal</button>
+          <button class="period-btn" onclick="setChartType('heat', this)">🔥 Melhores horários</button>
+          <button class="period-btn" onclick="setChartType('goalline', this)">🎯 Meta acumulada</button>
         </div>
 
         <div class="form-label" style="margin-bottom: 8px;">Período</div>
@@ -485,8 +571,8 @@
     <!-- VIEW 6: REPORTS, WHATSAPP & GOOGLE DRIVE -->
     <div id="viewReports" style="display: none;">
       <div style="margin-bottom: 14px;">
-        <h2 style="font-size: 18px; font-weight: 900;">Relatórios, WhatsApp & Google Drive</h2>
-        <p style="font-size: 12px; color: var(--text-muted);">Sincronização na nuvem com seu Google Drive pessoal e relatórios diários</p>
+        <h2 style="font-size: 18px; font-weight: 900;">Relatórios, WhatsApp & Backup</h2>
+        <p style="font-size: 12px; color: var(--text-muted);">Backup dos seus dados e relatórios de fechamento</p>
       </div>
 
       <!-- GOOGLE DRIVE CLOUD SYNC CARD -->
@@ -495,28 +581,28 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 20px;">☁️</span>
             <div>
-              <div style="font-size: 14px; font-weight: 800; color: #fff;">Sincronização com Google Drive</div>
-              <div style="font-size: 11px; color: var(--text-muted);">Mantenha seus dados seguros na sua conta Google para nunca perder nada</div>
+              <div style="font-size: 14px; font-weight: 800; color: #fff;">Backup dos seus dados</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Guarde seus dados para nunca perder nada</div>
             </div>
           </div>
           <span class="badge" style="background: rgba(26,115,232,0.2); color:#60a5fa; border-color: rgba(26,115,232,0.4);">
-            Drive Sync
+            Backup
           </span>
         </div>
 
         <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 14px;">
-          Salve o backup do banco de dados na sua nuvem pessoal do <strong>Google Drive</strong>. Ao trocar de celular ou reinstalar o aplicativo, basta restaurar o arquivo em 1 segundo.
+          Salve o arquivo de backup do banco de dados — pelo compartilhamento você pode enviar direto para o <strong>Google Drive</strong>. Ao trocar de celular ou reinstalar o aplicativo, basta restaurar o arquivo em 1 segundo.
         </p>
 
         <div class="grid grid-2">
           <button class="btn btn-gdrive" onclick="saveToGoogleDrive()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-            ☁️ Salvar Backup no Google Drive
+            ☁️ Salvar Backup (compartilhar)
           </button>
           
           <button class="btn btn-secondary" onclick="triggerRestoreFromGoogleDrive()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-            📥 Restaurar do Google Drive / Arquivo
+            📥 Restaurar de arquivo
           </button>
         </div>
         <input type="file" id="gdriveFileInput" accept=".json" style="display: none;" onchange="handleRestoreFile(event)" />
@@ -809,7 +895,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div style="font-size: 15px; font-weight: 800;" id="modalExpenseTitle">Lançar Despesa / Abastecimento</div>
-        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalExpense')">✕</button>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="cancelExpenseModal()">✕</button>
       </div>
       <form onsubmit="saveExpense(event)">
         <div class="modal-body">
@@ -867,7 +953,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalExpense')">Cancelar</button>
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="cancelExpenseModal()">Cancelar</button>
           <button type="submit" class="btn btn-danger" style="flex:1;" id="btnSaveExpenseSubmit">Salvar Gasto</button>
         </div>
       </form>
@@ -883,6 +969,21 @@
       </div>
       <form onsubmit="saveSettings(event)">
         <div class="modal-body">
+
+          <!-- Conta & Nuvem (Supabase) -->
+          <div class="mp-account-box">
+            <div class="mp-account-row">
+              <div>
+                <div class="mp-account-label">Conta & Nuvem</div>
+                <div class="mp-account-email" id="mpAccountEmail">Não conectado</div>
+              </div>
+              <div id="mpAccountActions">
+                <button type="button" class="btn btn-primary btn-sm" onclick="mpLoginWithGoogle()">Entrar com Google</button>
+              </div>
+            </div>
+            <div class="mp-account-sync" id="mpSyncStatus">Não conectado — dados só neste aparelho</div>
+          </div>
+
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Modelo do Carro</label>
@@ -918,6 +1019,15 @@
             <input type="text" inputmode="decimal" id="cfgTargetHour" class="form-control" value="35,00" />
           </div>
         </div>
+
+        <div class="form-group">
+          <label class="form-label">% do Carro Usado no Trabalho</label>
+          <input type="number" inputmode="numeric" min="10" max="100" id="cfgRateio" class="form-control" value="90" />
+          <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
+            Quanto do uso do carro é trabalho de app. Se você usa o carro na vida pessoal, o custo fixo não deve recair 100% sobre a renda — 85% a 95% é o comum.
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalSettings')">Cancelar</button>
           <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Ajustes</button>
@@ -962,14 +1072,80 @@
     </div>
   </div>
 
-  <script src="js/capacitor.js?v=22"></script>
-  <script src="js/utils.js?v=22"></script>
-  <script src="js/charts.js?v=22"></script>
-  <script src="js/data.js?v=22"></script>
-  <script src="js/domain.js?v=22"></script>
-  <script src="js/ui.js?v=22"></script>
-  <script src="js/render.js?v=22"></script>
-  <script src="js/init.js?v=22"></script>
+  <!-- MODAL 5: DESPESA FIXA (RECORRENTE) -->
+  <div class="modal-overlay" id="modalRecurring">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalRecurringTitle">Nova Despesa Fixa</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalRecurring')">✕</button>
+      </div>
+      <form onsubmit="saveRecurring(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nome da Despesa *</label>
+            <input type="text" id="recNameInput" class="form-control" placeholder="Ex: Prestação do carro, Seguro, MEI, Internet" required />
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Valor (R$) *</label>
+              <input type="text" inputmode="decimal" id="recValueInput" class="form-control" placeholder="Ex: 3147,57" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Categoria</label>
+              <select id="recCatSelect" class="form-control">
+                <option value="fixo">Custo Fixo</option>
+                <option value="combustivel">Combustível</option>
+                <option value="alimentacao">Alimentação</option>
+                <option value="lavagem">Lavagem</option>
+                <option value="manutencao">Manutenção</option>
+                <option value="pedagio">Pedágio/Estacionamento</option>
+                <option value="outros">Outros</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Periodicidade</label>
+              <select id="recPeriodSelect" class="form-control">
+                <option value="mensal">Mensal</option>
+                <option value="bimestral">Bimestral</option>
+                <option value="trimestral">Trimestral</option>
+                <option value="semestral">Semestral</option>
+                <option value="anual">Anual</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dia do Vencimento</label>
+              <input type="number" inputmode="numeric" min="1" max="31" id="recDayInput" class="form-control" value="5" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">A partir de (mês)</label>
+            <input type="month" id="recStartInput" class="form-control" />
+            <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
+              O app lança essa despesa automaticamente em todos os meses a partir daqui — você não precisa lembrar.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalRecurring')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Despesa Fixa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/vendor/supabase.js?v=25"></script>
+  <script src="js/config.js?v=25"></script>
+  <script src="js/capacitor.js?v=25"></script>
+  <script src="js/utils.js?v=25"></script>
+  <script src="js/charts.js?v=25"></script>
+  <script src="js/data.js?v=25"></script>
+  <script src="js/domain.js?v=25"></script>
+  <script src="js/ui.js?v=25"></script>
+  <script src="js/render.js?v=25"></script>
+  <script src="js/init.js?v=25"></script>
+  <script src="js/auth.js?v=25"></script>
   <script>
     window.addEventListener('load', function () {
       setTimeout(function () {

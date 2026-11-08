@@ -382,10 +382,20 @@ function appBreakdown(shifts, aISO, bISO) {
   })).sort((a, b) => b.total - a.total);
 }
 function costPartsForRange(shifts, expenses, aISO, bISO) {
-  const within = dt => dt && dt.length === 10 && (!aISO || dt >= aISO) && (!bISO || dt <= bISO);
+  // Período filtrado por COMPETÊNCIA (não por data de pagamento): quem paga a
+  // parcela do carro adiantado não pode ver o custo cair no mês vizinho.
+  const withinShifts = dt => dt && dt.length === 10 && (!aISO || dt >= aISO) && (!bISO || dt <= bISO);
+  const withinExp = e => {
+    if (!e) return false;
+    const c = competenceOf(e);
+    // janelas móveis usam o mês de competência; intervalos fechados idem
+    if (aISO && c < aISO.slice(0, 7)) return false;
+    if (bISO && c > bISO.slice(0, 7)) return false;
+    return true;
+  };
   let grossC = 0, km = 0, trips = 0, hours = 0, shiftFuelC = 0;
   shifts.forEach(s => {
-    if (!within(s.date)) return;
+    if (!withinShifts(s.date)) return;
     grossC += getShiftTotalGrossC(s);
     km += (s.km || 0);
     trips += getShiftTotalTrips(s);
@@ -394,20 +404,175 @@ function costPartsForRange(shifts, expenses, aISO, bISO) {
   });
   const reserveRate = state.vehicle.maintenanceReservePerKm || 0.18;
   const reserveC = Math.round(km * reserveRate * 100);
-  let otherOpC = 0, fixedC = 0;
+  let otherOpC = 0, fixedC = 0, maintRealC = 0;
   expenses.forEach(e => {
-    if (!within(e.date) || e.category === 'combustivel') return;
-    if ((e.category || '') === 'fixo') fixedC += toC(e.amount);
-    else otherOpC += toC(e.amount);
+    if (!withinExp(e) || e.category === 'combustivel') return;
+    if ((e.category || '') === 'fixo') {
+      fixedC += toC(e.amount);
+      return;
+    }
+    if ((e.category || '') === 'manutencao') {
+      const v = toC(e.amount);
+      maintRealC += v;
+      // PROVISÃO × MANUTENÇÃO REAL são o MESMO dinheiro.
+      // O fundo de reserva (R$/km) é uma previsão de desgaste; quando a
+      // manutenção efetivamente acontece, ela já está paga ali. Cobrar as
+      // duas coisas desconta o mesmo custo duas vezes — foi exatamente o que
+      // aconteceu com o histórico de referência (provisão R$ 1.712 + pneus e
+      // óleo R$ 1.924 = R$ 3.636 para o mesmo desgaste).
+      return;
+    }
+    otherOpC += toC(e.amount);
   });
-  const opCostC = shiftFuelC + reserveC + otherOpC;
+  // consome a provisão primeiro; o excedente é desgaste ainda não pago
+  const reserveConsumedC = Math.min(reserveC, maintRealC);
+  const reserveOpenC = reserveC - reserveConsumedC;
+  const excessMaintC = maintRealC - reserveConsumedC;
+  const opCostC = shiftFuelC + reserveOpenC + otherOpC + excessMaintC;
   return {
-    grossC, km, trips, hours, shiftFuelC, reserveC, otherOpC, fixedC,
+    grossC, km, trips, hours, shiftFuelC, reserveC, reserveConsumedC, reserveOpenC,
+    maintRealC, excessMaintC, otherOpC, fixedC,
     opCostC, totalCostC: opCostC + fixedC,
     netC: grossC - (opCostC + fixedC),
     rsKm: km > 0 ? grossC / km : 0,
     rsH: hours > 0 ? grossC / hours : 0
   };
+}
+
+
+// ==============================================================
+// TEMPO OCIOSO ENTRE TURNOS  (R$/h honesto)
+// ==============================================================
+// O motorista de app raramente faz um turno contínuo: sai de casa, roda,
+// volta, sai de novo. Somar só as horas dentro de cada turno infla o R$/h.
+// Nos dados de referência (199 turnos) isso dava R$ 34,22/h contra
+// R$ 18,48/h contando o intervalo — 46% de diferença, em 97% dos dias.
+function timeToMinutes(hhmm) {
+  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+// Minutos ociosos num dia (soma dos intervalos entre turnos consecutivos)
+function getIdleMinutesForDay(dayShifts) {
+  const list = (dayShifts || [])
+    .map(s => ({ s: s, start: timeToMinutes(s.timeStart), end: timeToMinutes(s.timeEnd) }))
+    .filter(x => x.start !== null && x.end !== null)
+    .sort((a, b) => a.start - b.start);
+  let idle = 0;
+  for (let i = 1; i < list.length; i++) {
+    const prevEnd = list[i - 1].end;
+    const curStart = list[i].start;
+    if (curStart > prevEnd) idle += curStart - prevEnd;
+  }
+  return idle;
+}
+
+// Minutos ociosos no conjunto de turnos (agrupa por data)
+function getIdleMinutes(shifts) {
+  const byDay = {};
+  (shifts || []).forEach(s => {
+    if (!s || !s.date) return;
+    (byDay[s.date] = byDay[s.date] || []).push(s);
+  });
+  return Object.values(byDay).reduce((acc, list) => acc + getIdleMinutesForDay(list), 0);
+}
+
+// Minutos trabalhados (soma das horas declaradas)
+function getWorkedMinutes(shifts) {
+  return (shifts || []).reduce((acc, s) => acc + Math.round((parseFloat(s && s.hours) || 0) * 60), 0);
+}
+
+
+// ==============================================================
+// COMPETÊNCIA (regime de competência vs. caixa)
+// ==============================================================
+// O utilizador real paga a parcela do carro ~10 dias antes do vencimento.
+// Como o app só conhece a data de pagamento, a prestação de novembro caía
+// em outubro e novembro aparecia com custo zero. `competencia` (AAAA-MM)
+// separa "quando saiu o dinheiro" de "a que mês o custo pertence".
+function competenceOf(expense) {
+  const c = expense && expense.competencia;
+  if (c && /^\d{4}-\d{2}$/.test(c)) return c;
+  return String((expense && expense.date) || '').slice(0, 7);
+}
+
+function expensesInCompetence(expenses, ym) {
+  return (expenses || []).filter(e => e && competenceOf(e) === ym);
+}
+
+// Despesas que pertencem ao período por competência: cobre o mês fechado e
+// também as janelas móveis (últimos 7/30 dias), sempre por mês de competência.
+function expensesForPeriod(expenses, period) {
+  const list = expenses || [];
+  if (period === 'all' || !period) return list;
+  const today = getTodayString();
+  const ym = today.slice(0, 7);
+  if (period === 'month') return expensesInCompetence(list, ym);
+  const day = period === 'day' || period === '7' || period === '30' ? Number(period) || (period === 'day' ? 1 : Number(period)) : 30;
+  const start = isoAddDays(today, -(day - 1));
+  const startYM = start.slice(0, 7);
+  return list.filter(e => {
+    if (!e) return false;
+    const d = String(e.date || '');
+    // competência no próprio mês continua valendo para janelas móveis
+    const c = competenceOf(e);
+    return (d >= start && d <= today) || (c >= startYM && c <= ym);
+  });
+}
+
+
+// ==============================================================
+// SOBRA REAL (o número que o app nunca mostrou)
+// ==============================================================
+// `netC` do costPartsForRange é o líquido DENTRO do turno (combustível +
+// provisão + despesas variáveis). Falta o custo fixo — prestação, seguro,
+// MEI, internet — que existe mesmo parado. Sem ele não há ponto de equilíbrio.
+// IMPORTANTE — não somar o custo fixo duas vezes: `parts.netC` já desconta
+// as despesas de categoria "fixo" que estão em `expenses` (é o `fixedC`).
+// O que esta função faz é DEVOLVER a parcela do custo fixo que não pertence à
+// atividade (uso pessoal do carro), conforme o rateio informado pelo usuário.
+//   rateio = 100%  → sobra = netC (todo o carro recai sobre a renda)
+//   rateio =  90%  → sobra = netC + 10% do fixo (essa parte é pessoal)
+function buildSobraReal(parts, opts) {
+  const o = opts || {};
+  const rateio = o.rateio != null ? o.rateio : getRateioAtividade();
+  const fixoNoPeriodoC = parts.fixedC || 0;         // já descontado em netC
+  const custoAtividadeC = Math.round(fixoNoPeriodoC * rateio);
+  const devolverPessoalC = fixoNoPeriodoC - custoAtividadeC;
+  const sobraC = parts.netC + devolverPessoalC;
+  const horasTrabalhadas = parts.hours || 0;
+  const idleH = (o.idleMinutes || 0) / 60;
+  const horasNaRua = horasTrabalhadas + idleH;
+  return {
+    liquidoTurnoC: parts.netC,          // já após custo fixo integral
+    custoFixoTotalC: fixoNoPeriodoC,
+    custoAtividadeC: custoAtividadeC,   // parte do fixo que é da atividade
+    devolvidoPessoalC: devolverPessoalC,
+    sobraC: sobraC,
+    margemPct: parts.grossC > 0 ? (sobraC / parts.grossC) * 100 : 0,
+    horasTrabalhadas: horasTrabalhadas,
+    horasOciosas: idleH,
+    horasNaRua: horasNaRua,
+    // três leituras: bruto/h, líquido do turno/h, sobra real/h
+    brutoPorHoraTrabalhada: horasTrabalhadas > 0 ? (parts.grossC / 100) / horasTrabalhadas : 0,
+    brutoPorHoraNaRua: horasNaRua > 0 ? (parts.grossC / 100) / horasNaRua : 0,
+    liquidoPorHoraNaRua: horasNaRua > 0 ? (sobraC / 100) / horasNaRua : 0,
+    // quanto precisa faturar para empatar, no custo de atividade
+    pontoEquilibrioC: custoAtividadeC + parts.shiftFuelC + Math.round((parts.km || 0) * (state.vehicle.maintenanceReservePerKm || 0.18) * 100) + parts.otherOpC,
+    coberto: sobraC >= 0
+  };
+}
+
+// Fração do mês corrente já decorrida (para ratear custo fixo em períodos
+// parciais). Ex.: dia 8 → ~0,26. Períodos fechados usam 1.
+function currentMonthFraction(todayISO) {
+  const t = todayISO || getTodayString();
+  const y = Number(t.slice(0, 4));
+  const m = Number(t.slice(5, 7));
+  const d = Number(t.slice(8, 10));
+  const dim = new Date(y, m, 0).getDate();
+  return d / dim;
 }
 
 

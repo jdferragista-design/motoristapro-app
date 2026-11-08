@@ -99,6 +99,68 @@ server.listen(0, '127.0.0.1', () => {
           w2.saveSettings({ preventDefault() {} });
           check('odômetro aceita 0', w2.eval('state.vehicle.odometer') === 0);
 
+          // ---------- P0: ociosidade entre turnos (R$/h honesto) ----------
+          check('ociosidade entre turnos (2 turnos, 2h de gap)',
+            w2.eval(`getIdleMinutes([
+              {date:'2026-05-01',timeStart:'06:00',timeEnd:'09:00'},
+              {date:'2026-05-01',timeStart:'11:00',timeEnd:'14:00'}])`) === 120);
+          check('ociosidade entre dias diferentes não conta',
+            w2.eval(`getIdleMinutes([
+              {date:'2026-05-01',timeStart:'06:00',timeEnd:'09:00'},
+              {date:'2026-05-02',timeStart:'11:00',timeEnd:'14:00'}])`) === 0);
+          check('turnos sobrepostos não geram ociosidade negativa',
+            w2.eval(`getIdleMinutes([
+              {date:'2026-05-01',timeStart:'06:00',timeEnd:'12:00'},
+              {date:'2026-05-01',timeStart:'09:00',timeEnd:'14:00'}])`) === 0);
+
+          // ---------- P0: despesa recorrente (o que o usuário esquece) ----------
+          w2.eval(`state.recurring = [{ id: 501, nome: 'Internet', valor: 123.71,
+            categoria: 'fixo', periodicidade: 'bimestral', diaVencimento: 21,
+            competenciaInicio: '2026-01', ativo: true }]; state.expenses = [];`);
+          check('custo fixo mensal normaliza bimestral (÷2)',
+            Math.abs(w2.eval('getCustoFixoMensal()') - 61.855) < 0.01,
+            w2.eval('getCustoFixoMensal()'));
+          const criadas = w2.eval('syncRecurringExpenses()');
+          check('recorrente bimestral gera lançamentos', criadas > 0, criadas);
+          check('sync recorrente é idempotente (2ª execução não cria nada)',
+            w2.eval('syncRecurringExpenses()') === 0);
+          check('recorrente aparece na competência do mês',
+            w2.eval(`expensesInCompetence(state.expenses, '2026-01').length`) === 1);
+
+          // reconciliação: não duplicar o que o usuário já digitou à mão
+          w2.eval(`state.recurring = [{ id: 502, nome: 'Prestação do carro', valor: 3147.57,
+            categoria: 'fixo', periodicidade: 'mensal', diaVencimento: 5,
+            competenciaInicio: '2026-03', ativo: true }];
+            state.expenses = [{ id: 1, date: '2026-03-27', competencia: '2026-03', category: 'fixo',
+              title: 'Prestação do carro parcela 12/60 desconto 24.59', amount: 3122.98 }];`);
+          w2.eval('syncRecurringExpenses()');
+          check('não duplica despesa fixa que já existia (reconcilia por título)',
+            w2.eval(`expensesInCompetence(state.expenses, '2026-03').length`) === 1);
+
+          // ---------- P0: provisão × manutenção real (mesmo dinheiro) ----------
+          check('manutenção real consome a provisão, não soma',
+            w2.eval(`(() => {
+              state.vehicle.maintenanceReservePerKm = 0.25;
+              const p = costPartsForRange(
+                [{ date: '2026-06-10', apps: [{ gross: 1000, tips: 0 }], km: 1000, hours: 10, fuelCost: 0 }],
+                [{ id: 2, date: '2026-06-15', competencia: '2026-06', category: 'manutencao', title: 'Pneus', amount: 200 }],
+                '2026-06-01', '2026-06-30');
+              return p.reserveConsumedC === 20000 && p.reserveOpenC === 5000 && p.excessMaintC === 0;
+            })()`) === true);
+
+          // ---------- P0: competência (pagamento adiantado) ----------
+          check('competência separa pagamento de mês do custo',
+            w2.eval(`competenceOf({ date: '2026-10-27', competencia: '2026-11' })`) === '2026-11');
+
+          // ---------- P1: configs aceitam 0 ----------
+          d2.getElementById('cfgReserve').value = '0,00';
+          d2.getElementById('cfgMonthlyGoal').value = '0';
+          w2.saveSettings({ preventDefault() {} });
+          check('provisão aceita 0 (não reverte para 0,18)',
+            w2.eval('state.vehicle.maintenanceReservePerKm') === 0);
+          check('meta aceita 0 (não reverte para 7.000)',
+            w2.eval('state.vehicle.monthlyGoal') === 0);
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();

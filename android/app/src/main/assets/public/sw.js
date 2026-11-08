@@ -1,11 +1,13 @@
 /* MotoristaPro Service Worker — suporte offline 100% (network-first p/ HTML + cache-first p/ assets) */
-const CACHE = 'motoristapro-v22';
+const CACHE = 'motoristapro-v28';
 const ASSETS = [
   'index.html',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
   'css/style.css',
+  'js/vendor/supabase.js',
+  'js/config.js',
   'js/capacitor.js',
   'js/utils.js',
   'js/charts.js',
@@ -13,7 +15,8 @@ const ASSETS = [
   'js/domain.js',
   'js/ui.js',
   'js/render.js',
-  'js/init.js'
+  'js/init.js',
+  'js/auth.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -55,7 +58,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(event.request, { ignoreSearch: true }).then(cached => {
       const network = fetch(event.request).then(response => {
         if (response && response.ok) {
           const clone = response.clone();

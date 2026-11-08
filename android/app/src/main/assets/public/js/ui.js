@@ -141,6 +141,31 @@ function autoCalcPricePerLiter() {
 }
 
 
+// O autoCalc acima ajusta fuelSettings enquanto o usuário digita; se o modal
+// for CANCELADO, estes snapshot/restore desfazem a alteração. Ao salvar,
+// saveExpense() mantém o comportamento (grava o preço no estado).
+let expenseFuelSnapshot = null;
+
+function snapshotFuelSettings() {
+  expenseFuelSnapshot = {
+    fuelSettings: { ...state.fuelSettings },
+    gasInput: document.getElementById('fuelGasPrice').value,
+    ethInput: document.getElementById('fuelEthPrice').value
+  };
+}
+
+function cancelExpenseModal() {
+  if (expenseFuelSnapshot) {
+    state.fuelSettings = expenseFuelSnapshot.fuelSettings;
+    document.getElementById('fuelGasPrice').value = expenseFuelSnapshot.gasInput;
+    document.getElementById('fuelEthPrice').value = expenseFuelSnapshot.ethInput;
+    expenseFuelSnapshot = null;
+  }
+  editingExpenseId = null;
+  closeModal('modalExpense');
+}
+
+
 // ==============================================================
 // AÇÕES DE TURNOS: CRIAR, EDITAR, DELETAR
 // ==============================================================
@@ -430,7 +455,8 @@ function saveFinalShift() {
     odoStart = (state.shifts.find(s => s.id === editingShiftId) || {}).odoStart;
   }
 
-  if (stagedShiftApps.length === 0 && km === 0) {
+  // Exige ao menos um app lançado (turno sem ganhos distorce R$/h e tendências)
+  if (stagedShiftApps.length === 0) {
     alert('Por favor, adicione ao menos os ganhos de um aplicativo na caixa de seleção.');
     return;
   }
@@ -503,6 +529,7 @@ function deleteShift(id) {
 // ==============================================================
 function openCreateExpenseModal() {
   editingExpenseId = null;
+  snapshotFuelSettings();
   document.getElementById('modalExpenseTitle').innerText = 'Lançar Despesa / Abastecimento';
   document.getElementById('btnSaveExpenseSubmit').innerText = 'Salvar Gasto';
   document.getElementById('expDate').value = getTodayString();
@@ -522,6 +549,7 @@ function openEditExpenseModal(id) {
   if (!exp) return;
 
   editingExpenseId = id;
+  snapshotFuelSettings();
   document.getElementById('modalExpenseTitle').innerText = 'Editar Despesa';
   document.getElementById('btnSaveExpenseSubmit').innerText = 'Salvar Alterações';
 
@@ -584,6 +612,7 @@ function saveExpense(e) {
   syncVehicleOdometer();
 
   saveState();
+  expenseFuelSnapshot = null;
   closeModal('modalExpense');
   editingExpenseId = null;
 }
@@ -694,12 +723,33 @@ function saveSettings(e) {
   e.preventDefault();
   state.vehicle.model = document.getElementById('cfgModel').value;
   state.vehicle.plate = document.getElementById('cfgPlate').value;
-  state.vehicle.odometer = parseVal(document.getElementById('cfgOdo').value) || 64850;
+  // Odômetro aceita 0 (antes `|| 64850` voltava ao valor demo); vazio mantém o atual
+  const odoRaw = document.getElementById('cfgOdo').value;
+  state.vehicle.odometer = (odoRaw === null || String(odoRaw).trim() === '')
+    ? (state.vehicle.odometer || 0)
+    : Math.max(0, parseVal(odoRaw));
   state.vehicle.manualOdometerBase = state.vehicle.odometer;
-  state.vehicle.maintenanceReservePerKm = parseVal(document.getElementById('cfgReserve').value) || 0.18;
-  state.vehicle.monthlyGoal = parseVal(document.getElementById('cfgMonthlyGoal').value) || 7000;
-  state.vehicle.targetKmRate = parseVal(document.getElementById('cfgTargetKm').value) || 2.20;
-  state.vehicle.targetHourlyRate = parseVal(document.getElementById('cfgTargetHour').value) || 35.00;
+
+  // `Number.isFinite` em vez de `||`: o `||` transformava intenção legítima em
+  // default. Quem quer zerar a provisão de desgaste (0,00/km) ou a meta
+  // mensal (0) não conseguia — o app revertia para 0,18 e 7.000 em silêncio.
+  const numOr = (id, fallback) => {
+    const raw = document.getElementById(id).value;
+    const n = parseVal(raw);
+    return (raw === null || String(raw).trim() === '' || !Number.isFinite(n)) ? fallback : n;
+  };
+  state.vehicle.maintenanceReservePerKm = Math.max(0, numOr('cfgReserve', 0.18));
+  state.vehicle.monthlyGoal = Math.max(0, numOr('cfgMonthlyGoal', 7000));
+  state.vehicle.targetKmRate = Math.max(0, numOr('cfgTargetKm', 2.20));
+  state.vehicle.targetHourlyRate = Math.max(0, numOr('cfgTargetHour', 35.00));
+
+  // Rateio do veículo na atividade (10% a 100%). Sem isto, todo o
+  // financiamento recai sobre a renda e a sobra real aparece subestimada.
+  const rateioEl = document.getElementById('cfgRateio');
+  if (rateioEl) {
+    const pct = Math.min(100, Math.max(10, parseVal(rateioEl.value) || 100));
+    state.vehicle.rateioAtividade = pct / 100;
+  }
 
   saveState();
   closeModal('modalSettings');
