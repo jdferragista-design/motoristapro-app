@@ -36,6 +36,13 @@ syncInstallmentExpenses();
 // Remove lançamentos cuja origem (fixa/parcelada) foi excluída.
 pruneOrphanGeneratedExpenses();
 
+// Versão real, vinda de utils.js. É o único indicador fiável de qual build
+// está a correr: o texto do cabeçalho era hardcoded e nunca mudava.
+(function stampVersion() {
+  const el = document.getElementById('brandVersion');
+  if (el) el.textContent = APP_VERSION;
+})();
+
 render();
 
 calculateTripSim();

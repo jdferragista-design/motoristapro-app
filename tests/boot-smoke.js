@@ -332,6 +332,18 @@ server.listen(0, '127.0.0.1', () => {
             return /xncxzczftetctpazzecu/.test(cfg) && !/ewmtphddypfcllewkgzl/.test(cfg);
           })());
 
+          // A versão mostrada tem de vir do código, não de texto fixo no HTML.
+          // O cabeçalho dizia "v1.18" hardcoded: nunca mudava, e por isso um
+          // utilizador preso em cache antiga E um com cache nova viam o mesmo.
+          check('versão do cabeçalho é a real (não texto fixo)', (() => {
+            const html = fs.readFileSync(path.join(WWW, 'index.html'), 'utf8');
+            const el = d2.getElementById('brandVersion');
+            return /id="brandVersion"/.test(html) && !!el && el.textContent === w2.eval('APP_VERSION');
+          })());
+          check('a versão não voltou a ser hardcoded no cabeçalho',
+            !/class="brand-title">Motorista<span>Pro<\/span>\s*<span[^>]*>v\d/.test(
+              fs.readFileSync(path.join(WWW, 'index.html'), 'utf8')));
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();
