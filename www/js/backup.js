@@ -42,13 +42,34 @@ function mpBackupRead(slot) {
   }
 }
 
+// A lista é pedida pelo render() a cada alteração. Sem cache, cada render fazia
+// JSON.parse de 3 cópias de ~81 KB. A cache é indexada por uma assinatura
+// barata do conteúdo cru (tamanho + prefixo): continua correta se algo apagar
+// ou escrever slots por fora desta função, sem pagar o parse.
+let mpBackupCache = null;
+
 function mpBackupList() {
-  const out = [];
+  const crus = [];
   for (let i = 1; i <= MP_BACKUP_SLOTS; i++) {
-    const b = mpBackupRead(i);
-    if (b) out.push({ slot: i, at: b.at, stats: mpBackupStats(b.state), bytes: JSON.stringify(b).length });
+    crus.push(localStorage.getItem(MP_BACKUP_PREFIX + i) || '');
   }
-  return out;
+  const assinatura = crus.map(r => r.length + ':' + r.slice(0, 24)).join('|');
+  if (mpBackupCache && mpBackupCache.assinatura === assinatura) return mpBackupCache.lista;
+
+  const lista = [];
+  crus.forEach((raw, idx) => {
+    if (!raw) return;
+    try {
+      const b = JSON.parse(raw);
+      if (b && b.state) {
+        lista.push({ slot: idx + 1, at: b.at, stats: mpBackupStats(b.state), bytes: raw.length });
+      }
+    } catch (e) {
+      logEvent('warn', 'Cópia de segurança ilegível', { slot: idx + 1, message: e && e.message });
+    }
+  });
+  mpBackupCache = { assinatura, lista };
+  return lista;
 }
 
 // Escreve uma cópia, deslocando as anteriores. A mais antiga (slot 3) sai.

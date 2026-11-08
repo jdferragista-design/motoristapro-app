@@ -524,6 +524,17 @@ server.listen(0, '127.0.0.1', () => {
               state = bk; render();
               return turnos === 2 && /restaurada/i.test(aviso);
             })()`) === true);
+          check('C-02: lista reflete escrita e remoção externas (cache coerente)', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              mpBackupList(); // aquece a cache
+              localStorage.setItem('mp_backup_v8_2', JSON.stringify({ at: new Date().toISOString(),
+                state: { shifts: [{ id: 'e1' }], expenses: [], maintenance: [] } }));
+              const comCopia = mpBackupList().map(b => b.slot).join(',');
+              localStorage.removeItem('mp_backup_v8_2');
+              const semCopia = mpBackupList().length;
+              return comCopia === '2' && semCopia === 0;
+            })()`) === true);
           check('C-02: backup nunca altera o estado atual', w2.eval(`
             (() => {
               const antes = JSON.stringify(state.shifts);
