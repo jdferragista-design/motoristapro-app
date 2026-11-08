@@ -549,7 +549,6 @@ function installmentRemainingC(p) {
 
 function saveInstallment(e) {
   if (e && typeof e.preventDefault === 'function') e.preventDefault();
-  const id = editingInstallmentId;
   const payload = {
     nome: document.getElementById('parNameInput').value.trim(),
     valorTotal: parseVal(document.getElementById('parTotalInput').value),
@@ -558,13 +557,29 @@ function saveInstallment(e) {
     competenciaInicio: document.getElementById('parStartInput').value || getTodayString().slice(0, 7),
     diaVencimento: parseInt(document.getElementById('parDayInput').value, 10) || 10
   };
+  if (!saveInstallmentFromValues(payload)) return;
+  editingInstallmentId = null;
+  saveState();
+  closeModal('modalInstallment');
+}
+
+// Lógica pura (sem DOM) — validável em teste. Devolve true se gravou.
+function saveInstallmentFromValues(payload) {
   if (!payload.nome || !(payload.valorTotal > 0)) {
     alert('Informe o nome e o valor total da compra.');
-    return;
+    return false;
   }
   if (payload.numParcelas < 1 || payload.numParcelas > 60) {
     alert('O número de parcelas deve ficar entre 1 e 60.');
-    return;
+    return false;
+  }
+  const id = editingInstallmentId;
+  const colisao = findNameCollision(payload.nome, id != null ? { tipo: 'installment', id } : null);
+  if (colisao) {
+    alert(`"${payload.nome}" já está cadastrada como ${colisao.tipo === 'recurring' ? 'despesa fixa' : 'outra compra parcelada'}.\n\n` +
+      'A mesma despesa nos dois lugares seria contada duas vezes. ' +
+      'Se for uma prestação que termina, cadastre só como compra parcelada.');
+    return false;
   }
 
   if (id != null) {
@@ -585,8 +600,7 @@ function saveInstallment(e) {
 
   editingInstallmentId = null;
   syncInstallmentExpenses();
-  saveState();
-  closeModal('modalInstallment');
+  return true;
 }
 
 function deleteInstallment(id) {
@@ -681,9 +695,37 @@ function isPresetAdded(key) {
 
 // Cadastra o modelo já com os valores reais. A competência inicial é o mês
 // corrente: o histórico anterior continua sendo o que o usuário digitou.
+
+// A mesma despesa não pode existir como FIXA e como PARCELADA ao mesmo tempo —
+// era exatamente a dupla contagem que o diagnóstico apontou como erro caro.
+// Retorna o que já existe com nome equivalente ('recurring' | 'installment' | null).
+function findNameCollision(nome, ignorar) {
+  const alvo = normalizeTitleForMatch(nome).join(' ');
+  if (!alvo) return null;
+  const match = (outro, tipo, id) => {
+    if (ignorar && ignorar.tipo === tipo && ignorar.id === id) return false;
+    const n = normalizeTitleForMatch(outro.nome).join(' ');
+    if (!n) return false;
+    // igual, ou um contém o outro ("Prestação" x "Prestação do carro")
+    return n === alvo || n.includes(alvo) || alvo.includes(n);
+  };
+  const rec = (state.recurring || []).find(r => match(r, 'recurring', r.id));
+  if (rec) return { tipo: 'recurring', item: rec };
+  const par = (state.installments || []).find(p => match(p, 'installment', p.id));
+  if (par) return { tipo: 'installment', item: par };
+  return null;
+}
+
 function addRecurringPreset(key) {
   const p = getRecurringPreset(key);
   if (!p || isPresetAdded(key)) return false;
+  const col = findNameCollision(p.nome);
+  if (col) {
+    alert(`"${p.nome}" já está cadastrada como ${col.tipo === 'recurring' ? 'despesa fixa' : 'compra parcelada'}.\n\n` +
+      'Cadastrar nos dois lugares contaria o mesmo gasto duas vezes. ' +
+      'Exclua de um dos lados antes de adicionar aqui.');
+    return false;
+  }
   state.recurring = state.recurring || [];
   state.recurring.push({
     id: uid(),

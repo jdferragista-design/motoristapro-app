@@ -227,6 +227,25 @@ server.listen(0, '127.0.0.1', () => {
           check('preset usa o valor real do usuário (3.147,57)',
             w2.eval("state.recurring.find(r=>r.nome==='Prestação do carro').valor") === 3147.57);
 
+          // ---------- Guarda contra dupla contagem fixa x parcelada ----------
+          check('não deixa a mesma despesa ser fixa e parcelada ao mesmo tempo',
+            w2.eval(`(() => {
+              const alertas = [];
+              const alertOriginal = window.alert;
+              window.alert = (m) => alertas.push(m);
+              state.recurring = []; state.installments = []; state.expenses = [];
+              addRecurringPreset('prestacao');                    // ok
+              const antes = state.recurring.length;
+              // tenta cadastrar a MESMA prestação como parcelada
+              const criou = saveInstallmentFromValues({
+                nome: 'Prestação do carro', valorTotal: 188854.20, numParcelas: 60,
+                categoria: 'fixo', competenciaInicio: '2025-10', diaVencimento: 5
+              });
+              window.alert = alertOriginal;
+              return antes === 1 && criou === false && alertas.length === 1
+                && (state.installments || []).length === 0;
+            })()`) === true);
+
           // ---------- Lançamentos órfãos não ficam no histórico ----------
           check('excluir a origem apaga os lançamentos gerados',
             w2.eval(`(() => {
