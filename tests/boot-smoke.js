@@ -259,6 +259,23 @@ server.listen(0, '127.0.0.1', () => {
               return antes > 0 && removidos === antes && state.expenses.length === 0;
             })()`) === true);
 
+          // ---------- Nomes de app: variantes não partem o histórico ----------
+          check('"99Pop / 99" vira "99Pop" na migração', w2.eval(`(() => {
+            const m = migrateState({ shifts: [{ date: '2026-05-01', apps: [
+              { name: '🚕 99Pop', gross: 100, trips: 2 },
+              { name: '🚕 99Pop / 99', gross: 50, trips: 1 }
+            ]}]});
+            const nomes = m.shifts[0].apps.map(a => a.name);
+            return nomes.length === 2 && nomes.every(n => n === '🚕 99Pop');
+          })()`) === true);
+          check('nomes fora do alias não são tocados', w2.eval(`(() => {
+            const m = migrateState({ shifts: [{ date: '2026-05-01', apps: [
+              { name: '🚗 Uber', gross: 10, trips: 1 },
+              { name: '🚙 InDrive', gross: 10, trips: 1 }
+            ]}]});
+            return m.shifts[0].apps.map(a => a.name).join('|') === '🚗 Uber|🚙 InDrive';
+          })()`) === true);
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();

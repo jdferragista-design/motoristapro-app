@@ -56,7 +56,7 @@ const defaultData = {
       period: 'Integral',
       apps: [
         { id: 'uber_3', appKey: 'uber', name: '🚗 Uber', gross: 295.00, trips: 13, tips: 10.00, badgeClass: 'badge-uber' },
-        { id: 'pop_3', appKey: 'pop', name: '🚕 99Pop / 99', gross: 75.00, trips: 4, tips: 0, badgeClass: 'badge-99' }
+        { id: 'pop_3', appKey: 'pop', name: '🚕 99Pop', gross: 75.00, trips: 4, tips: 0, badgeClass: 'badge-99' }
       ],
       km: 165.0,
       hours: 9.0,
@@ -173,10 +173,34 @@ function migrateState(s) {
     if (e.parcelaId === undefined) e.parcelaId = null;
     if (!e.competencia) e.competencia = String(e.date || '').slice(0, 7);
   });
+  // Nomes de app: unifica variações que partiram o histórico.
+  // Dados reais: '99Pop' 96x e '99Pop / 99' 1x → o relatório mostrava dois
+  // apps e o ticket médio da 99 ficava errado. A chave de agrupamento em
+  // appBreakdown() é o nome, então normalizar aqui conserta todo o passado.
+  // A chave é comparada sem emoji/símbolos: o nome real é "🚕 99Pop / 99"
+  // e comparar a string inteira nunca casava (o emoji entrava na chave).
+  const APP_NAME_ALIASES = { '99pop / 99': '🚕 99Pop', '99pop': '🚕 99Pop', '99': '🚕 99Pop' };
+  const appKey = raw => String(raw || '')
+    .replace(/[^\p{L}\p{N}\s/]/gu, '')   // remove emoji e símbolos, mantém letras/números/barra
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  const canonApp = raw => {
+    if (!raw) return raw;
+    return APP_NAME_ALIASES[appKey(raw)] || raw;
+  };
+  const shifts = Array.isArray(s && s.shifts) ? s.shifts : [];
+  shifts.forEach(sh => {
+    if (!sh) return;
+    const apps = Array.isArray(sh.apps) ? sh.apps
+      : (sh.apps && typeof sh.apps === 'object' ? Object.values(sh.apps) : []);
+    apps.forEach(a => { if (a && a.name) a.name = canonApp(a.name); });
+  });
+
   return {
     vehicle,
     fuelSettings: Object.assign({}, base.fuelSettings, (s && s.fuelSettings) || {}),
-    shifts: Array.isArray(s && s.shifts) ? s.shifts : [],
+    shifts,
     expenses,
     maintenance: Array.isArray(s && s.maintenance) ? s.maintenance : [],
     recurring: normalizeRecurring(s && s.recurring),
