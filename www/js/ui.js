@@ -105,10 +105,43 @@ function switchTab(tabId) {
 }
 
 
+// Ação do botão flutuante: o que o motorista faz todo dia é lançar turno.
+// Sem isto, registrar um turno a partir do painel exigia navegar até a aba.
+function fabAction() {
+  switchTab('shifts');
+  openCreateShiftModal();
+  // esconde o FAB enquanto o modal está aberto (evita sobreposição)
+  const fab = document.getElementById('fabNewShift');
+  if (fab) fab.style.display = 'none';
+}
+
 function openModal(id) {
   const modal = document.getElementById(id);
   if(modal) modal.classList.add('open');
 }
+
+// Reposiciona o FAB ao fechar qualquer modal — sem isto ele ficaria
+// escondido para sempre depois do primeiro turno lançado.
+(function watchModalsForFab() {
+  const restore = () => {
+    const fab = document.getElementById('fabNewShift');
+    if (!fab) return;
+    const algumAberto = document.querySelector('.modal-overlay.open');
+    fab.style.display = algumAberto ? 'none' : 'flex';
+  };
+  if (typeof MutationObserver === 'undefined') return;
+  const obs = new MutationObserver(restore);
+  const start = () => {
+    document.querySelectorAll('.modal-overlay').forEach(m =>
+      obs.observe(m, { attributes: true, attributeFilter: ['class'] }));
+    restore();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
 
 function closeModal(id) {
   const modal = document.getElementById(id);

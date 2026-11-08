@@ -672,14 +672,18 @@ function updateInstallmentPreview() {
 // (aferidas no backup de 08/11/2026): prestação, gol proteção, internet
 // bimestral e MEI. Os demais são os que faltam no histórico e costumam
 // ser esquecidos. Um toque cadastra; o valor fica editável.
+//
+// NÃO há modelo de "reserva de manutenção": o fundo de reserva por R$/km
+// já provisiona o desgaste. Somar os dois contaria o mesmo desgaste 2x —
+// exatamente o erro corrigido no P0 (provisão R$ 1.712 + manutenção real
+// R$ 1.924 para o mesmo desgaste).
 const RECURRING_PRESETS = [
   { key: 'prestacao', nome: 'Prestação do carro', valor: 3147.57, categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 5,  nota: 'parcela do financiamento' },
   { key: 'gol',       nome: 'Gol Proteção',        valor: 459.23,  categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 10, nota: 'seguro do veículo' },
   { key: 'internet',  nome: 'Internet',            valor: 123.71,  categoria: 'fixo',           periodicidade: 'bimestral',diaVencimento: 21, nota: 'vem a cada 2 meses' },
   { key: 'mei',       nome: 'MEI / DAS',           valor: 88.06,   categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 20, nota: 'guia mensal' },
   { key: 'celular',   nome: 'Celular / Dados',     valor: 79.90,   categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 15, nota: '' },
-  { key: 'ipva',      nome: 'IPVA + Licenciamento',valor: 1480.00, categoria: 'fixo',           periodicidade: 'anual',    diaVencimento: 10, nota: 'pago 1x por ano' },
-  { key: 'reserva',   nome: 'Reserva de manutenção',valor: 200.00, categoria: 'manutencao',     periodicidade: 'mensal',   diaVencimento: 1,  nota: 'dinheiro guardado para desgaste' }
+  { key: 'ipva',      nome: 'IPVA + Licenciamento',valor: 1480.00, categoria: 'fixo',           periodicidade: 'anual',    diaVencimento: 10, nota: 'pago 1x por ano' }
 ];
 
 function getRecurringPreset(key) {
