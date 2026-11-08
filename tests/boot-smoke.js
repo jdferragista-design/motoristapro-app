@@ -369,6 +369,142 @@ server.listen(0, '127.0.0.1', () => {
             return versoes.length > 5 && new Set(versoes).size === 1;
           })());
 
+          // ============================================================
+          // FASE 2 — C-01: manutenção inválida não pode derrubar o render
+          // ============================================================
+          check('C-01: migrateState normaliza manutenção sem interval', w2.eval(`
+            (() => {
+              const m = migrateState({ maintenance: [
+                { id: 1, name: 'X' },
+                { id: 2, name: 'Y', interval: null, lastKm: null },
+                { id: 3, name: 'Z', interval: '10000', lastKm: '5000' }
+              ]});
+              return m.maintenance.every(x =>
+                Number.isFinite(x.interval) && x.interval > 0 &&
+                Number.isFinite(x.lastKm) && x.lastKm >= 0 &&
+                typeof x.name === 'string');
+            })()`) === true);
+          check('C-01: manutenção inválida NÃO impede render()', w2.eval(`
+            (() => {
+              const bk = JSON.parse(JSON.stringify(state));
+              try {
+                state.maintenance.push({ id: 99, name: 'Sem interval' });
+                render();
+                return true;
+              } catch (e) {
+                return false;
+              } finally {
+                state = bk; render();
+              }
+            })()`) === true);
+          check('C-01: os outros blocos continuam a renderizar quando um falha', w2.eval(`
+            (() => {
+              const bk = JSON.parse(JSON.stringify(state));
+              try {
+                state.shifts.push({ id: 'quebrado', date: '2026-11-01', apps: [], km: 1, hours: 1, fuelCost: 0 });
+                state.maintenance.push({ id: 98, name: null, interval: undefined });
+                render();
+                // o painel tem de refletir o turno novo apesar da manutenção inválida
+                return document.getElementById('dashGross').innerText.length > 0;
+              } catch (e) { return false; }
+              finally { state = bk; render(); }
+            })()`) === true);
+
+          // ============================================================
+          // FASE 2 — M-04: falha de persistência não anuncia sucesso
+          // ============================================================
+          check('M-04: saveState devolve false quando a gravação falha', w2.eval(`
+            (() => {
+              // jsdom implementa Storage como Proxy: substituir setItem não tem
+              // efeito. O ponto de gravação (mpLocalSet) é a costura de teste.
+              const original = mpLocalSet;
+              mpLocalSet = () => { throw new Error('QuotaExceededError'); };
+              let ok;
+              try { ok = saveState(); } finally { mpLocalSet = original; }
+              return ok === false && lastPersistError !== null;
+            })()`) === true);
+          check('M-04: saveState devolve true no caminho normal', w2.eval(`
+            (() => { const ok = saveState();
+              return ok === true && lastPersistError === null; })()`) === true);
+          check('M-04: sync para nuvem NÃO é agendado após falha local', w2.eval(`
+            (() => {
+              let agendado = 0;
+              const orig = scheduleCloudSync;
+              scheduleCloudSync = () => { agendado++; };
+              const origSet = mpLocalSet;
+              mpLocalSet = () => { throw new Error('quota'); };
+              try { saveState(); } finally { mpLocalSet = origSet; scheduleCloudSync = orig; }
+              return agendado === 0;
+            })()`) === true);
+
+          // ============================================================
+          // FASE 2 — C-02: backup rotativo de 3 cópias
+          // ============================================================
+          check('C-02: rotação mantém exatamente 3 cópias', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              state.shifts = [{ id: 'a' }];
+              const r1 = mpBackupRotate();
+              state.shifts = [{ id: 'a' }, { id: 'b' }];
+              const r2 = mpBackupRotate();
+              state.shifts = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+              const r3 = mpBackupRotate();
+              state.shifts = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+              const r4 = mpBackupRotate();
+              const n = mpBackupList().length;
+              const slots = mpBackupList().map(b => b.slot).sort().join(',');
+              return r1.ok && r4.ok && n === 3 && slots === '1,2,3';
+            })()`) === true);
+          check('C-02: a cópia 1 é sempre a mais recente', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              state.shifts = [{ id: 'um' }]; mpBackupRotate();
+              state.shifts = [{ id: 'um' }, { id: 'dois' }]; mpBackupRotate();
+              const c1 = mpBackupList().find(b => b.slot === 1);
+              const c2 = mpBackupList().find(b => b.slot === 2);
+              return c1.stats.turnos === 2 && c2.stats.turnos === 1;
+            })()`) === true);
+          check('C-02: estado vazio não ocupa slot', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              const bk = JSON.parse(JSON.stringify(state));
+              state.shifts = []; state.expenses = []; state.maintenance = [];
+              const r = mpBackupRotate();
+              state = bk;
+              return r.ok === false && mpBackupList().length === 0;
+            })()`) === true);
+          check('C-02: restauro recupera o histórico e é reversível', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              const bk = JSON.parse(JSON.stringify(state));
+              state.shifts = [{ id: 'x1' }, { id: 'x2' }, { id: 'x3' }];
+              state.expenses = [{ id: 'e1', date: '2026-11-01', amount: 10, category: 'outros', title: 'x' }];
+              mpBackupRotate();
+              // simula perda: estado vazio
+              state.shifts = []; state.expenses = [];
+              const r = mpBackupRestore(1);
+              const recuperado = state.shifts.length;
+              // desfazer volta ao estado vazio guardado antes do restauro
+              const u = mpBackupUndoRestore();
+              const desfeito = state.shifts.length;
+              state = bk; render();
+              return r.ok === true && recuperado === 3 && u.ok === true && desfeito === 0;
+            })()`) === true);
+          check('C-02: restauro recusa cópia vazia', w2.eval(`
+            (() => {
+              localStorage.setItem('mp_backup_v8_1', JSON.stringify({ at: new Date().toISOString(),
+                state: { shifts: [], expenses: [], maintenance: [] } }));
+              const r = mpBackupRestore(1);
+              localStorage.removeItem('mp_backup_v8_1');
+              return r.ok === false && /vazia/.test(r.motivo);
+            })()`) === true);
+          check('C-02: backup nunca altera o estado atual', w2.eval(`
+            (() => {
+              const antes = JSON.stringify(state.shifts);
+              mpBackupRotate();
+              return JSON.stringify(state.shifts) === antes;
+            })()`) === true);
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();

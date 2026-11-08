@@ -140,6 +140,10 @@
         <button class="btn btn-primary btn-sm" onclick="promptInstallPWA()">Instalar</button>
       </div>
 
+      <!-- Aviso persistente de falha de gravação (M-04) -->
+      <div id="persistWarn" style="display:none; background:rgba(244,63,94,.15); border:1px solid rgba(244,63,94,.45);
+           color:#fb7185; border-radius:10px; padding:10px 12px; font-size:12px; font-weight:700; margin-bottom:10px;"></div>
+
       <!-- Seletor de Período do Painel -->
       <div class="period-switch" role="tablist" aria-label="Período do painel">
         <button class="period-btn" role="tab" aria-selected="false" onclick="setDashPeriod('day', this)">Hoje</button>
@@ -368,6 +372,21 @@
             Valores já preenchidos com os seus custos reais — dá para editar depois.
           </div>
         </div>
+      </div>
+
+      <!-- Cópias de segurança automáticas (C-02) -->
+      <div class="card" style="margin-top: 16px; border-color: rgba(52, 211, 153, 0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div>
+            <div class="card-title" style="margin:0;">🛟 Cópias de Segurança</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">
+              Até 3 cópias rotativas, criadas sozinhas quando há alterações. Seus dados atuais nunca são apagados por elas.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="onForceBackup()">+ Criar cópia agora</button>
+        </div>
+        <div id="backupMetaBox" style="margin-top:10px;font-size:12px;color:var(--text-muted);"></div>
+        <div id="backupListBox" style="margin-top:10px;"></div>
       </div>
 
       <!-- Compras parceladas -->
@@ -1272,6 +1291,7 @@
   <script src="js/utils.js?v=27"></script>
   <script src="js/charts.js?v=27"></script>
   <script src="js/data.js?v=27"></script>
+  <script src="js/backup.js?v=27"></script>
   <script src="js/domain.js?v=27"></script>
   <script src="js/ui.js?v=27"></script>
   <script src="js/render.js?v=27"></script>
