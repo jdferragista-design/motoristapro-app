@@ -276,6 +276,53 @@ server.listen(0, '127.0.0.1', () => {
             return m.shifts[0].apps.map(a => a.name).join('|') === '🚗 Uber|🚙 InDrive';
           })()`) === true);
 
+          // ---------- SYNC: as regras que evitam apagar histórico ----------
+          // Antes: if (String(row.updated_at) > lastSync) adotava a nuvem.
+          // Com lastSync '' (aparelho novo/reinstalado) isso é sempre verdade,
+          // então qualquer estado remoto — mesmo vazio — substituía o local.
+          check('timestamp vazio não é "mais novo" que nada', w2.eval(`
+            (() => {
+              const remoto = mpParseTime('2026-11-08T21:30:00+00:00');
+              const lastSync = mpParseTime(localStorage.getItem('nao_existe_xyz'));
+              return lastSync === null && (lastSync === null || remoto > lastSync) === true;
+            })()`) === true);
+          check('mpParseTime rejeita lixo (não trata como data)', w2.eval(`
+            mpParseTime('') === null && mpParseTime(null) === null &&
+            mpParseTime('banana') === null && mpParseTime('2026-11-08T00:00:00Z') > 0`) === true);
+
+          check('união por id não perde turnos de nenhum lado', w2.eval(`
+            (() => {
+              const local  = [{id:'a'},{id:'b'},{id:'c'}];
+              const remoto = [{id:'a'},{id:'d'}];
+              const r = mpMergeLists(local, remoto);
+              const ids = r.lista.map(x=>x.id).sort().join(',');
+              return ids === 'a,b,c,d' && r.recuperados === 2;
+            })()`) === true);
+
+          check('estado local NUNCA é substituído por nuvem vazia', w2.eval(`
+            (() => {
+              const local = { shifts: [{id:1},{id:2}], expenses: [], maintenance: [] };
+              const remotoVazio = { shifts: [], expenses: [], maintenance: [] };
+              // simula a decisão: !remotoTemDados && localTemDados -> push, não adota
+              return mpLocalHasData(local) === true && mpLocalHasData(remotoVazio) === false;
+            })()`) === true);
+
+          check('junção preserva o veículo com odómetro mais avançado', w2.eval(`
+            (() => {
+              const local  = { shifts: [], vehicle: { odometer: 115000 }, fuelSettings: { a: 1 } };
+              const remoto = { shifts: [], vehicle: { odometer: 100000 }, fuelSettings: { a: 2 } };
+              const r = mpMergeStates(local, remoto);
+              return r.estado.vehicle.odometer === 115000 && r.estado.fuelSettings.a === 1;
+            })()`) === true);
+
+          check('junção não duplica ids iguais', w2.eval(`
+            (() => {
+              const r = mpMergeStates(
+                { shifts: [{id:'x', gross: 10}] },
+                { shifts: [{id:'x', gross: 10}] });
+              return r.estado.shifts.length === 1 && r.recuperados === 0;
+            })()`) === true);
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();
