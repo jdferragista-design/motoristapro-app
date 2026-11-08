@@ -535,6 +535,22 @@ server.listen(0, '127.0.0.1', () => {
               const semCopia = mpBackupList().length;
               return comCopia === '2' && semCopia === 0;
             })()`) === true);
+          check('C-02: restauro falha de forma visível quando a gravação não passa', w2.eval(`
+            (() => {
+              ['1','2','3','pre_restore'].forEach(s => localStorage.removeItem('mp_backup_v8_' + s));
+              const bk = JSON.parse(JSON.stringify(state));
+              state.shifts = [{ id: 'r1' }];
+              onForceBackup();
+              state.shifts = [];
+              const original = mpLocalSet;
+              mpLocalSet = () => { throw new Error('quota'); };
+              let r;
+              try { r = mpBackupRestore(1); } finally { mpLocalSet = original; }
+              state = bk;
+              for (const s of ['1','2','3','pre_restore']) localStorage.removeItem('mp_backup_v8_' + s);
+              render();
+              return r.ok === false && /quota/.test(r.motivo);
+            })()`) === true);
           check('C-02: backup nunca altera o estado atual', w2.eval(`
             (() => {
               const antes = JSON.stringify(state.shifts);

@@ -159,8 +159,9 @@ function mpBackupMaybe(force) {
 }
 
 // ---------- restauro ----------
-// Só aplica se a cópia for válida E não representar uma perda grande face ao
-// estado atual. Devolve {ok, motivo, stats}.
+// Só aplica se a cópia for válida e tiver conteúdo. O estado atual é guardado
+// antes de ser substituído, para o restauro ser reversível. Devolve
+// {ok, motivo, stats}.
 function mpBackupRestore(slot) {
   const bk = mpBackupRead(slot);
   if (!bk) return { ok: false, motivo: 'cópia inexistente ou ilegível' };
@@ -187,7 +188,11 @@ function mpBackupRestore(slot) {
 
   state = migrado;
   try {
-    localStorage.setItem('mp_html_state_v8', JSON.stringify(state));
+    // Mesmo ponto de gravação de saveState() para que uma falha de quota
+    // durante o restauro seja detetável e não deixe memória e disco divergentes.
+    const gravar = typeof mpLocalSet === 'function'
+      ? mpLocalSet : (k, v) => localStorage.setItem(k, v);
+    gravar('mp_html_state_v8', JSON.stringify(state));
   } catch (e) {
     return { ok: false, motivo: 'não foi possível gravar o restauro (quota)' };
   }
