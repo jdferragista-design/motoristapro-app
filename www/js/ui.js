@@ -121,6 +121,46 @@ function toggleFuelFields() {
   const isFuel = (cat === 'combustivel');
   document.getElementById('fuelFieldsBox').style.display = isFuel ? 'grid' : 'none';
   document.getElementById('fuelTypeRow').style.display = isFuel ? 'block' : 'none';
+  // Parcelar só faz sentido em gasto único (não abastecimento, não edição)
+  const row = document.getElementById('installmentToggleRow');
+  if (row) {
+    const podeParcelar = !isFuel && editingExpenseId == null;
+    row.style.display = podeParcelar ? 'block' : 'none';
+    if (!podeParcelar && document.getElementById('expParcelarCheck')) {
+      document.getElementById('expParcelarCheck').checked = false;
+      toggleExpenseInstallmentFields();
+    }
+  }
+}
+
+// ---------- Parcelar dentro do modal de despesa ----------
+function toggleExpenseInstallmentFields() {
+  const check = document.getElementById('expParcelarCheck');
+  const box = document.getElementById('expInstallmentFields');
+  if (!check || !box) return;
+  const on = check.checked;
+  box.style.display = on ? 'block' : 'none';
+  if (on) {
+    const start = document.getElementById('expParcelaStart');
+    if (start && !start.value) start.value = (document.getElementById('expDate').value || getTodayString()).slice(0, 7);
+    updateExpenseInstallmentPreview();
+  }
+}
+
+function updateExpenseInstallmentPreview() {
+  const box = document.getElementById('expParcelaPreview');
+  if (!box) return;
+  const total = parseVal(document.getElementById('expAmount').value);
+  const n = Math.max(1, parseInt(document.getElementById('expParcelasInput').value, 10) || 1);
+  if (!(total > 0)) {
+    box.innerHTML = '<span style="color:var(--text-muted);">Digite o valor total acima.</span>';
+    return;
+  }
+  const baseC = parcelaCents(total, n);
+  const restoC = toC(total) - baseC * n;
+  box.innerHTML = `<strong style="color:#fff;font-size:14px;">${n}x de ${brlC(baseC)}</strong>` +
+    (restoC > 0 ? ` <span style="color:var(--text-muted);">(1ª de ${brlC(baseC + restoC)})</span>` : '') +
+    ` <span style="color:var(--text-muted);">• total ${brlC(toC(total))}</span>`;
 }
 
 
@@ -590,6 +630,31 @@ function saveExpense(e) {
     } else {
       state.fuelSettings.ethanolPrice = pricePerLiter;
     }
+  }
+
+  // Parcelado: o valor digitado é o TOTAL da compra; cada mês recebe uma parcela.
+  const parcelarCheck = document.getElementById('expParcelarCheck');
+  if (!editingExpenseId && parcelarCheck && parcelarCheck.checked) {
+    const n = Math.max(1, parseInt(document.getElementById('expParcelasInput').value, 10) || 1);
+    const inicio = document.getElementById('expParcelaStart').value || date.slice(0, 7);
+    state.installments = state.installments || [];
+    state.installments.push({
+      id: uid(),
+      nome: title,
+      valorTotal: amount,
+      numParcelas: Math.min(60, n),
+      categoria: cat,
+      competenciaInicio: inicio,
+      diaVencimento: Math.min(31, Math.max(1, parseInt(date.slice(8, 10), 10) || 10)),
+      ativo: true
+    });
+    syncInstallmentExpenses();
+    saveState();
+    closeModal('modalExpense');
+    editingExpenseId = null;
+    parcelarCheck.checked = false;
+    toggleExpenseInstallmentFields();
+    return; // a compra já gerou a 1ª parcela; não cria um lançamento solto
   }
 
   if (editingExpenseId) {

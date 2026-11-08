@@ -161,6 +161,85 @@ server.listen(0, '127.0.0.1', () => {
           check('meta aceita 0 (não reverte para 7.000)',
             w2.eval('state.vehicle.monthlyGoal') === 0);
 
+          // ---------- Compras parceladas (valor total ÷ N) ----------
+          check('parcela divide exato: 2.828,17 em 10x = 282,81 + 1ª com 7 centavos',
+            w2.eval('parcelaCents(2828.17, 10)') === 28281 &&
+            w2.eval('installmentAmountC({valorTotal:2828.17,numParcelas:10}, 1)') === 28288);
+          check('soma das parcelas bate exatamente com o total pago',
+            w2.eval(`(() => {
+              const p = {valorTotal: 2828.17, numParcelas: 10};
+              let s = 0;
+              for (let i = 1; i <= p.numParcelas; i++) s += installmentAmountC(p, i);
+              return s;
+            })()`) === 282817);
+          check('parcela única não inventa divisão',
+            w2.eval('installmentAmountC({valorTotal:500,numParcelas:1}, 1)') === 50000);
+
+          w2.eval(`state.installments = [{ id: 700, nome: 'Pneus', valorTotal: 2828.17,
+            numParcelas: 10, categoria: 'manutencao', competenciaInicio: '2026-01',
+            diaVencimento: 10, ativo: true }]; state.expenses = [];`);
+          const parCriadas = w2.eval('syncInstallmentExpenses()');
+          check('parcelada gera uma despesa por mês já vencido', parCriadas > 0, parCriadas);
+          check('sync de parcelas é idempotente',
+            w2.eval('syncInstallmentExpenses()') === 0);
+          // NOTA: dentro de template literal, \d viraria d — a regex precisa
+          // de quatro barras para chegar ao eval como \d.
+          check('cada parcela tem competência própria e numeração', w2.eval(`(() => {
+              const ps = state.expenses.filter(e => e.parcelaId === 700);
+              return ps.every(e => /^\\d{4}-\\d{2}$/.test(e.competencia) && e.parcelaNumero >= 1)
+                && new Set(ps.map(e => e.competencia)).size === ps.length;
+            })()`) === true);
+          check('parcela não é lançada em mês futuro',
+            w2.eval(`state.expenses.filter(e => e.parcelaId === 700)
+              .every(e => e.competencia <= getTodayString().slice(0,7))`) === true);
+
+          // Reconciliação: parcelas já lançadas à mão NÃO são duplicadas.
+          // Cenário real do usuário: pneus R$ 2.828,17 em 10x de 282,82,
+          // já lançados um a um em jul..nov.
+          check('parcelada reconcilia o que já foi digitado à mão', w2.eval(`(() => {
+            const manuais = [
+              { id: 'm1', date: '2026-07-10', competencia: '2026-07', category: 'manutencao', title: 'Pneus 1/10', amount: 282.82 },
+              { id: 'm2', date: '2026-08-10', competencia: '2026-08', category: 'manutencao', title: 'Pneus 2/10', amount: 282.82 },
+              { id: 'm3', date: '2026-09-10', competencia: '2026-09', category: 'manutencao', title: 'Pneus 3/10', amount: 282.82 }
+            ];
+            state.expenses = manuais.slice();
+            state.installments = [{ id: 800, nome: 'Pneus', valorTotal: 2828.17,
+              numParcelas: 10, categoria: 'manutencao', competenciaInicio: '2026-07',
+              diaVencimento: 10, ativo: true }];
+            syncInstallmentExpenses();
+            const doMesmo = (ym) => state.expenses.filter(e => e.competencia === ym).length;
+            const manual = (id) => state.expenses.find(e => e.id === id);
+            // jul/ago/set continuam com 1 lançamento cada: o manual, agora vinculado
+            return doMesmo('2026-07') === 1 && doMesmo('2026-08') === 1 && doMesmo('2026-09') === 1
+              && manual('m1').parcelaId === 800 && manual('m1').parcelaNumero === 1
+              && manual('m2').parcelaNumero === 2 && manual('m3').parcelaNumero === 3
+              && state.expenses.filter(e => e.id === 'm1' || e.id === 'm2' || e.id === 'm3').length === 3;
+          })()`) === true);
+
+          // ---------- Modelos pré-cadastrados ----------
+          check('preset não duplica: cadastrar prestação 2x cria 1',
+            w2.eval(`(() => {
+              state.recurring = []; state.expenses = [];
+              addRecurringPreset('prestacao');
+              addRecurringPreset('prestacao');
+              return state.recurring.length;
+            })()`) === 1);
+          check('preset usa o valor real do usuário (3.147,57)',
+            w2.eval("state.recurring.find(r=>r.nome==='Prestação do carro').valor") === 3147.57);
+
+          // ---------- Lançamentos órfãos não ficam no histórico ----------
+          check('excluir a origem apaga os lançamentos gerados',
+            w2.eval(`(() => {
+              state.recurring = [{ id: 900, nome: 'Teste', valor: 100,
+                categoria: 'fixo', periodicidade: 'mensal', diaVencimento: 1,
+                competenciaInicio: '2026-01', ativo: true }];
+              state.expenses = []; syncRecurringExpenses();
+              const antes = state.expenses.length;
+              state.recurring = [];
+              const removidos = pruneOrphanGeneratedExpenses();
+              return antes > 0 && removidos === antes && state.expenses.length === 0;
+            })()`) === true);
+
           check('sem erros de runtime', errors.length === 0, errors.length ? errors.slice(0, 5) : 'nenhum');
 
           server.close();

@@ -357,6 +357,31 @@
         </div>
         <div id="recurringTotalBox" style="margin-top: 10px; font-size: 12px; color: var(--text-muted);"></div>
         <div id="recurringListContainer" style="margin-top: 10px;"></div>
+
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-sub);">
+          <div style="font-size: 11px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+            Cadastrar com 1 toque
+          </div>
+          <div id="recurringPresetsContainer" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">
+            Valores já preenchidos com os seus custos reais — dá para editar depois.
+          </div>
+        </div>
+      </div>
+
+      <!-- Compras parceladas -->
+      <div class="card" style="margin-top: 16px; border-color: rgba(129, 140, 248, 0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div>
+            <div class="card-title" style="margin: 0;">🧾 Compras Parceladas</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+              Lança o valor total e divide. O app cria uma parcela por mês — pneus, óleo, cartão.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateInstallmentModal()">+ Nova Compra</button>
+        </div>
+        <div id="installmentTotalBox" style="margin-top: 10px; font-size: 12px; color: var(--text-muted);"></div>
+        <div id="installmentListContainer" style="margin-top: 10px;"></div>
       </div>
     </div>
 
@@ -941,6 +966,31 @@
             <input type="text" id="expTitle" class="form-control" placeholder="Ex: Abastecimento Etanol Posto Shell" required />
           </div>
 
+          <!-- Parcelamento: digitar o total e dividir, sem criar 10 despesas -->
+          <div class="form-group" id="installmentToggleRow" style="display: none;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+                          background: rgba(129,140,248,0.10); border: 1px solid rgba(129,140,248,0.3);
+                          padding: 10px 12px; border-radius: 10px; cursor: pointer;">
+              <input type="checkbox" id="expParcelarCheck" onchange="toggleExpenseInstallmentFields()" />
+              <span>🧾 Compra parcelada — dividir este valor</span>
+            </label>
+            <div id="expInstallmentFields" style="display: none; margin-top: 10px;">
+              <div class="grid grid-2">
+                <div class="form-group">
+                  <label class="form-label">Em quantas vezes?</label>
+                  <input type="number" inputmode="numeric" min="1" max="60" id="expParcelasInput"
+                         class="form-control" value="10" oninput="updateExpenseInstallmentPreview()" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">1ª parcela em</label>
+                  <input type="month" id="expParcelaStart" class="form-control" />
+                </div>
+              </div>
+              <div id="expParcelaPreview" style="background: rgba(129,140,248,0.10); border: 1px solid rgba(129,140,248,0.3);
+                   border-radius: 10px; padding: 10px; text-align: center; font-size: 12px;"></div>
+            </div>
+          </div>
+
           <div id="fuelFieldsBox" class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Litros Abastecidos</label>
@@ -1088,7 +1138,8 @@
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Valor (R$) *</label>
-              <input type="text" inputmode="decimal" id="recValueInput" class="form-control" placeholder="Ex: 3147,57" required />
+              <input type="text" inputmode="decimal" id="recValueInput" class="form-control" placeholder="Ex: 3.147,57"
+                     oninput="maskCents(this); if (typeof updateRecurringPreview === 'function') updateRecurringPreview();" required />
             </div>
             <div class="form-group">
               <label class="form-label">Categoria</label>
@@ -1106,7 +1157,7 @@
           <div class="grid grid-2">
             <div class="form-group">
               <label class="form-label">Periodicidade</label>
-              <select id="recPeriodSelect" class="form-control">
+              <select id="recPeriodSelect" class="form-control" onchange="updateRecurringPreview()">
                 <option value="mensal">Mensal</option>
                 <option value="bimestral">Bimestral</option>
                 <option value="trimestral">Trimestral</option>
@@ -1119,6 +1170,9 @@
               <input type="number" inputmode="numeric" min="1" max="31" id="recDayInput" class="form-control" value="5" />
             </div>
           </div>
+          <div id="recPreviewBox" style="background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.3);
+               border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; margin-bottom: 14px;"></div>
+
           <div class="form-group">
             <label class="form-label">A partir de (mês)</label>
             <input type="month" id="recStartInput" class="form-control" />
@@ -1130,6 +1184,69 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalRecurring')">Cancelar</button>
           <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Despesa Fixa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: COMPRA PARCELADA -->
+  <div class="modal-overlay" id="modalInstallment">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="font-size: 15px; font-weight: 800;" id="modalInstallmentTitle">Nova Compra Parcelada</div>
+        <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modalInstallment')">✕</button>
+      </div>
+      <form onsubmit="saveInstallment(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">O que você comprou? *</label>
+            <input type="text" id="parNameInput" class="form-control" placeholder="Ex: Pneus, Óleo e filtros, Celular novo" required />
+          </div>
+
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Valor Total (R$) *</label>
+              <input type="text" inputmode="decimal" id="parTotalInput" class="form-control"
+                     placeholder="Ex: 2.828,17" required oninput="maskCents(this); updateInstallmentPreview()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Em quantas vezes?</label>
+              <input type="number" inputmode="numeric" min="1" max="60" id="parCountInput"
+                     class="form-control" value="10" oninput="updateInstallmentPreview()" />
+            </div>
+          </div>
+
+          <div id="parPreviewBox" style="background: rgba(129,140,248,0.10); border: 1px solid rgba(129,140,248,0.3);
+               border-radius: 10px; padding: 12px; text-align: center; margin-bottom: 14px;"></div>
+
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Categoria</label>
+              <select id="parCatSelect" class="form-control">
+                <option value="manutencao">🔧 Manutenção e Peças</option>
+                <option value="fixo">🛡️ Custo Fixo</option>
+                <option value="combustivel">⛽ Combustível</option>
+                <option value="outros">📦 Outros</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dia do Vencimento</label>
+              <input type="number" inputmode="numeric" min="1" max="31" id="parDayInput"
+                     class="form-control" value="10" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">1ª parcela em (mês)</label>
+            <input type="month" id="parStartInput" class="form-control" />
+            <div style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">
+              O app lança uma parcela por mês a partir daqui. Parcelas de meses futuros não entram no resultado até vencerem.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" style="flex:1;" onclick="closeModal('modalInstallment')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Compra</button>
         </div>
       </form>
     </div>

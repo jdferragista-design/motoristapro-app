@@ -589,6 +589,8 @@ function renderExpensesList() {
   document.getElementById('expAvgPrice').innerText = liters > 0 ? `${brlC(Math.round(fuelExpC / liters))}/L` : 'R$ 0,00/L';
 
   renderRecurringList();
+  renderRecurringPresets();
+  renderInstallmentList();
 
   // Média REAL do carro: Δodômetro ÷ litros entre os 2 últimos abastecimentos com odômetro
   const kmlBox = document.getElementById('realKmlBox');
@@ -1299,4 +1301,88 @@ function renderChartsView() {
   const step = isMonthly ? 1 : Math.max(1, Math.ceil(points.length / 9));
   labelsEl.innerHTML = points.map((p, i) =>
     `<span>${!isMonthly && i % step !== step - 1 && i !== points.length - 1 ? '' : p.label}</span>`).join('');
+}
+
+// ---------- Chips de despesa fixa pré-cadastrada ----------
+function renderRecurringPresets() {
+  const box = document.getElementById('recurringPresetsContainer');
+  if (!box) return;
+  box.innerHTML = RECURRING_PRESETS.map(p => {
+    const added = isPresetAdded(p.key);
+    const mensalC = toC(p.valor) / (PERIODICIDADE_MESES[p.periodicidade] || 1);
+    const label = p.periodicidade === 'mensal'
+      ? brlC(toC(p.valor))
+      : `${brlC(toC(p.valor))} ${p.periodicidade.slice(0, 3)} (${brlC(Math.round(mensalC))}/mês)`;
+    const style = added
+      ? 'background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.45); color: #34d399;'
+      : 'background: rgba(255,255,255,0.04); border: 1px dashed var(--border-sub); color: var(--text);';
+    return `<button type="button" onclick="onPresetClick('${p.key}')" ${added ? 'disabled' : ''}
+      style="${style} border-radius: 999px; padding: 7px 12px; font-size: 11px; font-weight: 700; cursor: ${added ? 'default' : 'pointer'};">
+      ${added ? '✓' : '+'} ${esc(p.nome)} <span style="opacity:0.75;font-weight:600;">${label}</span>
+    </button>`;
+  }).join('');
+}
+
+function onPresetClick(key) {
+  const p = getRecurringPreset(key);
+  if (!p) return;
+  if (isPresetAdded(key)) return;
+  const msg = `Cadastrar "${p.nome}" como despesa fixa?\n\n` +
+    `Valor: ${brlC(toC(p.valor))} (${PERIODICIDADE_LABELS[p.periodicidade]})\n` +
+    `Vencimento: dia ${p.diaVencimento}\n\n` +
+    `Você pode ajustar o valor depois.`;
+  if (!confirm(msg)) return;
+  addRecurringPreset(key);
+  render();
+}
+
+// ---------- Compras parceladas ----------
+function renderInstallmentList() {
+  const box = document.getElementById('installmentListContainer');
+  const totalBox = document.getElementById('installmentTotalBox');
+  if (!box || !totalBox) return;
+
+  const list = state.installments || [];
+
+  if (list.length === 0) {
+    box.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:18px;background:rgba(0,0,0,0.2);border-radius:10px;">Nenhuma compra parcelada.<br>Lance o valor total e divida — em vez de digitar a mesma despesa 10 vezes.</div>';
+    totalBox.innerHTML = '';
+    return;
+  }
+
+  // Comprometido por mês = soma das parcelas de todas as compras em aberto,
+  // normalizada por mês (a parcela já é mensal).
+  // Usa a parcela "típica" (base), não a 1ª — a 1ª absorve a sobra de centavos
+  // e inflaria o comprometimento mensal em alguns reais.
+  const porMesC = list.filter(p => !installmentFinished(p))
+    .reduce((a, p) => a + parcelaCents(p.valorTotal, p.numParcelas), 0);
+  const aPagarC = list.reduce((a, p) => a + installmentRemainingC(p), 0);
+
+  totalBox.innerHTML =
+    `Comprometido por mês: <strong style="color:#818cf8;">${brlC(porMesC)}</strong>` +
+    ` • ainda a pagar: <strong>${brlC(aPagarC)}</strong>`;
+
+  box.innerHTML = list.map(p => {
+    const pagas = (state.expenses || []).filter(e => e && e.parcelaId === p.id).length;
+    const acabou = installmentFinished(p);
+    const valorParcelaC = parcelaCents(p.valorTotal, p.numParcelas);
+    const off = p.ativo === false;
+    return `
+      <div class="list-item" style="opacity:${off ? '0.45' : '1'};display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div>
+          <strong style="font-size:13px;color:#fff;">${esc(p.nome)}</strong>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+            ${p.numParcelas}x de ${brlC(valorParcelaC)} = <strong>${brlC(toC(p.valorTotal))}</strong>
+            • ${pagas}/${p.numParcelas} pagas
+            ${acabou ? ' • <span style="color:#34d399;">quitada</span>' : ` • faltam ${brlC(installmentRemainingC(p))}`}
+            ${off ? ' • <span style="color:#fbbf24;">pausada</span>' : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm" onclick="openEditInstallmentModal(${p.id})">Editar</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleInstallment(${p.id})">${off ? 'Retomar' : 'Pausar'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteInstallment(${p.id})">Excluir</button>
+        </div>
+      </div>`;
+  }).join('');
 }

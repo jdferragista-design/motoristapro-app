@@ -30,6 +30,12 @@ wireCentsMasks();
 // — e nos dados reais ele esqueceu: R$ 609,14/mês fora do histórico.
 syncRecurringExpenses();
 
+// Mesma lógica para compras parceladas: uma parcela por mês até hoje.
+syncInstallmentExpenses();
+
+// Remove lançamentos cuja origem (fixa/parcelada) foi excluída.
+pruneOrphanGeneratedExpenses();
+
 render();
 
 calculateTripSim();

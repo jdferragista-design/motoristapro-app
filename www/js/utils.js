@@ -4,8 +4,13 @@
 function parseVal(val) {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   if (!val) return 0;
-  const clean = val.toString().replace(',', '.').trim();
-  const n = parseFloat(clean);
+  let s = val.toString().trim().replace(/[R$\s]/g, '');
+  // Formato brasileiro: "2.828,17" → o ponto é separador de milhar.
+  // Sem isto, colar "2.828,17" virava 2,828 (erro de 1000x).
+  if (s.includes(',')) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  }
+  const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
 

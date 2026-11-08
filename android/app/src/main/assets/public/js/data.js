@@ -130,6 +130,8 @@ let deferredPWAEvent = null;
 
 // Item de despesa fixa em edição (null = criando)
 let editingRecurringId = null;
+// Compra parcelada em edição (null = criando)
+let editingInstallmentId = null;
 
 logEvent('info', 'Estado inicial do app carregado', { version: APP_VERSION });
 
@@ -168,6 +170,7 @@ function migrateState(s) {
   expenses.forEach(e => {
     if (!e) return;
     if (e.recorrenteId === undefined) e.recorrenteId = null;
+    if (e.parcelaId === undefined) e.parcelaId = null;
     if (!e.competencia) e.competencia = String(e.date || '').slice(0, 7);
   });
   return {
@@ -176,7 +179,8 @@ function migrateState(s) {
     shifts: Array.isArray(s && s.shifts) ? s.shifts : [],
     expenses,
     maintenance: Array.isArray(s && s.maintenance) ? s.maintenance : [],
-    recurring: normalizeRecurring(s && s.recurring)
+    recurring: normalizeRecurring(s && s.recurring),
+    installments: normalizeInstallments(s && s.installments)
   };
 }
 
@@ -370,6 +374,7 @@ function openCreateRecurringModal() {
   document.getElementById('recPeriodSelect').value = 'mensal';
   document.getElementById('recDayInput').value = '5';
   document.getElementById('recStartInput').value = getTodayString().slice(0, 7);
+  updateRecurringPreview();
   openModal('modalRecurring');
 }
 
@@ -408,4 +413,322 @@ function getRateioAtividade() {
   const pct = Number(v.rateioAtividade);
   if (!(pct > 0)) return 1;
   return Math.min(1, Math.max(0.1, pct));
+}
+
+// ============================================================
+// DESPESAS PARCELADAS (compra no carnê / cartão)
+// ============================================================
+// O usuário lança o valor TOTAL e o número de parcelas; o app cria uma
+// despesa por mês de competência. É o mesmo dinheiro da parcela do carro
+// e dos pneus, mas agora sem digitar 10 vezes.
+
+function normalizeInstallments(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter(p => p && p.id != null).map(p => ({
+    id: p.id,
+    nome: String(p.nome || 'Compra parcelada'),
+    valorTotal: parseVal(p.valorTotal),
+    numParcelas: Math.max(1, parseInt(p.numParcelas, 10) || 1),
+    categoria: p.categoria || 'manutencao',
+    competenciaInicio: p.competenciaInicio || getTodayString().slice(0, 7),
+    diaVencimento: Math.min(31, Math.max(1, parseInt(p.diaVencimento, 10) || 10)),
+    ativo: p.ativo !== false
+  }));
+}
+
+function getInstallment(id) {
+  return (state.installments || []).find(p => p.id === id) || null;
+}
+
+// Valor de UMA parcela. O total é dividido e a sobra de centavos vai para a
+// primeira parcela, para que a soma bata exatamente com o valor pago.
+function parcelaCents(valorTotal, numParcelas) {
+  const totalC = toC(valorTotal);
+  const n = Math.max(1, numParcelas);
+  return Math.floor(totalC / n);
+}
+
+function installmentAmountC(p, numeroParcela) {
+  const n = Math.max(1, p.numParcelas);
+  const base = parcelaCents(p.valorTotal, n);
+  if (numeroParcela === 1) {
+    return base + (toC(p.valorTotal) - base * n); // absorve a diferença de centavos
+  }
+  return base;
+}
+
+// A compra já terminou de ser paga?
+function installmentFinished(p) {
+  if (!p || p.ativo === false) return true;
+  const today = getTodayString().slice(0, 7);
+  const [sy, sm] = String(p.competenciaInicio).split('-').map(Number);
+  const lastAbs = sy * 12 + (sm - 1) + (Math.max(1, p.numParcelas) - 1);
+  const lastYM = `${Math.floor(lastAbs / 12)}-${String((lastAbs % 12) + 1).padStart(2, '0')}`;
+  return today > lastYM;
+}
+
+// Materializa as parcelas que já venceram e ainda não existem.
+// Idempotente: cada parcela é marcada com parcelaId + parcelaNumero.
+// Uma despesa já digitada à mão corresponde a esta parcela?
+// Casa por mês de competência + valor aproximado + palavra em comum no título,
+// para que lançar "Pneus 2.828,17 em 10x" NÃO duplique as parcelas de 282,82
+// que o usuário já tinha lançado uma a uma.
+function expenseMatchesInstallment(expense, p, numero) {
+  if (!expense || !p) return false;
+  if (expense.parcelaId != null) return false;
+  if ((expense.category || '') !== (p.categoria || '')) return false;
+  const alvoC = installmentAmountC(p, numero);
+  const valorC = toC(expense.amount);
+  // tolerância de 2% — cobre arredondamento e pequena variação de parcela
+  if (Math.abs(valorC - alvoC) > Math.max(100, alvoC * 0.02)) return false;
+  const a = normalizeTitleForMatch(expense.title);
+  const b = normalizeTitleForMatch(p.nome);
+  if (!a.length || !b.length) return false;
+  const setB = new Set(b);
+  return a.some(t => setB.has(t));
+}
+
+function syncInstallmentExpenses() {
+  if (!Array.isArray(state.installments) || state.installments.length === 0) return 0;
+  let created = 0;
+  let linked = 0;
+  const today = getTodayString();
+  const todayYM = today.slice(0, 7);
+  const todayDay = Number(today.slice(8, 10));
+
+  state.installments.forEach(p => {
+    if (!p || p.ativo === false || !(p.valorTotal > 0)) return;
+    const [sy, sm] = String(p.competenciaInicio || '').split('-').map(Number);
+    if (!sy || !sm) return;
+
+    for (let i = 0; i < p.numParcelas; i++) {
+      const abs = sy * 12 + (sm - 1) + i;
+      const ym = `${Math.floor(abs / 12)}-${String((abs % 12) + 1).padStart(2, '0')}`;
+      if (ym > todayYM) break; // ainda não chegou o mês
+      if (state.expenses.some(e => e && e.parcelaId === p.id && e.parcelaNumero === i + 1)) continue;
+      // reconciliação: vincula o que já foi lançado à mão em vez de duplicar
+      const jaLancado = state.expenses.find(e =>
+        e && e.competencia === ym && expenseMatchesInstallment(e, p, i + 1));
+      if (jaLancado) {
+        jaLancado.parcelaId = p.id;
+        jaLancado.parcelaNumero = i + 1;
+        linked++;
+        continue;
+      }
+      // mês corrente: só lança depois do vencimento
+      if (ym === todayYM && todayDay < p.diaVencimento) continue;
+
+      const lastDay = new Date(Math.floor(abs / 12), (abs % 12) + 1, 0).getDate();
+      const day = Math.min(p.diaVencimento, lastDay);
+      const valorC = installmentAmountC(p, i + 1);
+      state.expenses.push({
+        id: uid(),
+        date: `${ym}-${String(day).padStart(2, '0')}`,
+        competencia: ym,
+        category: p.categoria,
+        title: `${p.nome} ${i + 1}/${p.numParcelas}`,
+        amount: valorC / 100,
+        parcelaId: p.id,
+        parcelaNumero: i + 1
+      });
+      created++;
+    }
+  });
+  if (created || linked) {
+    logEvent('info', 'Parcelas conciliadas', { criadas: created, vinculadas: linked });
+  }
+  return created;
+}
+
+// Quanto ainda falta pagar desta compra (parcelas futuras).
+function installmentRemainingC(p) {
+  const pagas = (state.expenses || []).filter(e => e && e.parcelaId === p.id).length;
+  const restantes = Math.max(0, p.numParcelas - pagas);
+  return installmentAmountC(p, p.numParcelas) * restantes;
+}
+
+function saveInstallment(e) {
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+  const id = editingInstallmentId;
+  const payload = {
+    nome: document.getElementById('parNameInput').value.trim(),
+    valorTotal: parseVal(document.getElementById('parTotalInput').value),
+    numParcelas: parseInt(document.getElementById('parCountInput').value, 10) || 1,
+    categoria: document.getElementById('parCatSelect').value,
+    competenciaInicio: document.getElementById('parStartInput').value || getTodayString().slice(0, 7),
+    diaVencimento: parseInt(document.getElementById('parDayInput').value, 10) || 10
+  };
+  if (!payload.nome || !(payload.valorTotal > 0)) {
+    alert('Informe o nome e o valor total da compra.');
+    return;
+  }
+  if (payload.numParcelas < 1 || payload.numParcelas > 60) {
+    alert('O número de parcelas deve ficar entre 1 e 60.');
+    return;
+  }
+
+  if (id != null) {
+    const cur = getInstallment(id);
+    Object.assign(cur, payload);
+    // parcelas futuras que já existiam precisam refletir o novo valor
+    (state.expenses || []).forEach(exp => {
+      if (exp.parcelaId === id) {
+        exp.amount = installmentAmountC(cur, exp.parcelaNumero) / 100;
+        exp.title = `${cur.nome} ${exp.parcelaNumero}/${cur.numParcelas}`;
+        exp.category = cur.categoria;
+      }
+    });
+  } else {
+    state.installments = state.installments || [];
+    state.installments.push(Object.assign({ id: uid(), ativo: true }, payload));
+  }
+
+  editingInstallmentId = null;
+  syncInstallmentExpenses();
+  saveState();
+  closeModal('modalInstallment');
+}
+
+function deleteInstallment(id) {
+  if (!confirm('Excluir esta compra parcelada e os lançamentos que ela criou?')) return;
+  state.installments = (state.installments || []).filter(p => p.id !== id);
+  state.expenses = (state.expenses || []).filter(e => e.parcelaId !== id);
+  saveState();
+}
+
+function toggleInstallment(id) {
+  const p = getInstallment(id);
+  if (!p) return;
+  p.ativo = p.ativo === false;
+  if (p.ativo) syncInstallmentExpenses();
+  saveState();
+}
+
+function openCreateInstallmentModal() {
+  editingInstallmentId = null;
+  document.getElementById('modalInstallmentTitle').innerText = 'Nova Compra Parcelada';
+  document.getElementById('parNameInput').value = '';
+  document.getElementById('parTotalInput').value = '';
+  document.getElementById('parCountInput').value = '10';
+  document.getElementById('parCatSelect').value = 'manutencao';
+  document.getElementById('parStartInput').value = getTodayString().slice(0, 7);
+  document.getElementById('parDayInput').value = '10';
+  updateInstallmentPreview();
+  openModal('modalInstallment');
+}
+
+function openEditInstallmentModal(id) {
+  const p = getInstallment(id);
+  if (!p) return;
+  editingInstallmentId = id;
+  document.getElementById('modalInstallmentTitle').innerText = 'Editar Compra Parcelada';
+  document.getElementById('parNameInput').value = p.nome;
+  document.getElementById('parTotalInput').value = String(p.valorTotal).replace('.', ',');
+  document.getElementById('parCountInput').value = String(p.numParcelas);
+  document.getElementById('parCatSelect').value = p.categoria;
+  document.getElementById('parStartInput').value = p.competenciaInicio;
+  document.getElementById('parDayInput').value = String(p.diaVencimento);
+  updateInstallmentPreview();
+  openModal('modalInstallment');
+}
+
+// Mostra "10x de R$ 282,82" antes de salvar — evita o usuário descobrir
+// o valor da parcela só depois de lançar.
+function updateInstallmentPreview() {
+  const box = document.getElementById('parPreviewBox');
+  if (!box) return;
+  const total = parseVal(document.getElementById('parTotalInput').value);
+  const n = Math.max(1, parseInt(document.getElementById('parCountInput').value, 10) || 1);
+  if (!(total > 0)) {
+    box.innerHTML = '<span style="color:var(--text-muted);">Digite o valor total para ver a parcela.</span>';
+    return;
+  }
+  const baseC = parcelaCents(total, n);
+  const restoC = toC(total) - baseC * n;
+  box.innerHTML =
+    `<strong style="color:#fff;font-size:14px;">${n}x de ${brlC(baseC)}</strong>` +
+    (restoC > 0 ? ` <span style="color:var(--text-muted);">(1ª de ${brlC(baseC + restoC)})</span>` : '') +
+    ` <span style="color:var(--text-muted);">• total ${brlC(toC(total))}</span>`;
+}
+
+// ============================================================
+// MODELOS PRÉ-CADASTRADOS DE DESPESA FIXA
+// ============================================================
+// Os 4 primeiros são exatamente as despesas fixas reais do usuário
+// (aferidas no backup de 08/11/2026): prestação, gol proteção, internet
+// bimestral e MEI. Os demais são os que faltam no histórico e costumam
+// ser esquecidos. Um toque cadastra; o valor fica editável.
+const RECURRING_PRESETS = [
+  { key: 'prestacao', nome: 'Prestação do carro', valor: 3147.57, categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 5,  nota: 'parcela do financiamento' },
+  { key: 'gol',       nome: 'Gol Proteção',        valor: 459.23,  categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 10, nota: 'seguro do veículo' },
+  { key: 'internet',  nome: 'Internet',            valor: 123.71,  categoria: 'fixo',           periodicidade: 'bimestral',diaVencimento: 21, nota: 'vem a cada 2 meses' },
+  { key: 'mei',       nome: 'MEI / DAS',           valor: 88.06,   categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 20, nota: 'guia mensal' },
+  { key: 'celular',   nome: 'Celular / Dados',     valor: 79.90,   categoria: 'fixo',           periodicidade: 'mensal',   diaVencimento: 15, nota: '' },
+  { key: 'ipva',      nome: 'IPVA + Licenciamento',valor: 1480.00, categoria: 'fixo',           periodicidade: 'anual',    diaVencimento: 10, nota: 'pago 1x por ano' },
+  { key: 'reserva',   nome: 'Reserva de manutenção',valor: 200.00, categoria: 'manutencao',     periodicidade: 'mensal',   diaVencimento: 1,  nota: 'dinheiro guardado para desgaste' }
+];
+
+function getRecurringPreset(key) {
+  return RECURRING_PRESETS.find(p => p.key === key) || null;
+}
+
+function isPresetAdded(key) {
+  const p = getRecurringPreset(key);
+  if (!p) return false;
+  return (state.recurring || []).some(r =>
+    normalizeTitleForMatch(r.nome).join(' ') === normalizeTitleForMatch(p.nome).join(' '));
+}
+
+// Cadastra o modelo já com os valores reais. A competência inicial é o mês
+// corrente: o histórico anterior continua sendo o que o usuário digitou.
+function addRecurringPreset(key) {
+  const p = getRecurringPreset(key);
+  if (!p || isPresetAdded(key)) return false;
+  state.recurring = state.recurring || [];
+  state.recurring.push({
+    id: uid(),
+    nome: p.nome,
+    valor: p.valor,
+    categoria: p.categoria,
+    periodicidade: p.periodicidade,
+    diaVencimento: p.diaVencimento,
+    competenciaInicio: getTodayString().slice(0, 7),
+    ativo: true
+  });
+  syncRecurringExpenses();
+  saveState();
+  return true;
+}
+
+// Remove os lançamentos que a recorrência/parcelamento criou e cuja origem
+// foi apagada — sem isso eles viram fantasmas no histórico.
+function pruneOrphanGeneratedExpenses() {
+  const antes = (state.expenses || []).length;
+  const recIds = new Set((state.recurring || []).map(r => r.id));
+  const parIds = new Set((state.installments || []).map(p => p.id));
+  state.expenses = (state.expenses || []).filter(e => {
+    if (!e) return false;
+    if (e.recorrenteId != null && !recIds.has(e.recorrenteId)) return false;
+    if (e.parcelaId != null && !parIds.has(e.parcelaId)) return false;
+    return true;
+  });
+  return antes - state.expenses.length;
+}
+
+// Prévia do custo mensal no modal de despesa fixa — mostra "R$ 123,71 bimestral
+// = R$ 61,86/mês" antes de salvar, porque é o número que entra na sobra real.
+function updateRecurringPreview() {
+  const box = document.getElementById('recPreviewBox');
+  if (!box) return;
+  const valor = parseVal(document.getElementById('recValueInput').value);
+  const per = document.getElementById('recPeriodSelect').value;
+  const meses = PERIODICIDADE_MESES[per] || 1;
+  if (!(valor > 0)) {
+    box.innerHTML = '<span style="color:var(--text-muted);">Digite o valor para ver o custo mensal.</span>';
+    return;
+  }
+  const mensalC = Math.round(toC(valor) / meses);
+  box.innerHTML = meses > 1
+    ? `<strong style="color:#fff;">${brlC(toC(valor))} ${PERIODICIDADE_LABELS[per].toLowerCase()}</strong> = <strong style="color:#fbbf24;">${brlC(mensalC)}/mês</strong> no custo fixo`
+    : `<strong style="color:#fff;">${brlC(toC(valor))}/mês</strong> no custo fixo`;
 }
