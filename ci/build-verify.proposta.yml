@@ -1,0 +1,77 @@
+# PROPOSTA — workflow com verificação do APK. NÃO é lido pelo Actions neste local.
+#
+# O que muda vs .github/workflows/build.yml atual: +1 step "Verificar APK" que
+# imprime no log: package/versionCode/versionName (aapt), SHA-256 do certificado
+# (apksigner, prova que a assinatura persistente funcionou) e o relatório do
+# scripts/verify-apk.js (projeto Supabase correto, sem chaves secretas).
+# Se a verificação falhar, o run falha ANTES de publicar o artefato.
+#
+# Como aplicar (1 min, pela interface do GitHub — o token desta sessão não tem
+# a permissão `workflows` para atualizar o ficheiro via push):
+#   1. No GitHub: motoristapro-app > .github/workflows/build.yml > ✏️ Edit
+#   2. Substituir o conteúdo inteiro por este ficheiro (da linha "name:" em diante)
+#   3. Commit diretamente na branch desejada
+#
+# Como alternativa, qualquer token com permissão `workflows` pode fazer:
+#   cp ci/build-verify.proposta.yml .github/workflows/build.yml && git commit && git push
+
+name: Gerar APK do MotoristaPro
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Baixar Repositorio
+      uses: actions/checkout@v4
+
+    - name: Configurar Java 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: 21
+
+    - name: Configurar Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
+
+    - name: Configurar Android SDK
+      uses: android-actions/setup-android@v4
+
+    - name: Instalar dependências e sincronizar
+      run: |
+        npm ci
+        npx cap sync android
+
+    - name: Aceitar licenças e instalar SDK 36
+      run: |
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
+        sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+    - name: Compilar APK Android
+      working-directory: android
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon
+
+    - name: Verificar APK (versão, assinatura e conteúdo)
+      run: |
+        APK=android/app/build/outputs/apk/debug/app-debug.apk
+        BT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0"
+        ls -la "$APK"
+        "$BT/aapt" dump badging "$APK" | grep -E "^package:|^application-label:"
+        "$BT/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate (SHA-256 digest|DN):"
+        node scripts/verify-apk.js "$APK"
+
+    - name: Disponibilizar APK para Download
+      uses: actions/upload-artifact@v4
+      with:
+        name: MotoristaPro-Instalador-Android
+        path: android/app/build/outputs/apk/debug/app-debug.apk
