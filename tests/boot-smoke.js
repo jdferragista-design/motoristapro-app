@@ -64,8 +64,8 @@ server.listen(0, '127.0.0.1', () => {
     return norm(el.innerText !== undefined ? el.innerText : el.textContent);
   };
 
-  JSDOM.fromURL(URL, opts).then(dom => {
-    setTimeout(() => {
+  JSDOM.fromURL(URL, opts).then(async dom => {
+    setTimeout(async () => {
       const w = dom.window;
       const d = w.document;
       const g = id => d.getElementById(id);
@@ -83,7 +83,7 @@ server.listen(0, '127.0.0.1', () => {
 
       // Estado demo novo + período "tudo": painel e WhatsApp têm de coincidir
       JSDOM.fromURL(URL, opts).then(dom2 => {
-        setTimeout(() => {
+        setTimeout(async () => {
           const w2 = dom2.window;
           const d2 = w2.document;
           w2.mpFirstUse('demo');
@@ -659,6 +659,303 @@ server.listen(0, '127.0.0.1', () => {
             .matchAll(/'([^']+)'/g)].map(m => m[1]);
           const foraDoSw = scriptsHtml.filter(s => !assetsSw.includes(s));
           check('SW: todos os scripts do index.html estão na lista offline', foraDoSw.length === 0, foraDoSw.join(', ') || 'nenhum em falta');
+
+          // ============================================================
+          // GOOGLE OAUTH (PKCE) — T1 a T9
+          // ------------------------------------------------------------
+          // NOTA DE HONESTIDADE: estes testes usam o vendor real do app
+          // (supabase-js) mas com fetch substituído. Verificam o que o CÓDIGO
+          // envia (desafio PKCE, code_verifier, troca do código, deduplicação),
+          // não que o GoTrue aceite a troca. Isso exige rede e aparelho, e está
+          // listado como teste pendente no relatório.
+          // ============================================================
+          const pkce = (() => {
+            // janela limpa, só com o vendor + o auth.js real do app
+            const janela = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
+              url: 'https://localhost/index.html', runScripts: 'outside-only', pretendToBeVisual: true
+            }).window;
+
+            const pedidos = [];
+            let respostaToken = { ok: true, status: 200 };
+            janela.eval(`
+              window.__pedidos = [];
+              window.__respostaToken = null;
+              window.fetch = async (url, opts) => {
+                const u = String(url);
+                window.__pedidos.push({ url: u, body: opts && opts.body });
+                const falha = window.__respostaToken;
+                if (u.includes('grant_type=pkce') || u.includes('/token')) {
+                  if (falha) {
+                    return { ok: false, status: 400, headers: { get: () => 'application/json' },
+                      json: async () => ({ error: 'invalid_grant', error_description: falha }), text: async () => '' };
+                  }
+                  return { ok: true, status: 200, headers: { get: () => 'application/json' },
+                    json: async () => ({ access_token: 'AT', refresh_token: 'RT', token_type: 'bearer',
+                                        expires_in: 3600, user: { id: 'u-1', email: 'a@b.c' } }),
+                    text: async () => '' };
+                }
+                return { ok: true, status: 200, headers: { get: () => 'application/json' },
+                  json: async () => ({}), text: async () => '' };
+              };
+              // plugins nativos simulados (Browser sempre disponível)
+              window.__browserAberto = []; window.__browserFechado = 0;
+              window.__listeners = {};
+              window.Capacitor = {
+                isNativePlatform: () => true,
+                Plugins: {
+                  Browser: {
+                    open: async ({ url }) => { window.__browserAberto.push(url); },
+                    close: async () => { window.__browserFechado++; }
+                  },
+                  App: {
+                    addListener: (evento, cb) => { (window.__listeners[evento] = window.__listeners[evento] || []).push(cb); },
+                    getLaunchUrl: async () => window.__launchUrl ? { url: window.__launchUrl } : undefined
+                  }
+                }
+              };
+            `);
+
+            // dependências mínimas que o auth.js usa (state/saveState/render ficam de fora)
+            janela.eval(`
+              window.state = { shifts: [], expenses: [], maintenance: [] };
+              window.logEvent = function () {};
+              window.mpNotify = function () {};
+              window.mpReconcile = async function () { window.__reconcileados = (window.__reconcileados||0)+1; };
+              window.mpApplySessionUI = function () {};
+              window.MP_SUPABASE_URL = 'https://projeto.supabase.co';
+              window.MP_SUPABASE_ANON_KEY = 'sb_publishable_teste';
+              window.MP_OAUTH_REDIRECT_NATIVE = 'com.pro.driver://oauth-callback';
+            `);
+
+            // carregar o vendor e o auth.js REAIS
+            janela.eval(fs.readFileSync(path.join(WWW, 'js/vendor/supabase.js'), 'utf8'));
+            // o auth.js referencia elementos do DOM que não existem aqui: os
+            // acessos são todos guardados por if (el), por isso não parte.
+            janela.eval(fs.readFileSync(path.join(WWW, 'js/auth.js'), 'utf8'));
+            return { janela, pedidos };
+          })();
+          const wPkce = pkce.janela;
+
+          // T1 — o caminho REAL do botão: mpLoginWithGoogle() tem de produzir
+          // uma URL de autorização com desafio PKCE e abri-la no browser.
+          // (Não se usa mpSupabase diretamente: é uma variável `let` interna
+          // do script e o jsdom não a expõe entre avaliações. O comportamento
+          // observado é o que o utilizador provoca ao tocar no botão.)
+          await wPkce.eval(`mpLoginWithGoogle()`);
+          const urlAuth = (wPkce.__browserAberto || [])[0] || '';
+          check('T1 Google: URL de autorização inclui code_challenge e método', (() => {
+            try {
+              // NOTA: neste ficheiro a variável URL é o endereço do servidor
+              // de teste; usa-se o construtor global explicitamente.
+              const u = new (require('url').URL)(urlAuth);
+              return u.searchParams.get('code_challenge') !== null &&
+                     ['s256', 'plain'].includes((u.searchParams.get('code_challenge_method') || '').toLowerCase());
+            } catch (_) { return false; }
+          })(), String(urlAuth).replace(/code_challenge=[^&]+/, 'code_challenge=…').slice(0, 140));
+
+          // o verificador ficou persistido no storage do cliente
+          const chavesVerifier = Object.keys(wPkce.localStorage).filter(k => k.includes('code-verifier'));
+          check('T2 Google: code_verifier persistido no storage do cliente', chavesVerifier.length > 0, chavesVerifier.length + ' chave(s)');
+
+          // T2/T3 — retorno com ?code=: o verificador correto tem de ser enviado
+          const antesToken = (wPkce.__pedidos || []).length;
+          const r1 = await wPkce.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-1')`);
+          const pedidoToken = (wPkce.__pedidos || []).slice(antesToken).find(p => p.url.includes('grant_type=pkce'));
+          let corpo = null;
+          try { corpo = JSON.parse(pedidoToken.body); } catch (_) {}
+          check('T2 Google: retorno com ?code= processado como PKCE', r1.ok === true && r1.modo === 'pkce');
+          check('T3 Google: exchangeCodeForSession enviou auth_code e code_verifier não vazio',
+            !!corpo && corpo.auth_code === 'CODIGO-1' && typeof corpo.code_verifier === 'string' && corpo.code_verifier.length > 20,
+            corpo ? ('verifier de ' + String(corpo.code_verifier || '').length + ' caracteres') : 'sem pedido /token');
+          check('T3 Google: o verificador enviado é o que estava guardado', (() => {
+            if (!corpo) return false;
+            const guardados = Object.keys(wPkce.localStorage)
+              .filter(k => k.includes('code-verifier'))
+              .map(k => wPkce.localStorage.getItem(k))
+              .join('|');
+            return guardados.includes(corpo.code_verifier);
+          })());
+
+          // T4 — sessão persistida no storage
+          const chaveSessao = wPkce.localStorage.getItem('mp_sb_auth_v1');
+          check('T4 Google: sessão persistida em localStorage (mp_sb_auth_v1)', !!chaveSessao && /access_token/.test(chaveSessao || ''));
+          check('T4 Google: a sessão traz o utilizador autenticado', (() => {
+            try { return JSON.parse(chaveSessao).user.id === 'u-1'; } catch (_) { return false; }
+          })());
+
+          // T5 — reinicialização simulada: novo cliente, mesmo storage
+          check('T5 Google: sessão recuperável após reabrir o app (novo cliente, mesmo storage)', await wPkce.eval(`(async () => {
+            const c2 = supabase.createClient('https://projeto.supabase.co', 'sb_publishable_teste', {
+              auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: false,
+                      detectSessionInUrl: true, storageKey: 'mp_sb_auth_v1' }
+            });
+            const { data } = await c2.auth.getSession();
+            return !!(data && data.session && data.session.user && data.session.user.id === 'u-1');
+          })()`));
+
+          // T8 — deep link duplicado não volta a trocar o mesmo código
+          const antesDup = (wPkce.__pedidos || []).length;
+          const rDup = await wPkce.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-1')`);
+          const novosPedidos = (wPkce.__pedidos || []).length - antesDup;
+          check('T8 Google: retorno duplicado é ignorado sem novo pedido ao servidor',
+            rDup.duplicado === true && novosPedidos === 0, 'duplicado=' + rDup.duplicado + ', pedidos=' + novosPedidos);
+
+          // esquema/host errados não são processados
+          const rEsquema = await wPkce.eval(`mpTratarRetornoOAuth('evil://oauth-callback?code=OUTRO')`);
+          const rHost = await wPkce.eval(`mpTratarRetornoOAuth('com.pro.driver://outro-host?code=OUTRO2')`);
+          check('Google: esquema ou host diferente é recusado',
+            rEsquema.ok === false && rHost.ok === false && /esquema/.test(rEsquema.motivo));
+
+          // erro devolvido pelo provedor é tratado, não ignorado
+          const rErroProv = await wPkce.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?error=access_denied')`);
+          check('Google: erro do provedor é tratado e mostrado', rErroProv.ok === false && /provedor/.test(rErroProv.motivo));
+
+          // falha na troca (sem rede / código inválido) não cria sessão falsa
+          wPkce.eval(`window.__respostaToken = 'invalid grant'`);
+          const rFalha = await wPkce.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-FALHA')`);
+          check('Google: falha na troca do código é reportada (sem sessão inventada)',
+            rFalha.ok === false && /trocar o código/.test(rFalha.motivo), rFalha.erro || '');
+          wPkce.eval(`window.__respostaToken = null`);
+
+          // Verificador em falta (ex.: app reinstalado, storage limpo): o código
+          // não é trocável. Tem de ser detetado ANTES de incomodar o servidor.
+          wPkce.eval(`Object.keys(localStorage).filter(k => k.indexOf('code-verifier') !== -1)
+            .forEach(k => localStorage.removeItem(k))`);
+          const antesSemVerif = (wPkce.__pedidos || []).length;
+          const rSemVerif = await wPkce.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-SEM-VERIFICADOR')`);
+          check('Google: sem verificador no aparelho a falha é explicada e não há pedido ao servidor',
+            rSemVerif.ok === false && /verificador PKCE ausente/.test(rSemVerif.motivo) &&
+            (wPkce.__pedidos || []).length === antesSemVerif,
+            rSemVerif.motivo || '');
+
+          // o browser é fechado em qualquer desfecho
+          check('Google: o browser é fechado após o processamento', wPkce.eval('window.__browserFechado') >= 2,
+            wPkce.eval('window.__browserFechado') + ' fecho(s)');
+
+          // T9 — arranque a frio: app aberto pelo link, listener registado depois
+          const janelaFria = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
+            url: 'https://localhost/index.html', runScripts: 'outside-only', pretendToBeVisual: true
+          }).window;
+          janelaFria.eval(`
+            window.__pedidos = [];
+            window.fetch = async (u, o) => { window.__pedidos.push({ url: String(u), body: o && o.body });
+              return { ok: true, status: 200, headers: { get: () => 'application/json' },
+                json: async () => ({ access_token: 'AT', refresh_token: 'RT', token_type: 'bearer', expires_in: 3600,
+                                     user: { id: 'u-frio', email: 'f@rio' } }), text: async () => '' }; };
+            // O verificador é gravado pelo PRÓPRIO supabase-js ao iniciar o
+            // fluxo (signInWithOAuth). Num arranque a frio real ele já está no
+            // armazenamento persistente, porque o login foi iniciado nesta
+            // mesma instalação antes de o app ser fechado. Semeia-se com um
+            // valor fixo, sem nunca imprimir o do fluxo real.
+            window.__verifierFrio = 'verificador-frio-de-teste-0123456789';
+            // O supabase-js guarda os valores em JSON (JSON.stringify), por isso
+            // o verificador tem de ser semeado como string JSON — não em bruto.
+            localStorage.setItem('mp_sb_auth_v1-code-verifier', JSON.stringify(window.__verifierFrio));
+            window.__launchUrl = 'com.pro.driver://oauth-callback?code=CODIGO-FRIO';
+            window.Capacitor = { isNativePlatform: () => true, Plugins: {
+              Browser: { open: async () => {}, close: async () => {} },
+              App: { addListener: () => {}, getLaunchUrl: async () => ({ url: window.__launchUrl }) } } };
+            window.state = { shifts: [], expenses: [], maintenance: [] };
+            window.logEvent = function () {}; window.mpNotify = function () {};
+            window.mpReconcile = async function () {}; window.mpApplySessionUI = function () {};
+            window.MP_SUPABASE_URL = 'https://projeto.supabase.co';
+            window.MP_SUPABASE_ANON_KEY = 'sb_publishable_teste';
+            window.MP_OAUTH_REDIRECT_NATIVE = 'com.pro.driver://oauth-callback';
+          `);
+          janelaFria.eval(fs.readFileSync(path.join(WWW, 'js/vendor/supabase.js'), 'utf8'));
+          janelaFria.eval(fs.readFileSync(path.join(WWW, 'js/auth.js'), 'utf8'));
+          await new Promise(r => setTimeout(r, 60));
+          const pedidoFrio = (janelaFria.__pedidos || []).find(p => p.url.includes('grant_type=pkce'));
+          const corpoFrio = (() => { try { return JSON.parse(pedidoFrio.body); } catch (_) { return null; } })();
+          const sessaoFria = (() => { try { return JSON.parse(janelaFria.localStorage.getItem('mp_sb_auth_v1')); } catch (_) { return null; } })();
+          check('T9 Google: arranque a frio usa getLaunchUrl (pedido /token com o code do link)',
+            !!corpoFrio && corpoFrio.auth_code === 'CODIGO-FRIO');
+          check('T9 Google: arranque a frio conclui o login e persiste a sessão',
+            !!sessaoFria && sessaoFria.user && sessaoFria.user.id === 'u-frio' && !!sessaoFria.access_token);
+
+          // ============================================================
+          // T6 / T7 — o que NÃO podia mudar (regressões)
+          // ============================================================
+          const wLocal = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
+            url: 'https://localhost/index.html', runScripts: 'outside-only', pretendToBeVisual: true
+          }).window;
+          wLocal.eval(`
+            window.__pedidos = [];
+            window.fetch = async (u, o) => {
+              window.__pedidos.push({ url: String(u), body: o && o.body });
+              const u2 = String(u);
+              if (u2.includes('grant_type=password')) {
+                return { ok: true, status: 200, headers: { get: () => 'application/json' },
+                  json: async () => ({ access_token: 'AT-E', refresh_token: 'RT-E', token_type: 'bearer',
+                                       expires_in: 3600, user: { id: 'u-email', email: 'e@mail' } }), text: async () => '' };
+              }
+              return { ok: true, status: 200, headers: { get: () => 'application/json' },
+                json: async () => ({}), text: async () => '' };
+            };
+            window.Capacitor = { isNativePlatform: () => true, Plugins: {
+              Browser: { open: async () => {}, close: async () => {} },
+              App: { addListener: () => {}, getLaunchUrl: async () => undefined } } };
+            window.state = { shifts: [], expenses: [], maintenance: [] };
+            window.logEvent = function () {}; window.mpNotify = function () {};
+            window.mpReconcile = async function () {}; window.mpApplySessionUI = function () {};
+            window.MP_SUPABASE_URL = 'https://projeto.supabase.co';
+            window.MP_SUPABASE_ANON_KEY = 'sb_publishable_teste';
+            window.MP_OAUTH_REDIRECT_NATIVE = 'com.pro.driver://oauth-callback';
+          `);
+          wLocal.eval(fs.readFileSync(path.join(WWW, 'js/vendor/supabase.js'), 'utf8'));
+          wLocal.eval(fs.readFileSync(path.join(WWW, 'js/auth.js'), 'utf8'));
+
+          // T6 — logout não apaga o histórico financeiro local
+          const historico = {
+            shifts: [{ id: 's1', date: '2026-11-01', km: 120, gross: 250, net: 180 }],
+            expenses: [{ id: 'e1', date: '2026-11-02', category: 'Combustível', value: 90 }],
+            maintenance: [{ id: 'm1', date: '2026-11-03', desc: 'Óleo', value: 120 }],
+            vehicle: { odometer: 54321 }, fuelSettings: { price: 5.89 }
+          };
+          const antesLogout = JSON.stringify(historico);
+          wLocal.eval(`
+            window.state = ${JSON.stringify(historico)};
+            localStorage.setItem('mp_html_state_v8', JSON.stringify(window.state));
+          `);
+          check('T6 logout: dados financeiros gravados antes do logout', JSON.stringify(wLocal.state) === antesLogout);
+          await wLocal.eval(`mpLogout()`);
+          check('T6 logout: histórico em memória intacto (turnos, despesas, manutenções)',
+            JSON.stringify(wLocal.state) === antesLogout,
+            'turnos=' + wLocal.state.shifts.length + ', despesas=' + wLocal.state.expenses.length +
+            ', manutenções=' + wLocal.state.maintenance.length);
+          check('T6 logout: histórico continua gravado no armazenamento local',
+            (() => {
+              try {
+                const s = JSON.parse(wLocal.localStorage.getItem('mp_html_state_v8'));
+                return s.shifts.length === 1 && s.expenses.length === 1 && s.maintenance.length === 1 &&
+                       s.vehicle.odometer === 54321;
+              } catch (_) { return false; }
+            })());
+          check('T6 logout: modo offline fica registado (não força novo login)',
+            wLocal.localStorage.getItem('mp_offline_mode_v8') === '1');
+          check('T6 logout: nada é enviado ao servidor para apagar dados',
+            !(wLocal.__pedidos || []).some(p => /DELETE|\/rest\/v1\/user_states/.test(p.url + ' ' + (p.body || ''))));
+
+          // T7 — login por email/senha continua a funcionar e usar o fluxo de senha
+          wLocal.document.body.innerHTML =
+            '<input id="mpEmailInput" value="e@mail"><input id="mpPasswordInput" value="segredo">' +
+            '<button id="mpBtnEmail"></button><div id="mpLoginStatus"></div><div id="mpNotify"></div>';
+          const antesEmail = (wLocal.__pedidos || []).length;
+          await wLocal.eval(`mpLoginWithEmail()`);
+          const pedidoSenha = (wLocal.__pedidos || []).slice(antesEmail).find(p => p.url.includes('grant_type=password'));
+          check('T7 email/senha: envia grant_type=password com email e senha',
+            !!pedidoSenha && (() => {
+              try { const b = JSON.parse(pedidoSenha.body); return b.email === 'e@mail' && b.password === 'segredo'; }
+              catch (_) { return false; }
+            })());
+          check('T7 email/senha: sessão criada e persistida', (() => {
+            try { return JSON.parse(wLocal.localStorage.getItem('mp_sb_auth_v1')).user.id === 'u-email'; }
+            catch (_) { return false; }
+          })());
+          check('T7 email/senha: campo da senha é limpo após entrar',
+            wLocal.document.getElementById('mpPasswordInput').value === '');
+          check('T7 email/senha: nenhum pedido OAuth foi disparado',
+            !(wLocal.__pedidos || []).some(p => /grant_type=pkce|\/authorize/.test(p.url)));
 
           // ============================================================
           // ANDROID — consistência dos assets e do APK (verificação estática)

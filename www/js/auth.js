@@ -79,6 +79,12 @@ function mpInitSupabase() {
   try {
     mpSupabase = window.supabase.createClient(window.MP_SUPABASE_URL, window.MP_SUPABASE_ANON_KEY, {
       auth: {
+        // PKCE: o retorno do Google traz ?code=… e o token só é emitido depois
+        // de o app provar que iniciou o fluxo (code_verifier). Com o default
+        // 'implicit' o retorno trazia #access_token=… no fragmento, que o
+        // deep link do Android não entregava a searchParams.get('code') — o
+        // login terminava sem sessão (ver DIAGNOSTICO-GOOGLE-OAUTH.md).
+        flowType: 'pkce',
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
@@ -115,29 +121,186 @@ function mpInitSupabase() {
   return mpSupabase;
 }
 
-// Retorno do Google (Android): com.pro.driver://oauth-callback?code=...
+// ---------- retorno do Google (Android) ----------
+// O app é aberto por com.pro.driver://oauth-callback?code=… (fluxo PKCE).
+// Regras aprendidas com o defeito anterior (DIAGNOSTICO-GOOGLE-OAUTH.md):
+//  - o código pode chegar na query (?code=) ou, em builds antigos do fluxo
+//    implícito, no fragmento (#access_token=…). O fragmento NUNCA aparece em
+//    searchParams, era exatamente aí que o login morria;
+//  - o mesmo link pode ser entregue mais de uma vez (reabertura, duplicação
+//    do intent): o código tem de ser consumido uma única vez;
+//  - o browser tem de fechar sempre, com sucesso ou com erro;
+//  - nunca registar em log o code, o access_token, o refresh_token ou o
+//    verificador PKCE.
+
+// Deduplicação por código. Não guarda mais de 20 para não crescer sem limite.
+const MP_OAUTH_USADOS = new Set();
+function mpOAuthJaUsado(chave) {
+  if (!chave) return false;
+  if (MP_OAUTH_USADOS.has(chave)) return true;
+  MP_OAUTH_USADOS.add(chave);
+  if (MP_OAUTH_USADOS.size > 20) MP_OAUTH_USADOS.delete(MP_OAUTH_USADOS.values().next().value);
+  return false;
+}
+
+// Só aceita o nosso esquema/host: com.pro.driver://oauth-callback
+function mpOAuthUrlValida(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'com.pro.driver:' && u.host === 'oauth-callback';
+  } catch (_) {
+    return false;
+  }
+}
+
+// O verificador PKCE é escrito pelo supabase-js no arranque do fluxo (chaves
+// "<storageKey>-code-verifier" e "<storageKey>-flow-<id>-code-verifier").
+// Sem ele o exchange falha sempre — é melhor dizer isso ao utilizador do que
+// deixar o vendor devolver um erro técnico.
+function mpTemVerificadorPkce() {
+  try {
+    const chave = (mpSupabase && mpSupabase.auth && mpSupabase.auth.storageKey) || 'mp_sb_auth_v1';
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(chave) === 0 && k.indexOf('code-verifier') !== -1) {
+        if (localStorage.getItem(k)) return true;
+      }
+    }
+  } catch (_) { /* storage indisponível (modo privado): deixa o vendor decidir */ }
+  return false;
+}
+
+async function mpFecharBrowser() {
+  try {
+    if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Browser) {
+      await Capacitor.Plugins.Browser.close();
+    }
+  } catch (_) { /* o browser pode já estar fechado */ }
+}
+
+// Processa um URL de retorno. Devolve um relatório para poder ser testado.
+// modo: 'pkce' (code) | 'implicit' (tokens no fragmento, compatibilidade)
+async function mpProcessarRetornoOAuth(url) {
+  const relatorio = { ok: false, modo: null, motivo: null, duplicado: false, erro: null };
+  if (!url) { relatorio.motivo = 'url vazia'; return relatorio; }
+  if (!mpOAuthUrlValida(url)) { relatorio.motivo = 'esquema/host inesperado'; return relatorio; }
+  if (!mpSupabase) { relatorio.motivo = 'cliente Supabase indisponível'; return relatorio; }
+
+  let u;
+  try { u = new URL(url); } catch (_) { relatorio.motivo = 'url inválida'; return relatorio; }
+
+  // O GoTrue devolve erros explicitamente: não os ignorar.
+  const erroDevolvido = u.searchParams.get('error') ||
+    new URLSearchParams((u.hash || '').replace(/^#/, '')).get('error');
+  if (erroDevolvido) {
+    relatorio.motivo = 'o provedor devolveu um erro';
+    relatorio.erro = erroDevolvido;
+    return relatorio;
+  }
+
+  const paramsHash = new URLSearchParams((u.hash || '').replace(/^#/, ''));
+  const code = u.searchParams.get('code');
+  const accessToken = paramsHash.get('access_token');
+
+  if (code) {
+    relatorio.modo = 'pkce';
+    if (mpOAuthJaUsado('code:' + code)) { relatorio.duplicado = true; relatorio.motivo = 'código já processado'; return relatorio; }
+    // O código só é trocável com o verificador do MESMO aparelho/instalação.
+    // Verificar antes evita um pedido condenado a falhar.
+    if (!mpTemVerificadorPkce()) {
+      relatorio.motivo = 'verificador PKCE ausente neste aparelho';
+      relatorio.erro = 'inicie o login novamente neste aparelho';
+      return relatorio;
+    }
+    try {
+      const { data, error } = await mpSupabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      if (!data || !data.session) throw new Error('sem sessão devolvida');
+      relatorio.ok = true;
+      return relatorio;
+    } catch (e) {
+      relatorio.motivo = 'falha ao trocar o código';
+      relatorio.erro = String((e && e.message) || e);
+      // O código pode ter sido consumido: não tentar de novo com o mesmo.
+      return relatorio;
+    }
+  }
+
+  if (accessToken) {
+    // Compatibilidade com o fluxo implícito antigo (tokens no fragmento).
+    // Isolado e sem efeito no caminho PKCE.
+    relatorio.modo = 'implicit';
+    const refreshToken = paramsHash.get('refresh_token');
+    if (!refreshToken) { relatorio.motivo = 'token sem refresh_token'; return relatorio; }
+    if (mpOAuthJaUsado('token:' + accessToken)) { relatorio.duplicado = true; relatorio.motivo = 'tokens já processados'; return relatorio; }
+    try {
+      const { data, error } = await mpSupabase.auth.setSession({
+        access_token: accessToken, refresh_token: refreshToken
+      });
+      if (error) throw error;
+      if (!data || !data.session) throw new Error('sem sessão devolvida');
+      relatorio.ok = true;
+      return relatorio;
+    } catch (e) {
+      relatorio.motivo = 'falha ao adotar os tokens';
+      relatorio.erro = String((e && e.message) || e);
+      return relatorio;
+    }
+  }
+
+  relatorio.motivo = 'sem code nem tokens no retorno';
+  return relatorio;
+}
+
+// Trata o retorno de ponta a ponta: processa, fecha o browser e atualiza a UI.
+async function mpTratarRetornoOAuth(url) {
+  mpSetLoginStatus('Conectando conta…');
+  const r = await mpProcessarRetornoOAuth(url);
+  await mpFecharBrowser();
+
+  if (r.ok) {
+    mpSetLoginStatus('');
+    // onAuthStateChange já faz o resto (sessão, UI, reconciliação). Aqui só
+    // garantimos o estado caso o evento chegue depois.
+    mpSetGoogleBusy(false, 'Entrar com Google');
+    if (typeof mpApplySessionUI === 'function') mpApplySessionUI();
+    mpUpdateAccountUI();
+    mpNotify('Login com Google concluído ☁️');
+  } else if (r.duplicado) {
+    // Entrega repetida do mesmo link: não é erro para o utilizador.
+    logEvent('info', 'Retorno OAuth repetido ignorado', { motivo: r.motivo });
+    mpSetLoginStatus('');
+  } else {
+    // Não registar o código nem os tokens: só o motivo.
+    logEvent('error', 'Retorno OAuth falhou', { motivo: r.motivo, erro: r.erro, modo: r.modo });
+    mpSetLoginStatus('Falha ao concluir login com Google' + (r.erro ? ': ' + r.erro : '.'), true);
+    mpSetGoogleBusy(false, 'Entrar com Google');
+    mpUpdateAccountUI();
+  }
+  return r;
+}
+
+// Registar o listener ANTES de qualquer login (arranque a frio incluído).
 function mpRegisterDeepLink() {
   if (!mpIsNative() || !window.Capacitor || !Capacitor.Plugins || !Capacitor.Plugins.App) return;
   try {
-    Capacitor.Plugins.App.addListener('appUrlOpen', async ({ url }) => {
-      logEvent('info', 'Deep link recebido', { url });
-      try {
-        const u = new URL(url);
-        const code = u.searchParams.get('code');
-        if (code && mpSupabase) {
-          const { error } = await mpSupabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
-          if (Capacitor.Plugins.Browser) {
-            try { await Capacitor.Plugins.Browser.close(); } catch (_) {}
-          }
-        }
-      } catch (e) {
-        logEvent('error', 'Deep link OAuth falhou', { message: e.message });
-        mpSetLoginStatus('Falha ao concluir login com Google.', true);
-        // Não bloquear a app: o login é opcional (Configurações → Conta & Nuvem)
-        mpShowLoginScreen(false);
-      }
+    Capacitor.Plugins.App.addListener('appUrlOpen', ({ url }) => {
+      // Nunca logar o URL completo: contém o códigos e/ou tokens.
+      logEvent('info', 'Deep link OAuth recebido');
+      mpTratarRetornoOAuth(url);
     });
+
+    // Arranque a frio: se o app foi ABERTO pelo link, o evento appUrlOpen já
+    // passou antes de existir listener. getLaunchUrl() devolve-o aqui.
+    if (typeof Capacitor.Plugins.App.getLaunchUrl === 'function') {
+      Capacitor.Plugins.App.getLaunchUrl().then((res) => {
+        const url = res && res.url;
+        if (url && mpOAuthUrlValida(url)) {
+          logEvent('info', 'App aberto por deep link OAuth (arranque a frio)');
+          mpTratarRetornoOAuth(url);
+        }
+      }).catch(() => { /* não é fatal: o login continua disponível pelo botão */ });
+    }
   } catch (e) {
     logEvent('warn', 'Não foi possível registar deep link', { message: e.message });
   }
@@ -163,8 +326,11 @@ function mpUpdateAccountUI() {
       '<button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="mpRestorePrePullBackup()">Restaurar cópia anterior</button>';
   } else {
     emailEl.textContent = 'Não conectado';
+    // O botão Google tem de existir também aqui: antes o estado de carregamento
+    // procurava #mpBtnGoogle (que só existe no ecrã de login, oculto neste
+    // fluxo), pelo que nunca havia feedback ao tocar em Configurações.
     actionsEl.innerHTML =
-      '<button type="button" class="btn btn-primary btn-sm" onclick="mpLoginWithGoogle()">Entrar com Google</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" id="mpBtnGoogle" onclick="mpLoginWithGoogle()">Entrar com Google</button>' +
       '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-sub);">' +
         '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">ou entrar com email</div>' +
         '<input type="email" id="mpEmailInput" class="form-control" placeholder="seu@email.com" autocomplete="email" style="margin-bottom:6px;" />' +
@@ -174,14 +340,30 @@ function mpUpdateAccountUI() {
   }
 }
 
+// Estado visual do botão Google — funciona nos dois pontos de entrada
+// (ecrã de login e Configurações → Conta & Nuvem).
+function mpSetGoogleBusy(ocupado, texto) {
+  ['mpBtnGoogle', 'mpBtnGoogleLogin'].forEach((id) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.disabled = !!ocupado;
+    b.classList.toggle('mp-login-btn--busy', !!ocupado);
+    if (texto) b.textContent = texto;
+  });
+}
+
 // ---------- login / logout ----------
 async function mpLoginWithGoogle() {
   if (!mpSupabase) {
     mpSetLoginStatus('Serviço indisponível — verifique a configuração.', true);
     return;
   }
-  const btn = document.getElementById('mpBtnGoogle');
-  if (btn) { btn.disabled = true; btn.classList.add('mp-login-btn--busy'); }
+  // Fica true enquanto o utilizador está no ecrã do Google: nesse estado o
+  // botão NÃO deve voltar a "Entrar com Google" (o finally não o repõe).
+  let aguardando = false;
+  // Garante o listener do retorno antes de sair para o navegador.
+  mpRegisterDeepLink();
+  mpSetGoogleBusy(true, 'Abrindo Google…');
   try {
     const redirectTo = mpIsNative()
       ? window.MP_OAUTH_REDIRECT_NATIVE
@@ -191,16 +373,31 @@ async function mpLoginWithGoogle() {
       options: { redirectTo, skipBrowserRedirect: mpIsNative() }
     });
     if (error) throw error;
-    if (mpIsNative() && window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Browser && data && data.url) {
-      await Capacitor.Plugins.Browser.open({ url: data.url, presentationStyle: 'AUTO' });
-      mpSetLoginStatus('Complete o login na janela do Google…');
+    if (mpIsNative() && data && data.url) {
+      const temBrowser = !!(window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Browser);
+      if (temBrowser) {
+        await Capacitor.Plugins.Browser.open({ url: data.url, presentationStyle: 'AUTO' });
+      } else {
+        // Plugin indisponível: sem isto o botão ficava "a abrir" para sempre.
+        window.location.href = data.url;
+      }
+      aguardando = true;
+      mpSetGoogleBusy(true, 'Aguardando autenticação…');
+      mpSetLoginStatus('Aguardando autenticação no Google…');
     }
     // Em web, o próprio supabase-js redireciona (skipBrowserRedirect: false)
   } catch (e) {
     logEvent('error', 'Login Google falhou', { message: e.message });
     mpSetLoginStatus('Erro ao iniciar login: ' + e.message, true);
+    await mpFecharBrowser();
   } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove('mp-login-btn--busy'); }
+    // Só repõe o botão se o browser não ficou aberto à espera do Google; se
+    // ficou, o estado "Aguardando autenticação…" mantém-se até o deep link
+    // chegar (mpTratarRetornoOAuth liberta-o em qualquer desfecho).
+    if (!aguardando) {
+      mpSetGoogleBusy(false, 'Entrar com Google');
+      mpUpdateAccountUI();
+    }
   }
 }
 
@@ -527,5 +724,3 @@ async function mpTrySilentPull() {
 
 // ---------- boot ----------
 mpInitSupabase();
-
-
