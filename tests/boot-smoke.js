@@ -614,6 +614,18 @@ server.listen(0, '127.0.0.1', () => {
           check('A-05: versionCode > 1 (permite atualização na Play Store)', vcEsperado > 1);
 
           // ============================================================
+          // APK — assinatura debug persistente (atualiza por cima)
+          // Sem signingConfigs o CI gerava uma chave aleatória por run e o
+          // Android recusava instalar por cima ("signatures do not match").
+          // ============================================================
+          const keystoreP12 = path.join(__dirname, '..', 'android', 'app', 'motoristapro-debug.p12');
+          check('APK: keystore de assinatura persistente existe e não está vazio',
+            fs.existsSync(keystoreP12) && fs.statSync(keystoreP12).size > 0);
+          check('APK: build.gradle usa o keystore persistente no signingConfigs debug',
+            /signingConfigs\s*\{[\s\S]*?motoristapro-debug\.p12/.test(gradle) &&
+            /keyAlias\s+['"]androiddebugkey['"]/.test(gradle));
+
+          // ============================================================
           // FASE 2 — A-06: backup do Android restrito, sem o WebView
           // ============================================================
           const raiz = path.join(__dirname, '..');
