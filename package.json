@@ -8,6 +8,7 @@
     "version:sync": "node scripts/version-sync.js",
     "version:check": "node scripts/version-sync.js --check",
     "android:verify": "node scripts/verify-android-assets.js",
+    "backup:verify": "node scripts/verify-backup-json.js",
     "preview": "node scripts/serve.js"
   },
   "keywords": [],

@@ -1,0 +1,90 @@
+# PROPOSTA — imprimir o fingerprint COMPLETO de um APK já publicado como artefato.
+# NÃO é lido pelo Actions neste local.
+#
+# Caso de uso: o APK INSTALADO no aparelho veio do run 42623938680
+# (branch arena/a5269d1c-motoristapro-app, dispatch manual). Como o runner é
+# efêmero, a chave que o assinou não existe mais em lado nenhum — a ÚNICA forma
+# de conhecer o certificado desse APK é ler o próprio pacote. Este workflow baixa
+# o artefato daquele run e imprime no log, sem presumir nada:
+#   - SHA-256 do ficheiro (sha256sum) + tamanho;
+#   - package/versionCode/versionName/label (aapt dump badging);
+#   - certificado COMPLETO (apksigner verify --print-certs, sem filtro);
+#   - scripts/verify-apk.js (projeto Supabase + ausência de segredos).
+# O resultado compara-se lado a lado com o log do build novo.
+#
+# Como aplicar (pela interface do GitHub — o token desta sessão não tem a
+# permissão `workflows` para criar o ficheiro via push):
+#   1. No GitHub, com o branch arena/00e05b00-motoristapro-app selecionado:
+#      Add file > Create new file > nome: .github/workflows/fingerprint-apk.yml
+#   2. Colar este conteúdo da linha "name:" em diante > Commit
+#   3. Actions > Fingerprint de APK publicado > Run workflow >
+#      run_id = 42623938680 > Run (mesmo branch)
+#
+# Como alternativa, qualquer token com permissão `workflows` pode fazer:
+#   cp ci/fingerprint-apk.proposta.yml .github/workflows/fingerprint-apk.yml
+#   git add .github/workflows/fingerprint-apk.yml && git commit && git push
+
+name: Fingerprint de APK publicado
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'ID numérico do run dono do artefato (ex.: 42623938680)'
+        required: true
+        default: '42623938680'
+      artifact:
+        description: 'Nome do artefato'
+        required: false
+        default: 'MotoristaPro-Instalador-Android'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Baixar Repositorio (scripts de verificação)
+      uses: actions/checkout@v4
+
+    - name: Baixar APK do run informado
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact }}
+        run-id: ${{ inputs.run_id }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path: apk-alvo
+
+    - name: Configurar Java 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: 21
+
+    - name: Configurar Android SDK
+      uses: android-actions/setup-android@v4
+
+    - name: Instalar build-tools 36
+      run: |
+        yes | sdkmanager --licenses > /dev/null 2>&1 || true
+        sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+    - name: Imprimir fingerprint completo
+      run: |
+        APK=$(ls apk-alvo/*.apk | head -1)
+        BT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0"
+        echo "== ficheiro =="
+        ls -la "$APK"
+        sha256sum "$APK"
+        echo "== aapt (package/versão) =="
+        "$BT/aapt" dump badging "$APK" | grep -E "^package:|^application-label:|^sdkVersion:|^targetSdkVersion:"
+        echo "== apksigner (certificado completo, sem filtro) =="
+        "$BT/apksigner" verify --print-certs "$APK"
+
+    - name: Verificar conteúdo (projeto/chaves)
+      run: |
+        APK=$(ls apk-alvo/*.apk | head -1)
+        node scripts/verify-apk.js "$APK" || echo "NOTA: divergências de versionName/versionCode são ESPERADAS quando o APK é de outra branch/versão (o verificador compara com o package.json atual). O que importa neste step: projeto Supabase correto e ausência de chaves secretas."
