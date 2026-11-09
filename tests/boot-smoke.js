@@ -1139,6 +1139,137 @@ server.listen(0, '127.0.0.1', () => {
             JSON.stringify(wLogin.__ordem));
 
           // ============================================================
+          // T13 / T14 — o navegador só abre com o retorno confirmado
+          // ============================================================
+          // Observáveis reais (sem inspecionar código):
+          //  - Browser.open e o URL que recebeu;
+          //  - chamadas a auth.signInWithOAuth (o client é embrulhado ANTES de o
+          //    auth.js o criar, por isso o login iniciado é contado de verdade —
+          //    em nativo a URL de autorização é gerada localmente, sem pedido);
+          //  - estado do botão e texto do #mpLoginStatus.
+          function janelaLogin(modoRegistoInicial) {
+            const w = new (require('jsdom').JSDOM)(
+              '<!doctype html><html><body>' +
+              '<button id="mpBtnGoogle">Entrar com Google</button>' +
+              '<button id="mpBtnGoogleLogin">Entrar com Google</button>' +
+              '<div id="mpLoginStatus"></div><div id="mpAccountEmail"></div>' +
+              '<div id="mpAccountActions"></div><div id="mpNotify"></div>' +
+              '</body></html>',
+              { url: 'https://localhost/index.html', runScripts: 'outside-only', pretendToBeVisual: true }
+            ).window;
+            w.eval(`
+              window.__browserAberto = [];
+              window.__oauthIniciados = 0;
+              window.__modoAddListener = ${JSON.stringify(modoRegistoInicial || 'resolve')};
+              window.fetch = async () => ({ ok: true, status: 200, headers: { get: () => 'application/json' },
+                json: async () => ({}), text: async () => '' });
+              window.Capacitor = { isNativePlatform: () => true, Plugins: {
+                Browser: {
+                  open: async ({ url }) => { window.__browserAberto.push(url); },
+                  close: async () => {}
+                },
+                App: {
+                  addListener: (evento, cb) => {
+                    if (window.__modoAddListener === 'rejeitar') {
+                      return Promise.reject(new Error('registro nativo falhou (detalhe interno)'));
+                    }
+                    return Promise.resolve({ remove: async () => {} });
+                  },
+                  getLaunchUrl: async () => undefined
+                } } };
+              window.state = { shifts: [], expenses: [], maintenance: [] };
+              window.logEvent = function () {}; window.mpNotify = function () {};
+              window.mpReconcile = async function () {}; window.mpApplySessionUI = function () {};
+              window.MP_SUPABASE_URL = 'https://projeto.supabase.co';
+              window.MP_SUPABASE_ANON_KEY = 'sb_publishable_teste';
+              window.MP_OAUTH_REDIRECT_NATIVE = 'com.pro.driver://oauth-callback';
+            `);
+            w.eval(fs.readFileSync(path.join(WWW, 'js/vendor/supabase.js'), 'utf8'));
+            // Embrulhar o client antes de o auth.js o criar: conta as tentativas
+            // reais de iniciar o OAuth (nativo gera a URL sem pedido de rede).
+            w.eval(`
+              const criarOriginal = window.supabase.createClient.bind(window.supabase);
+              window.supabase.createClient = function () {
+                const c = criarOriginal.apply(null, arguments);
+                const iniciarOriginal = c.auth.signInWithOAuth.bind(c.auth);
+                c.auth.signInWithOAuth = function (o) {
+                  window.__oauthIniciados++;
+                  return iniciarOriginal(o);
+                };
+                return c;
+              };
+            `);
+            w.eval(fs.readFileSync(path.join(WWW, 'js/auth.js'), 'utf8'));
+            return w;
+          }
+          const estadoLogin = (w) => ({
+            browser: (w.__browserAberto || []).length,
+            oauth: w.__oauthIniciados || 0,
+            ocupado: w.document.getElementById('mpBtnGoogle').disabled,
+            textoBotao: w.document.getElementById('mpBtnGoogle').textContent,
+            status: w.document.getElementById('mpLoginStatus').textContent
+          });
+
+          // --- T13 — o registo falha no arranque: nada arranca --------------
+          const wT13 = janelaLogin('rejeitar');
+          await new Promise(r => setTimeout(r, 100)); // arranque: registo falha
+          await wT13.eval(`mpLoginWithGoogle()`);      // login: nova tentativa falha
+          const dep13 = estadoLogin(wT13);
+
+          check('T13: Browser.open NÃO é chamado sem retorno confirmado',
+            dep13.browser === 0, dep13.browser + ' abertura(s)');
+          check('T13: o login OAuth não é iniciado (signInWithOAuth não é chamado)',
+            dep13.oauth === 0, dep13.oauth + ' chamada(s) a signInWithOAuth');
+          check('T13: o botão Google sai do estado de carregamento',
+            dep13.ocupado === false && dep13.textoBotao === 'Entrar com Google',
+            'disabled=' + dep13.ocupado + ', texto=' + JSON.stringify(dep13.textoBotao));
+          check('T13: é apresentada uma mensagem compreensível ao utilizador',
+            /não foi possível preparar o retorno do Google/i.test(dep13.status) && /tente novamente/i.test(dep13.status),
+            JSON.stringify(dep13.status));
+          check('T13: a mensagem não expõe detalhes internos do plugin',
+            !/registro nativo falhou|detalhe interno|\bError\b|addListener|appUrlOpen/i.test(dep13.status),
+            JSON.stringify(dep13.status));
+
+          // tentativa posterior, já com o registo a funcionar
+          wT13.eval(`window.__modoAddListener = 'resolve'`);
+          await wT13.eval(`mpLoginWithGoogle()`);
+          const dep13b = estadoLogin(wT13);
+          check('T13: depois do registo passar a funcionar, o login arranca normalmente',
+            dep13b.browser === 1 && dep13b.oauth === 1,
+            dep13b.browser + ' abertura(s), ' + dep13b.oauth + ' chamada(s) a signInWithOAuth');
+
+          // --- T14 — registo confirmado: fluxo normal ---------------------
+          const wT14 = janelaLogin('resolve');
+          await new Promise(r => setTimeout(r, 100)); // arranque confirma o registo
+          await wT14.eval(`mpLoginWithGoogle()`);
+          const dep14 = estadoLogin(wT14);
+          check('T14: Browser.open é chamado uma única vez', dep14.browser === 1, dep14.browser + ' abertura(s)');
+          check('T14: o login OAuth é iniciado uma única vez', dep14.oauth === 1, dep14.oauth + ' chamada(s)');
+
+          const urlT14 = (wT14.__browserAberto || [])[0] || '';
+          const params14 = (() => { try { return new (require('url').URL)(urlT14).searchParams; } catch (_) { return null; } })();
+          check('T14: a URL mantém o fluxo PKCE (code_challenge + método)',
+            !!params14 && params14.get('code_challenge') !== null &&
+            ['s256', 'plain'].includes((params14.get('code_challenge_method') || '').toLowerCase()),
+            params14 ? ('método=' + params14.get('code_challenge_method')) : 'sem URL');
+          check('T14: a URL mantém o redirect nativo atual',
+            !!params14 && params14.get('redirect_to') === 'com.pro.driver://oauth-callback',
+            params14 ? String(params14.get('redirect_to')) : 'sem URL');
+          check('T14: a interface entra no estado de espera do Google (sem regressão)',
+            dep14.ocupado === true && /Aguardando autenticação/.test(dep14.textoBotao) &&
+            /Aguardando autenticação/.test(dep14.status),
+            'texto=' + JSON.stringify(dep14.textoBotao));
+
+          // --- em web o guard não se aplica (não há deep link) ------------
+          const wWeb = janelaLogin('rejeitar');
+          wWeb.eval(`window.Capacitor.isNativePlatform = () => false;`);
+          await wWeb.eval(`mpLoginWithGoogle()`);
+          const statusWeb = wWeb.document.getElementById('mpLoginStatus').textContent;
+          check('T13/T14: em web uma falha de registo não bloqueia o login',
+            (wWeb.__oauthIniciados || 0) === 1 && !/preparar o retorno do Google/i.test(statusWeb),
+            'oauth=' + wWeb.__oauthIniciados + ', status=' + JSON.stringify(statusWeb));
+
+          // ============================================================
           // T6 / T7 — o que NÃO podia mudar (regressões)
           // ============================================================
           const wLocal = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {

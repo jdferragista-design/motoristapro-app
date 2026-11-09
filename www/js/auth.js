@@ -475,11 +475,26 @@ async function mpLoginWithGoogle() {
   // Fica true enquanto o utilizador está no ecrã do Google: nesse estado o
   // botão NÃO deve voltar a "Entrar com Google" (o finally não o repõe).
   let aguardando = false;
-  // Garante o listener do retorno antes de sair para o navegador. O registo é
-  // assíncrono (@capacitor/app devolve Promise) — espera-se a confirmação para
-  // não sair do app com o listener por ligar. Uma falha não impede o login: o
-  // caminho de arranque a frio continua a apanhar o retorno.
-  await mpRegisterDeepLink();
+  // REGRA: em Android/iOS o navegador só abre com o retorno do Google
+  // garantido. Se o listener appUrlOpen não ficar confirmado, o código que
+  // voltar com o app aberto perde-se — getLaunchUrl() só é consultado no
+  // arranque, portanto não há segunda oportunidade para o recuperar. Nesse
+  // caso o login nem começa.
+  //
+  // Em web não há deep link: o próprio supabase-js redireciona na mesma aba,
+  // por isso o registo do listener não é pré-requisito.
+  if (mpIsNative()) {
+    const retornoGarantido = await mpRegisterDeepLink();
+    if (!retornoGarantido) {
+      // Mensagem para o utilizador; o detalhe do plugin fica no log técnico
+      // (feito em mpLigarListenerDeepLink), nunca no ecrã.
+      logEvent('warn', 'Login Google não iniciado: retorno do deep link não confirmado');
+      mpSetGoogleBusy(false, 'Entrar com Google');
+      mpSetLoginStatus('Não foi possível preparar o retorno do Google. Tente novamente.', true);
+      mpUpdateAccountUI();
+      return;
+    }
+  }
   mpSetGoogleBusy(true, 'Abrindo Google…');
   try {
     const redirectTo = mpIsNative()
