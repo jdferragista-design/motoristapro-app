@@ -15,6 +15,13 @@ let mpSession = null;
 let mpSyncTimer = null;
 let mpSyncBusy = false;
 
+// Controlo do deep link OAuth. O listener nativo é um recurso único: registá-lo
+// outra vez a cada tentativa de login acumulava callbacks e podia entregar o
+// mesmo retorno a dois caminhos em simultâneo.
+let mpDeepLinkRegistrado = false;   // appUrlOpen já ligado
+let mpLaunchUrlConsultado = false;  // getLaunchUrl já consultado (arranque)
+let mpRetornoEmCurso = null;        // promessa do retorno OAuth a decorrer
+
 // ---------- utilidades locais ----------
 function mpIsNative() {
   return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -252,8 +259,25 @@ async function mpProcessarRetornoOAuth(url) {
   return relatorio;
 }
 
-// Trata o retorno de ponta a ponta: processa, fecha o browser e atualiza a UI.
+// Trata o retorno de ponta a ponta. Se já houver um retorno a decorrer, espera
+// por esse desfecho em vez de abrir um segundo caminho: um único link produz um
+// único processamento e uma única troca de código.
 async function mpTratarRetornoOAuth(url) {
+  if (mpRetornoEmCurso) {
+    const r = await mpRetornoEmCurso;
+    logEvent('info', 'Retorno OAuth concorrente aguardou o processamento em curso');
+    return Object.assign({}, r, { concorrente: true });
+  }
+  mpRetornoEmCurso = mpExecutarRetornoOAuth(url);
+  try {
+    return await mpRetornoEmCurso;
+  } finally {
+    mpRetornoEmCurso = null;
+  }
+}
+
+// Corpo do processamento (um por retorno, garantido pelo emissor acima).
+async function mpExecutarRetornoOAuth(url) {
   mpSetLoginStatus('Conectando conta…');
   const r = await mpProcessarRetornoOAuth(url);
   await mpFecharBrowser();
@@ -280,30 +304,55 @@ async function mpTratarRetornoOAuth(url) {
   return r;
 }
 
-// Registar o listener ANTES de qualquer login (arranque a frio incluído).
-function mpRegisterDeepLink() {
-  if (!mpIsNative() || !window.Capacitor || !Capacitor.Plugins || !Capacitor.Plugins.App) return;
+// Liga o listener do deep link UMA única vez durante a vida da aplicação.
+// Idempotente: chamadas repetidas (arranque + cada tentativa de login) não
+// acumulam callbacks. Só marca como registado depois de o addListener correr
+// sem erro — se o plugin falhar, uma chamada posterior ainda pode tentar.
+function mpLigarListenerDeepLink(App) {
+  if (mpDeepLinkRegistrado) return false;
   try {
-    Capacitor.Plugins.App.addListener('appUrlOpen', ({ url }) => {
-      // Nunca logar o URL completo: contém o códigos e/ou tokens.
+    App.addListener('appUrlOpen', ({ url }) => {
+      // Nunca logar o URL completo: contém códigos e/ou tokens.
       logEvent('info', 'Deep link OAuth recebido');
       mpTratarRetornoOAuth(url);
     });
-
-    // Arranque a frio: se o app foi ABERTO pelo link, o evento appUrlOpen já
-    // passou antes de existir listener. getLaunchUrl() devolve-o aqui.
-    if (typeof Capacitor.Plugins.App.getLaunchUrl === 'function') {
-      Capacitor.Plugins.App.getLaunchUrl().then((res) => {
-        const url = res && res.url;
-        if (url && mpOAuthUrlValida(url)) {
-          logEvent('info', 'App aberto por deep link OAuth (arranque a frio)');
-          mpTratarRetornoOAuth(url);
-        }
-      }).catch(() => { /* não é fatal: o login continua disponível pelo botão */ });
-    }
+    mpDeepLinkRegistrado = true;
+    return true;
   } catch (e) {
     logEvent('warn', 'Não foi possível registar deep link', { message: e.message });
+    return false;
   }
+}
+
+// Arranque a frio: se o app foi ABERTO pelo link, o evento appUrlOpen já passou
+// antes de existir listener. Só se consulta na inicialização — nunca a cada
+// login, onde não há novidade nenhuma a descobrir.
+function mpConsultarLaunchUrl(App) {
+  if (mpLaunchUrlConsultado) return false;
+  if (typeof App.getLaunchUrl !== 'function') { mpLaunchUrlConsultado = true; return false; }
+  mpLaunchUrlConsultado = true;
+  try {
+    App.getLaunchUrl().then((res) => {
+      const url = res && res.url;
+      if (url && mpOAuthUrlValida(url)) {
+        logEvent('info', 'App aberto por deep link OAuth (arranque a frio)');
+        mpTratarRetornoOAuth(url);
+      }
+    }).catch(() => { /* não é fatal: o login continua disponível pelo botão */ });
+  } catch (e) {
+    logEvent('warn', 'getLaunchUrl falhou', { message: e.message });
+  }
+  return true;
+}
+
+// Ponto de entrada seguro para chamar em qualquer altura (arranque, antes de
+// abrir o browser). Ligar o listener e consultar o arranque são operações
+// distintas, cada uma com a sua guarda.
+function mpRegisterDeepLink() {
+  if (!mpIsNative() || !window.Capacitor || !Capacitor.Plugins || !Capacitor.Plugins.App) return;
+  const App = Capacitor.Plugins.App;
+  mpLigarListenerDeepLink(App);
+  mpConsultarLaunchUrl(App);
 }
 
 function mpApplySessionUI() {

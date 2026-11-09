@@ -874,6 +874,112 @@ server.listen(0, '127.0.0.1', () => {
             !!sessaoFria && sessaoFria.user && sessaoFria.user.id === 'u-frio' && !!sessaoFria.access_token);
 
           // ============================================================
+          // T10 — registo IDEMPOTENTE do deep link e retorno único
+          // ============================================================
+          // Janela própria: aqui interessa contar listeners e consultas, não
+          // o fluxo de tokens.
+          const wReg = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
+            url: 'https://localhost/index.html', runScripts: 'outside-only', pretendToBeVisual: true
+          }).window;
+          wReg.eval(`
+            window.__pedidos = [];
+            window.fetch = async (u, o) => {
+              window.__pedidos.push({ url: String(u), body: o && o.body });
+              return { ok: true, status: 200, headers: { get: () => 'application/json' },
+                json: async () => ({ access_token: 'AT', refresh_token: 'RT', token_type: 'bearer',
+                                     expires_in: 3600, user: { id: 'u-reg', email: 'r@eg' } }), text: async () => '' };
+            };
+            // Contadores do que o app pede ao nativo.
+            window.__listeners = 0;
+            window.__consultasLaunch = 0;
+            window.__callbacks = [];
+            window.__browserAberto = [];
+            window.Capacitor = {
+              isNativePlatform: () => true,
+              Plugins: {
+                Browser: { open: async ({ url }) => { window.__browserAberto.push(url); }, close: async () => {} },
+                App: {
+                  addListener: (evento, cb) => {
+                    if (evento === 'appUrlOpen') { window.__listeners++; window.__callbacks.push(cb); }
+                    return { remove: async () => {} };
+                  },
+                  getLaunchUrl: async () => { window.__consultasLaunch++; return undefined; }
+                }
+              }
+            };
+            window.state = { shifts: [], expenses: [], maintenance: [] };
+            window.logEvent = function () {}; window.mpNotify = function () {};
+            window.mpReconcile = async function () {}; window.mpApplySessionUI = function () {};
+            window.MP_SUPABASE_URL = 'https://projeto.supabase.co';
+            window.MP_SUPABASE_ANON_KEY = 'sb_publishable_teste';
+            window.MP_OAUTH_REDIRECT_NATIVE = 'com.pro.driver://oauth-callback';
+          `);
+          wReg.eval(fs.readFileSync(path.join(WWW, 'js/vendor/supabase.js'), 'utf8'));
+          wReg.eval(fs.readFileSync(path.join(WWW, 'js/auth.js'), 'utf8'));
+          await new Promise(r => setTimeout(r, 60));
+
+          // o arranque (mpInitSupabase) já registou uma vez
+          check('T10 deep link: listener registado uma vez no arranque',
+            wReg.__listeners === 1, wReg.__listeners + ' listener(s)');
+          check('T10 deep link: getLaunchUrl consultado uma vez no arranque',
+            wReg.__consultasLaunch === 1, wReg.__consultasLaunch + ' consulta(s)');
+
+          // chamar o registo várias vezes não acumula listeners
+          wReg.eval(`mpRegisterDeepLink(); mpRegisterDeepLink(); mpRegisterDeepLink();`);
+          await new Promise(r => setTimeout(r, 40));
+          check('T10 deep link: chamadas repetidas não registam outro listener',
+            wReg.__listeners === 1, wReg.__listeners + ' listener(s)');
+          check('T10 deep link: chamadas repetidas não repetem getLaunchUrl',
+            wReg.__consultasLaunch === 1, wReg.__consultasLaunch + ' consulta(s)');
+
+          // várias tentativas de login também não acumulam
+          for (let i = 0; i < 3; i++) await wReg.eval(`mpLoginWithGoogle()`);
+          check('T10 deep link: três tentativas de login continuam com um só listener',
+            wReg.__listeners === 1, wReg.__listeners + ' listener(s)');
+          check('T10 deep link: três tentativas de login não repetem getLaunchUrl',
+            wReg.__consultasLaunch === 1, wReg.__consultasLaunch + ' consulta(s)');
+          check('T10 deep link: o login continuou a abrir o browser em cada tentativa',
+            (wReg.__browserAberto || []).length === 3, (wReg.__browserAberto || []).length + ' abertura(s)');
+
+          // um único retorno entregue com o listener registado: uma troca só
+          wReg.eval(`localStorage.setItem('mp_sb_auth_v1-code-verifier', JSON.stringify('verificador-reg-0123456789abcdef'))`);
+          const antesRetorno = (wReg.__pedidos || []).length;
+          wReg.eval(`window.__callbacks[0]({ url: 'com.pro.driver://oauth-callback?code=CODIGO-UNICO' })`);
+          await new Promise(r => setTimeout(r, 250));
+          const trocas = (wReg.__pedidos || []).slice(antesRetorno).filter(p => p.url.includes('grant_type=pkce'));
+          check('T10 deep link: um retorno produz exactamente uma troca de código',
+            trocas.length === 1, trocas.length + ' troca(s)');
+
+          // dois caminhos em simultâneo para o MESMO link: um processa, o outro
+          // espera — nunca duas trocas concorrentes
+          wReg.eval(`localStorage.setItem('mp_sb_auth_v1-code-verifier', JSON.stringify('verificador-reg-2-0123456789ab'))`);
+          const antesDuplo = (wReg.__pedidos || []).length;
+          const resultadosDuplos = await wReg.eval(`(async () => {
+            const [a, b] = await Promise.all([
+              mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-CONCORRENTE'),
+              mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-CONCORRENTE')
+            ]);
+            return [a, b];
+          })()`);
+          const trocasDuplas = (wReg.__pedidos || []).slice(antesDuplo).filter(p => p.url.includes('grant_type=pkce'));
+          check('T10 deep link: retorno em simultâneo por dois caminhos gera uma só troca',
+            trocasDuplas.length === 1, trocasDuplas.length + ' troca(s)');
+          check('T10 deep link: o segundo caminho recebe o desfecho do primeiro',
+            resultadosDuplos[0].ok === true && resultadosDuplos[1].ok === true &&
+            resultadosDuplos[1].concorrente === true);
+
+          // o mesmo link entregue outra vez pelo listener não volta a trocar
+          const antesRepetido = (wReg.__pedidos || []).length;
+          wReg.eval(`window.__callbacks.forEach(cb => cb({ url: 'com.pro.driver://oauth-callback?code=CODIGO-UNICO' }))`);
+          await new Promise(r => setTimeout(r, 200));
+          const trocasRepetidas = (wReg.__pedidos || []).slice(antesRepetido).filter(p => p.url.includes('grant_type=pkce'));
+          check('T10 deep link: reentrega do mesmo link não repete a troca',
+            trocasRepetidas.length === 0, trocasRepetidas.length + ' troca(s)');
+          check('T10 deep link: nenhum listener extra apareceu no fim do percurso',
+            wReg.__listeners === 1 && wReg.__callbacks.length === 1,
+            wReg.__listeners + ' registo(s) / ' + wReg.__callbacks.length + ' callback(s)');
+
+          // ============================================================
           // T6 / T7 — o que NÃO podia mudar (regressões)
           // ============================================================
           const wLocal = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
