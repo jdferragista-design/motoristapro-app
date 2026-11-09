@@ -18,9 +18,11 @@ let mpSyncBusy = false;
 // Controlo do deep link OAuth. O listener nativo é um recurso único: registá-lo
 // outra vez a cada tentativa de login acumulava callbacks e podia entregar o
 // mesmo retorno a dois caminhos em simultâneo.
-let mpDeepLinkRegistrado = false;   // appUrlOpen já ligado
+let mpDeepLinkRegistrado = false;   // appUrlOpen confirmado como ligado
+let mpDeepLinkPromessa = null;      // registo a decorrer (evita registo duplo)
 let mpLaunchUrlConsultado = false;  // getLaunchUrl já consultado (arranque)
 let mpRetornoEmCurso = null;        // promessa do retorno OAuth a decorrer
+let mpRetornoEmCursoChave = null;   // qual retorno está a decorrer (code/token)
 
 // ---------- utilidades locais ----------
 function mpIsNative() {
@@ -259,20 +261,58 @@ async function mpProcessarRetornoOAuth(url) {
   return relatorio;
 }
 
-// Trata o retorno de ponta a ponta. Se já houver um retorno a decorrer, espera
-// por esse desfecho em vez de abrir um segundo caminho: um único link produz um
-// único processamento e uma única troca de código.
+// Identifica um retorno pelo que ele traz. Dois links com o MESMO código (ou os
+// mesmos tokens) são a mesma entrega; códigos diferentes são retornos distintos
+// e não podem partilhar resultado.
+function mpChaveDoRetorno(url) {
+  try {
+    const u = new URL(url);
+    const code = u.searchParams.get('code');
+    if (code) return 'code:' + code;
+    const h = new URLSearchParams((u.hash || '').replace(/^#/, ''));
+    const at = h.get('access_token');
+    if (at) return 'token:' + at;
+  } catch (_) { /* url inválida: cai no fallback */ }
+  return 'url:' + String(url || '');
+}
+
+// Trata o retorno de ponta a ponta, admitindo um só processamento de cada vez.
+//  - mesmo código a chegar outra vez: espera pelo que está a decorrer e recebe
+//    o desfecho desse (concorrente: true);
+//  - código DIFERENTE a chegar durante um processamento: não corre uma segunda
+//    troca em paralelo e NUNCA devolve o resultado do primeiro como se fosse o
+//    deste. Devolve um conflito explícito que o chamador pode distinguir.
 async function mpTratarRetornoOAuth(url) {
+  const chave = mpChaveDoRetorno(url);
   if (mpRetornoEmCurso) {
-    const r = await mpRetornoEmCurso;
-    logEvent('info', 'Retorno OAuth concorrente aguardou o processamento em curso');
-    return Object.assign({}, r, { concorrente: true });
+    if (chave === mpRetornoEmCursoChave) {
+      const r = await mpRetornoEmCurso;
+      logEvent('info', 'Entrega repetida do mesmo retorno aguardou o processamento em curso');
+      return Object.assign({}, r, { concorrente: true });
+    }
+    // Nada é trocado e nada é apresentado como sucesso: o retorno em curso é o
+    // dono exclusivo da sessão. O código novo não é marcado como usado, para
+    // poder ser tratado numa próxima tentativa.
+    logEvent('warn', 'Retorno OAuth diferente chegou durante um processamento em curso');
+    return {
+      ok: false,
+      modo: null,
+      motivo: 'outro retorno OAuth está a ser processado',
+      erro: 'aguarde a conclusão do login em curso e tente novamente',
+      duplicado: false,
+      conflito: true
+    };
   }
-  mpRetornoEmCurso = mpExecutarRetornoOAuth(url);
+  mpRetornoEmCursoChave = chave;
+  // A promessa é criada já a partir de uma chamada assíncrona: se
+  // mpExecutarRetornoOAuth lançasse de forma síncrona (antes do primeiro await),
+  // o `finally` limpava o estado e o chamador ficava com uma rejeição.
+  mpRetornoEmCurso = Promise.resolve().then(() => mpExecutarRetornoOAuth(url));
   try {
     return await mpRetornoEmCurso;
   } finally {
     mpRetornoEmCurso = null;
+    mpRetornoEmCursoChave = null;
   }
 }
 
@@ -305,23 +345,46 @@ async function mpExecutarRetornoOAuth(url) {
 }
 
 // Liga o listener do deep link UMA única vez durante a vida da aplicação.
-// Idempotente: chamadas repetidas (arranque + cada tentativa de login) não
-// acumulam callbacks. Só marca como registado depois de o addListener correr
-// sem erro — se o plugin falhar, uma chamada posterior ainda pode tentar.
+//
+// App.addListener devolve Promise<PluginListenerHandle> (@capacitor/app 8.x),
+// por isso o registo só conta como concluído quando a promessa resolve — marcar
+// antes disso esconderia uma falha de registo para sempre. Garantias:
+//  - chamadas simultâneas partilham a MESMA promessa: um único addListener;
+//  - rejeição assíncrona deixa a flag em false, para nova tentativa (login
+//    seguinte, ou o retorno de segurança antes de abrir o browser);
+//  - erro síncrono do plugin também não marca registado.
+// Devolve Promise<boolean>: true se ficou (ou já estava) ligado.
 function mpLigarListenerDeepLink(App) {
-  if (mpDeepLinkRegistrado) return false;
+  if (mpDeepLinkRegistrado) return Promise.resolve(true);
+  if (mpDeepLinkPromessa) return mpDeepLinkPromessa; // registo já a decorrer
+
+  let chamada;
   try {
-    App.addListener('appUrlOpen', ({ url }) => {
+    chamada = App.addListener('appUrlOpen', ({ url }) => {
       // Nunca logar o URL completo: contém códigos e/ou tokens.
       logEvent('info', 'Deep link OAuth recebido');
       mpTratarRetornoOAuth(url);
     });
-    mpDeepLinkRegistrado = true;
-    return true;
   } catch (e) {
     logEvent('warn', 'Não foi possível registar deep link', { message: e.message });
-    return false;
+    return Promise.resolve(false);
   }
+
+  mpDeepLinkPromessa = Promise.resolve(chamada).then(() => {
+    mpDeepLinkRegistrado = true;
+    return true;
+  }).catch((e) => {
+    // Registo falhou: fica por ligar e pode ser tentado outra vez.
+    mpDeepLinkRegistrado = false;
+    logEvent('warn', 'Registo do deep link falhou (nova tentativa no próximo login)', {
+      message: String((e && e.message) || e)
+    });
+    return false;
+  }).then((ok) => {
+    mpDeepLinkPromessa = null;
+    return ok;
+  });
+  return mpDeepLinkPromessa;
 }
 
 // Arranque a frio: se o app foi ABERTO pelo link, o evento appUrlOpen já passou
@@ -349,10 +412,12 @@ function mpConsultarLaunchUrl(App) {
 // abrir o browser). Ligar o listener e consultar o arranque são operações
 // distintas, cada uma com a sua guarda.
 function mpRegisterDeepLink() {
-  if (!mpIsNative() || !window.Capacitor || !Capacitor.Plugins || !Capacitor.Plugins.App) return;
+  if (!mpIsNative() || !window.Capacitor || !Capacitor.Plugins || !Capacitor.Plugins.App) {
+    return Promise.resolve(false);
+  }
   const App = Capacitor.Plugins.App;
-  mpLigarListenerDeepLink(App);
   mpConsultarLaunchUrl(App);
+  return mpLigarListenerDeepLink(App);
 }
 
 function mpApplySessionUI() {
@@ -410,8 +475,11 @@ async function mpLoginWithGoogle() {
   // Fica true enquanto o utilizador está no ecrã do Google: nesse estado o
   // botão NÃO deve voltar a "Entrar com Google" (o finally não o repõe).
   let aguardando = false;
-  // Garante o listener do retorno antes de sair para o navegador.
-  mpRegisterDeepLink();
+  // Garante o listener do retorno antes de sair para o navegador. O registo é
+  // assíncrono (@capacitor/app devolve Promise) — espera-se a confirmação para
+  // não sair do app com o listener por ligar. Uma falha não impede o login: o
+  // caminho de arranque a frio continua a apanhar o retorno.
+  await mpRegisterDeepLink();
   mpSetGoogleBusy(true, 'Abrindo Google…');
   try {
     const redirectTo = mpIsNative()

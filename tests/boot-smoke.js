@@ -980,6 +980,165 @@ server.listen(0, '127.0.0.1', () => {
             wReg.__listeners + ' registo(s) / ' + wReg.__callbacks.length + ' callback(s)');
 
           // ============================================================
+          // T11 — retornos OAuth DIFERENTES em simultâneo
+          // ============================================================
+          // Dois códigos distintos a chegar ao mesmo tempo: o segundo não pode
+          // correr outra troca nem herdar o sucesso do primeiro.
+          wReg.eval(`
+            localStorage.setItem('mp_sb_auth_v1-code-verifier', JSON.stringify('verificador-t11-0123456789ab'));
+            // o leque de verificadores foi consumido pela troca anterior
+            window.__pedidos.length = 0;
+          `);
+          const doisCodigos = await wReg.eval(`(async () => {
+            const [a, b] = await Promise.all([
+              mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-AAA'),
+              mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-BBB')
+            ]);
+            return [a, b];
+          })()`);
+          const trocasDois = (wReg.__pedidos || []).filter(p => p.url.includes('grant_type=pkce'));
+          check('T11: dois códigos diferentes em simultâneo produzem uma única troca',
+            trocasDois.length === 1, trocasDois.length + ' troca(s)');
+          check('T11: o segundo código único não devolve sucesso emprestado do primeiro',
+            doisCodigos[1].ok === false, 'ok=' + doisCodigos[1].ok);
+          check('T11: o conflito é explícito e identificável',
+            doisCodigos[1].conflito === true && /processado/.test(doisCodigos[1].motivo),
+            doisCodigos[1].motivo || '');
+          check('T11: o segundo retorno não é classificado como duplicado nem como sucesso',
+            doisCodigos[1].duplicado === false && doisCodigos[1].modo === null);
+          check('T11: a única troca enviada é a do primeiro código',
+            !!trocasDois[0] && JSON.parse(trocasDois[0].body).auth_code === 'CODIGO-AAA',
+            trocasDois[0] ? JSON.parse(trocasDois[0].body).auth_code : 'sem pedido');
+
+          // o código recusado por conflito NÃO foi marcado como usado: uma nova
+          // tentativa depois do conflito consegue processá-lo
+          wReg.eval(`localStorage.setItem('mp_sb_auth_v1-code-verifier', JSON.stringify('verificador-t11b-0123456789'))`);
+          const retryConflito = await wReg.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-BBB')`);
+          check('T11: o código posto de lado por conflito é processável depois',
+            retryConflito.ok === true && retryConflito.conflito === undefined,
+            'ok=' + retryConflito.ok);
+
+          // e o mesmo código continua a ser tratado como duplicado (não regrediu)
+          const antesMesmoCodigo = (wReg.__pedidos || []).length;
+          const mesmoCodigo = await wReg.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-AAA')`);
+          check('T11: a deduplicação por código continua a funcionar',
+            mesmoCodigo.duplicado === true &&
+            (wReg.__pedidos || []).length === antesMesmoCodigo,
+            'duplicado=' + mesmoCodigo.duplicado);
+
+          // ============================================================
+          // T12 — registo ASSÍNCRONO do listener (App.addListener devolve Promise)
+          // ============================================================
+          // Confirmado na versão instalada: @capacitor/app 8.1.2 declara
+          // addListener(...): Promise<PluginListenerHandle>.
+          const dtsApp = fs.readFileSync(path.join(path.join(__dirname, '..'), 'node_modules/@capacitor/app/dist/esm/definitions.d.ts'), 'utf8');
+          check('T12: a versão instalada documenta addListener como Promise',
+            /addListener\(eventName: 'appUrlOpen'[^)]*\): Promise<PluginListenerHandle>/.test(dtsApp),
+            JSON.stringify(String(dtsApp).length) + ' bytes de tipos');
+
+          // janela controlada: o addListener pode resolver, rejeitar (async) ou
+          // atirar (sync), e conta quantas vezes foi chamado.
+          function janelaRegisto(modo) {
+            const w = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
+              url: 'https://localhost/index.html', runScripts: 'outside-only', pretendToBeVisual: true
+            }).window;
+            w.eval(`
+              window.__chamadasAddListener = 0;
+              window.__callbacks = [];
+              window.__modo = ${JSON.stringify(modo)};
+              window.fetch = async () => ({ ok: true, status: 200, headers: { get: () => 'application/json' },
+                json: async () => ({}), text: async () => '' });
+              window.Capacitor = { isNativePlatform: () => true, Plugins: {
+                Browser: { open: async () => {}, close: async () => {} },
+                App: {
+                  addListener: (evento, cb) => {
+                    window.__chamadasAddListener++;
+                    window.__callbacks.push(cb);
+                    if (window.__modo === 'sync-throw') throw new Error('plugin indisponível');
+                    if (window.__modo === 'async-reject') return Promise.reject(new Error('falha nativa simulada'));
+                    return Promise.resolve({ remove: async () => {} });
+                  },
+                  getLaunchUrl: async () => undefined
+                } } };
+              window.state = { shifts: [], expenses: [], maintenance: [] };
+              window.logEvent = function () {}; window.mpNotify = function () {};
+              window.mpReconcile = async function () {}; window.mpApplySessionUI = function () {};
+              window.MP_SUPABASE_URL = 'https://projeto.supabase.co';
+              window.MP_SUPABASE_ANON_KEY = 'sb_publishable_teste';
+              window.MP_OAUTH_REDIRECT_NATIVE = 'com.pro.driver://oauth-callback';
+            `);
+            w.eval(fs.readFileSync(path.join(WWW, 'js/vendor/supabase.js'), 'utf8'));
+            w.eval(fs.readFileSync(path.join(WWW, 'js/auth.js'), 'utf8'));
+            return w;
+          }
+
+          // (a) sucesso — registo confirmado só depois de a promessa resolver
+          const wOk = janelaRegisto('resolve');
+          await new Promise(r => setTimeout(r, 60));
+          check('T12: registo bem-sucedido liga o listener uma vez',
+            wOk.__chamadasAddListener === 1 && (await wOk.eval(`mpRegisterDeepLink()`)) === true,
+            wOk.__chamadasAddListener + ' chamada(s)');
+          check('T12: chamadas simultâneas partilham um único addListener',
+            (await wOk.eval(`Promise.all([mpRegisterDeepLink(), mpRegisterDeepLink(), mpRegisterDeepLink()])`)).every(Boolean) &&
+            wOk.__chamadasAddListener === 1,
+            wOk.__chamadasAddListener + ' chamada(s) após 3 pedidos simultâneos');
+
+          // (b) rejeição assíncrona — não pode ficar marcado como registado
+          const wRej = janelaRegisto('async-reject');
+          await new Promise(r => setTimeout(r, 60));
+          check('T12: rejeição assíncrona não conta como registado',
+            (await wRej.eval(`mpRegisterDeepLink()`)) === false);
+          const tentativasRej = wRej.__chamadasAddListener;
+          await wRej.eval(`mpRegisterDeepLink()`);
+          check('T12: depois de falhar, uma nova tentativa volta a tentar registar',
+            wRej.__chamadasAddListener === tentativasRej + 1,
+            tentativasRej + ' → ' + wRej.__chamadasAddListener + ' chamada(s)');
+
+          // (c) erro síncrono do plugin — também permite nova tentativa
+          const wSync = janelaRegisto('sync-throw');
+          await new Promise(r => setTimeout(r, 60));
+          const antesSync = wSync.__chamadasAddListener;
+          const okSync = await wSync.eval(`mpRegisterDeepLink()`);
+          await wSync.eval(`mpRegisterDeepLink()`);
+          check('T12: erro síncrono não marca registado e permite nova tentativa',
+            okSync === false && wSync.__chamadasAddListener === antesSync + 2,
+            'resultado=' + okSync + ', ' + wSync.__chamadasAddListener + ' chamada(s)');
+
+          // (d) depois de recuperar, passa a ser idempotente
+          wSync.eval(`window.Capacitor.Plugins.App.addListener = (evento, cb) => {
+            window.__chamadasAddListener++; return Promise.resolve({ remove: async () => {} }); }`);
+          const recuperou = await wSync.eval(`mpRegisterDeepLink()`);
+          const chamadasAposRecuperar = wSync.__chamadasAddListener;
+          await wSync.eval(`mpRegisterDeepLink(); mpRegisterDeepLink();`);
+          check('T12: após recuperar o registo, deixa de haver novas chamadas ao plugin',
+            recuperou === true && wSync.__chamadasAddListener === chamadasAposRecuperar,
+            'recuperou=' + recuperou + ', ' + wSync.__chamadasAddListener + ' chamada(s)');
+
+          // (e) se o registo falhou no arranque, o login tem de o confirmar
+          // ANTES de abrir o browser (é a última rede antes de sair do app).
+          const wLogin = janelaRegisto('async-reject');
+          await new Promise(r => setTimeout(r, 80));
+          wLogin.eval(`
+            window.__ordem = [];
+            window.Capacitor.Plugins.App.addListener = (e, cb) => {
+              window.__ordem.push('addListener');
+              return new Promise(res => setTimeout(() => { window.__ordem.push('registado'); res({ remove: async () => {} }); }, 80));
+            };
+            window.Capacitor.Plugins.Browser.open = async () => { window.__ordem.push('browser'); };
+          `);
+          await wLogin.eval(`mpLoginWithGoogle()`);
+          check('T12: com o registo em falta, o login confirma-o antes de abrir o browser',
+            JSON.stringify(wLogin.__ordem) === JSON.stringify(['addListener', 'registado', 'browser']),
+            JSON.stringify(wLogin.__ordem));
+
+          // e quando o registo já está confirmado não há nova chamada ao plugin
+          wLogin.eval(`window.__ordem = [];`);
+          await wLogin.eval(`mpLoginWithGoogle()`);
+          check('T12: com o registo já confirmado o login não volta a registar',
+            JSON.stringify(wLogin.__ordem) === JSON.stringify(['browser']),
+            JSON.stringify(wLogin.__ordem));
+
+          // ============================================================
           // T6 / T7 — o que NÃO podia mudar (regressões)
           // ============================================================
           const wLocal = new (require('jsdom').JSDOM)('<!doctype html><html><body></body></html>', {
