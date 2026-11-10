@@ -58,9 +58,15 @@ calculateTripSim();
 // Primeiro uso: sem dados salvos e nunca escolhido → perguntar se começa
 // do zero (limpa a demo) ou mantém os dados de exemplo.
 const MP_FIRST_USE_FLAG = 'mp_first_use_done_v8';
+// Chave partilhada com o auth.js: marca que o estado em memória é a
+// DEMONSTRAÇÃO (defaultData), não o histórico do utilizador. Tudo o que é
+// demonstração fica proibido de subir para a nuvem e é descartado ao entrar.
+const MP_DEMO_KEY = 'mp_demo_data_v1';
 (function firstUseCheck() {
   try {
     if (localStorage.getItem('mp_html_state_v8')) return; // utilizador já tem dados
+    // Sem estado guardado, o que está em memória é a demonstração.
+    localStorage.setItem(MP_DEMO_KEY, '1');
     if (localStorage.getItem(MP_FIRST_USE_FLAG)) return;
     const el = document.getElementById('mpFirstUseScreen');
     if (el) el.style.display = 'flex';
@@ -83,10 +89,19 @@ function mpFirstUse(mode) {
       maintenance: []
     });
     syncVehicleOdometer();
+    try { localStorage.removeItem(MP_DEMO_KEY); } catch (e) { /* nada */ }
     saveState(); // persiste + re-render
   } else {
-    // Dados de exemplo: guarda o defaultData para não perguntar de novo
-    try { localStorage.setItem('mp_html_state_v8', JSON.stringify(state)); } catch (e) {}
+    // Dados de exemplo: guarda o defaultData para não perguntar de novo.
+    // A marca de demonstração impede que subam para a conta do utilizador.
+    try {
+      const exemplo = JSON.stringify(state);
+      localStorage.setItem('mp_html_state_v8', exemplo);
+      localStorage.setItem(MP_DEMO_KEY, '1');
+      // Cópia da demonstração tal como foi gravada: se o utilizador a editar,
+      // o auth.js percebe (ao entrar) que já são dados dele e não apaga nada.
+      localStorage.setItem('mp_demo_snapshot_v1', exemplo);
+    } catch (e) {}
     render();
   }
   try { localStorage.setItem(MP_FIRST_USE_FLAG, '1'); } catch (e) {}

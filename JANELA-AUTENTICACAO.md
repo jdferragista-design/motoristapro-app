@@ -21,8 +21,9 @@ Uma única janela (`#mpLoginScreen`) com quatro vistas trocadas no mesmo lugar:
 
 Porta de entrada: **Configurações → Conta & Nuvem → "Entrar ou criar conta"**.
 Depois de autenticado: **"Alterar senha"** no mesmo cartão.
-O app continua a abrir direto, sem login obrigatório (modelo local-first
-preservado).
+**Atualização da Fase 3:** o app deixou de abrir direto. A janela passou a ser
+o portão de acesso — nenhuma tela financeira aparece antes de a sessão ser
+validada. Ver `PORTAO-ACESSO-FASE3.md`.
 
 ## 2. Regras aplicadas em todas as ações
 

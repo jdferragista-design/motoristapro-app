@@ -817,6 +817,75 @@ header {
   color: var(--text-dim);
   line-height: 1.5;
 }
+/* ---------- PORTÃO DE ACESSO (Fase 3) ----------
+   Enquanto html[data-mp-locked] existir, nada da área financeira é exibido
+   nem focável. É aplicado por script inline no <head>, antes do primeiro
+   desenho, e removido apenas pelo auth.js depois de validar a sessão.
+   `inert` tira também o foco, o clique e a leitura por leitores de ecrã. */
+html[data-mp-locked] header,
+html[data-mp-locked] .desktop-nav,
+html[data-mp-locked] .mobile-nav,
+html[data-mp-locked] main.container,
+html[data-mp-locked] .modal-overlay,
+html[data-mp-locked] #mpAuthClose,
+html[data-mp-locked] .fab {
+  display: none !important;
+}
+/* ...e o "✕" da janela também não existe enquanto o acesso está fechado:
+   fechar o portão deixaria o utilizador num ecrã vazio. */
+html[data-mp-locked] #mpFirstUseScreen { display: none !important; }
+
+/* ---------- vistas de sistema da autenticação ---------- */
+.mp-auth-spinner {
+  width: 34px;
+  height: 34px;
+  margin: 6px auto 2px;
+  border: 3px solid var(--border-sub);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: mp-auth-girar 0.9s linear infinite;
+}
+@keyframes mp-auth-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .mp-auth-spinner { animation-duration: 2.4s; }
+}
+.mp-auth-aviso {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-sub);
+  background: var(--card-sub, #14141f);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: left;
+}
+.mp-auth-aviso strong { color: var(--text); }
+.mp-auth-aviso--alerta {
+  border-color: rgba(244, 63, 94, 0.45);
+  background: rgba(244, 63, 94, 0.08);
+}
+.mp-auth-blocked-dados {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-sub);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  text-align: left;
+}
+.mp-auth-blocked-dados strong { color: var(--text); font-size: 13px; }
+.mp-auth-submit--secundario { margin-top: 8px; }
+.mp-auth-foot--nota {
+  display: block;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-top: 12px;
+}
+
 /* ---------- janela de autenticação (4 vistas) ---------- */
 .mp-auth-card {
   position: relative;

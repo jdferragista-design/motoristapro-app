@@ -7,7 +7,8 @@
 const MP_SYNC_KEY = 'mp_last_sync_v8';
 const MP_BACKUP_PULL_KEY = 'mp_state_backup_before_pull_v8';
 const MPS_NEEDS_PULL_KEY = 'mp_pull_attempted_v8';
-const MP_OFFLINE_KEY = 'mp_offline_mode_v8';
+// (o antigo atalho "continuar sem conta" — mp_offline_mode_v8 — foi removido
+// na Fase 3: já nada o lê nem o escreve.)
 const MP_STATE_LS_KEY = 'mp_html_state_v8';
 
 let mpSupabase = null;
@@ -80,6 +81,344 @@ function mpSetSyncStatus(kind) {
 }
 
 
+// ============================================================
+// PORTÃO DE ACESSO — login obrigatório (Fase 3)
+// ============================================================
+//
+// Regras, todas cobertas por teste:
+//  1. Nada da área financeira aparece antes de uma sessão válida — o atributo
+//     data-mp-locked é posto por script no <head>, antes do primeiro desenho.
+//  2. Sessão válida (token não expirado) abre o app, mesmo sem internet.
+//  3. Sessão expirada + sem rede: tolerância de 7 dias contados da última
+//     validação bem-sucedida. Fora disso, pede conexão e NÃO apaga nada.
+//  4. Falta de rede nunca é tratada como logout: o signOut só acontece por
+//     ação explícita do utilizador.
+//  5. Dados de demonstração nunca sobem para a nuvem.
+//  6. Conta diferente da dona do aparelho não vê, não junta e não envia dados.
+
+const MP_DEVICE_OWNER_KEY = 'mp_device_owner_v1';
+const MP_AUTH_LAST_OK_KEY = 'mp_auth_last_ok_v1';
+const MP_AUTH_LAST_USER_KEY = 'mp_auth_last_user_v1';
+// A chave da demo já é declarada como `const` no init.js. Como os scripts
+// clássicos partilham o escopo lexical global, declarar aqui outra vez dá
+// `SyntaxError: Identifier 'MP_DEMO_KEY' has already been declared` e mata
+// o ficheiro inteiro. Por isso usa-se um acessor (e o auth.js continua a
+// funcionar isolado nos testes, que o avaliam sozinho).
+function mpDemoKey() { return 'mp_demo_data_v1'; }
+// Cópia exata do estado de exemplo que o init.js gravou. Serve para saber,
+// ao entrar, se a demonstração continua intacta (pode ser substituída por
+// um espaço vazio) ou se o utilizador já a editou (aí são dados dele e
+// não se apaga nada).
+function mpDemoSnapshotKey() { return 'mp_demo_snapshot_v1'; }
+const MP_TOLERANCIA_DIAS = 7;
+// O cliente do Supabase repete a renovação algumas vezes quando a rede está
+// em baixo; sem prazo, o arranque ficaria em "Verificando…" por ~26 s.
+const MP_AUTH_PRAZO_MS = 6000;
+
+let mpAcesso = 'verificando';       // verificando | liberado | login | sem_conexao | conta_diferente
+let mpAcessoSemValidacao = false;   // liberado pela tolerância offline
+
+// Corre uma promessa com prazo. Nunca rejeita: devolve { valor } ou
+// { prazoEsgotado: true } (a promessa original é abandonada, mas a sua
+// rejeição já está tratada por quem a criou).
+function mpComPrazo(promessa, ms) {
+  return new Promise((resolve) => {
+    let decidido = false;
+    const fim = () => { if (!decidido) { decidido = true; clearTimeout(temporizador); } };
+    const temporizador = setTimeout(() => {
+      if (!decidido) { decidido = true; resolve({ prazoEsgotado: true }); }
+    }, ms);
+    promessa.then(
+      (valor) => { if (!decidido) { fim(); resolve({ valor }); } },
+      (erro) => { if (!decidido) { fim(); resolve({ erro }); } }
+    );
+  });
+}
+
+function mpLerSessaoGuardada() {
+  try {
+    const bruto = localStorage.getItem('mp_sb_auth_v1');
+    if (!bruto) return null;
+    const s = JSON.parse(bruto);
+    return (s && s.user && s.user.id) ? s : null;
+  } catch (_) { return null; }
+}
+
+function mpMarcarValidacao(uid) {
+  try {
+    localStorage.setItem(MP_AUTH_LAST_OK_KEY, new Date().toISOString());
+    if (uid) localStorage.setItem(MP_AUTH_LAST_USER_KEY, uid);
+  } catch (_) { /* storage indisponível: só se perde a contagem de tolerância */ }
+}
+
+function mpDiasDesdeUltimaValidacao() {
+  try {
+    const iso = localStorage.getItem(MP_AUTH_LAST_OK_KEY);
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return null;
+    return (Date.now() - t) / 86400000;
+  } catch (_) { return null; }
+}
+
+function mpErroDeRede(e) {
+  if (!e) return false;
+  if (e.status === 0) return true;
+  const msg = String(e.message || e).toLowerCase();
+  return /failed to fetch|network|load failed|networkerror|timeout|offline/.test(msg);
+}
+
+function mpEstadoEhDemo() {
+  try { return localStorage.getItem(mpDemoKey()) === '1'; } catch (_) { return false; }
+}
+
+function mpMarcarDemo(valor) {
+  try {
+    if (valor) localStorage.setItem(mpDemoKey(), '1');
+    else localStorage.removeItem(mpDemoKey());
+  } catch (_) { /* sem storage: a marca não persiste */ }
+}
+
+// Dados reais = histórico do utilizador, nunca a demonstração.
+function mpEstadoTemDadosReais() {
+  if (typeof state === 'undefined' || !state) return false;
+  if (mpEstadoEhDemo()) return false;
+  return (state.shifts || []).length > 0 ||
+         (state.expenses || []).length > 0 ||
+         (state.maintenance || []).length > 0;
+}
+
+// Só sincroniza com sessão validada, aparelho do próprio utilizador e sem demo.
+function mpPodeSincronizar() {
+  return mpAcesso === 'liberado' && !mpAcessoSemValidacao && !!mpSession && !mpEstadoEhDemo();
+}
+
+function mpReconcileSePuder() {
+  if (!mpPodeSincronizar()) {
+    logEvent('info', 'Reconciliação adiada pelo portão de acesso', { acesso: mpAcesso, semValidacao: mpAcessoSemValidacao });
+    return Promise.resolve(false);
+  }
+  return mpReconcile();
+}
+
+// A demonstração nunca deve subir para a conta de ninguém e, ao entrar, o
+// espaço do utilizador começa vazio. `zero` = estado vazio, não apaga nada real.
+function mpDescartarDemo() {
+  if (!mpEstadoEhDemo()) return false;
+  // Demonstração editada = dados do utilizador. Só se descarta a marca; o
+  // histórico fica onde está (preservação financeira acima de tudo).
+  let intacta = true;
+  try {
+    const gravado = localStorage.getItem('mp_html_state_v8');
+    const copia = localStorage.getItem(mpDemoSnapshotKey());
+    if (gravado && copia && gravado !== copia) intacta = false;
+  } catch (_) { /* sem storage: assume-se demonstração intacta */ }
+  if (!intacta) {
+    mpMarcarDemo(false);
+    logEvent('info', 'Demonstração editada pelo utilizador: mantida como dados locais');
+    return false;
+  }
+  try {
+    state = migrateState({
+      vehicle: Object.assign({}, defaultData.vehicle, {
+        model: '', plate: '', odometer: 0, manualOdometerBase: 0
+      }),
+      fuelSettings: defaultData.fuelSettings,
+      shifts: [], expenses: [], maintenance: []
+    });
+    mpMarcarDemo(false);
+    try { localStorage.removeItem(mpDemoSnapshotKey()); } catch (_) { /* nada */ }
+    saveState();
+    logEvent('info', 'Dados de demonstração descartados ao autenticar');
+    return true;
+  } catch (e) {
+    logEvent('warn', 'Falha ao descartar demonstração', { message: e && e.message });
+    return false;
+  }
+}
+
+// Dono do aparelho: quem primeiro tem dados reais. Sem dono e sem dados, o
+// aparelho adota a conta que entrar (nada está em risco).
+function mpVerificarDono(uid) {
+  if (!uid) return { ok: false, motivo: 'sem-utilizador' };
+  let dono = null;
+  try { dono = localStorage.getItem(MP_DEVICE_OWNER_KEY); } catch (_) { /* nada */ }
+  const temDados = mpEstadoTemDadosReais();
+  const gravar = (v) => { try { if (v) localStorage.setItem(MP_DEVICE_OWNER_KEY, v); } catch (_) { /* nada */ } };
+
+  if (!dono) {
+    // Primeira conta a autenticar neste aparelho passa a ser a dona. Registar
+    // mesmo sem dados evita que uma segunda conta apareça depois como "dona"
+    // e receba o histórico que entretanto foi criado.
+    gravar(uid);
+    return { ok: true, adotado: true, semDados: !temDados };
+  }
+  if (dono === uid) return { ok: true };
+  if (!temDados) { gravar(uid); return { ok: true, adotado: true, semDados: true }; }
+  return { ok: false, motivo: 'conta-diferente' };
+}
+
+function mpAplicarPortao(liberado) {
+  const html = document.documentElement;
+  if (!html) return;
+  if (liberado) html.removeAttribute('data-mp-locked');
+  else html.setAttribute('data-mp-locked', '1');
+  // `inert` reforça: sem foco, sem clique e fora da árvore de acessibilidade.
+  const alvos = document.querySelectorAll('header, .desktop-nav, .mobile-nav, main.container, .modal-overlay');
+  Array.prototype.forEach.call(alvos, (el) => {
+    if (liberado) el.removeAttribute('inert');
+    else el.setAttribute('inert', '');
+  });
+}
+
+function mpPreencherResumoBloqueio() {
+  const el = document.getElementById('mpBlockedResumo');
+  if (!el) return;
+  const s = (typeof state !== 'undefined' && state) ? state : {};
+  const n = (a) => (Array.isArray(a) ? a.length : 0);
+  el.innerHTML = '<strong>' + n(s.shifts) + ' turnos · ' + n(s.expenses) + ' despesas · ' +
+    n(s.maintenance) + ' manutenções</strong> salvos neste aparelho';
+}
+
+function mpMostrarAcesso(estado) {
+  mpAcesso = estado;
+  const liberado = estado === 'liberado';
+  mpAplicarPortao(liberado);
+  if (liberado) {
+    mpShowLoginScreen(false);
+    mpUpdateAccountUI();
+    mpSetSyncStatus(mpAcessoSemValidacao ? 'offline' : (mpSession ? 'synced' : 'anon'));
+    return;
+  }
+  mpShowLoginScreen(true);
+  const vista = {
+    verificando: 'checking',
+    login: 'login',
+    sem_conexao: 'offline',
+    conta_diferente: 'blocked'
+  }[estado] || 'login';
+  mpAuthMostrarVista(vista, true);
+  if (estado === 'conta_diferente') mpPreencherResumoBloqueio();
+  if (estado !== 'verificando') mpSetGoogleBusy(false, 'Entrar com Google');
+}
+
+function mpBloquearPorContaDiferente() {
+  mpAcessoSemValidacao = false;
+  mpMostrarAcesso('conta_diferente');
+  logEvent('warn', 'Acesso bloqueado: o aparelho tem dados de outra conta');
+  return 'conta_diferente';
+}
+
+// Decide se o app abre. É o único ponto que libera a área financeira.
+async function mpAvaliarAcesso(opcoes) {
+  const opts = opcoes || {};
+  if (!mpSupabase) {
+    mpMostrarAcesso('login');
+    mpSetLoginStatus('Serviço indisponível — verifique sua conexão e a configuração.', true);
+    return 'login';
+  }
+  if (mpAcesso !== 'liberado' && !opts.silencioso) mpMostrarAcesso('verificando');
+
+  let sessao = null;
+  let erro = null;
+  const semRede = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
+  if (semRede) {
+    // Rede declarada em baixo: não vale a pena esperar pelos retries do
+    // cliente (podem levar ~26 s). A sessão guardada é avaliada pela
+    // tolerância offline logo abaixo.
+    erro = { status: 0, message: 'offline' };
+  } else {
+    const tentativa = mpSupabase.auth.getSession().then(
+      (r) => ({ resposta: r }),
+      (e) => ({ falha: e })
+    );
+    const r = await mpComPrazo(tentativa, MP_AUTH_PRAZO_MS);
+    if (r.prazoEsgotado) {
+      erro = { status: 0, message: 'timeout' };
+    } else if (r.erro) {
+      erro = r.erro;
+    } else if (r.valor && r.valor.falha) {
+      erro = r.valor.falha;
+    } else if (r.valor && r.valor.resposta) {
+      sessao = (r.valor.resposta.data && r.valor.resposta.data.session) || null;
+      erro = r.valor.resposta.error || null;
+    }
+  }
+
+  const agora = Date.now();
+  const expiraEm = sessao && sessao.expires_at ? sessao.expires_at * 1000 : 0;
+  const valida = !!sessao && expiraEm > agora + 30000;
+
+  if (valida) {
+    const uid = sessao.user && sessao.user.id;
+    const dono = mpVerificarDono(uid);
+    if (!dono.ok) return mpBloquearPorContaDiferente();
+    mpSession = sessao;
+    mpMarcarValidacao(uid);
+    mpAcessoSemValidacao = false;
+    if (mpEstadoEhDemo()) mpDescartarDemo();
+    mpMostrarAcesso('liberado');
+    logEvent('info', 'Acesso liberado com sessão válida');
+    return 'liberado';
+  }
+
+  // Sem sessão utilizável: distinguir "sem internet" de "sessão terminou".
+  const guardada = mpLerSessaoGuardada();
+  const redeFalhou = mpErroDeRede(erro);
+
+  if (guardada && redeFalhou) {
+    const dias = mpDiasDesdeUltimaValidacao();
+    let donoAparelho = null;
+    try { donoAparelho = localStorage.getItem(MP_DEVICE_OWNER_KEY); } catch (_) { /* nada */ }
+    const mesmaConta = !donoAparelho || donoAparelho === guardada.user.id;
+    const dentroDaTolerancia = dias !== null && dias <= MP_TOLERANCIA_DIAS;
+
+    if (dentroDaTolerancia && mesmaConta) {
+      // Tolerância offline: a sessão existia e foi validada há pouco tempo.
+      // Não há token utilizável, por isso nem sync nem push acontecem.
+      mpSession = null;
+      mpAcessoSemValidacao = true;
+      if (mpEstadoEhDemo()) mpDescartarDemo();
+      mpMostrarAcesso('liberado');
+      logEvent('info', 'Acesso liberado por tolerância offline', { dias: Math.round(dias) });
+      mpNotify('Sem conexão: sessão não validada agora. Seus dados locais estão disponíveis.');
+      return 'liberado-sem-validacao';
+    }
+    mpSession = null;
+    mpAcessoSemValidacao = false;
+    mpMostrarAcesso('sem_conexao');
+    logEvent('info', 'Acesso pendente de conexão para validar a sessão');
+    return 'sem_conexao';
+  }
+
+  // Sessão inexistente ou refresh recusado pelo servidor.
+  mpSession = null;
+  mpAcessoSemValidacao = false;
+  mpMostrarAcesso('login');
+  if (opts.mensagem) mpSetLoginStatus(opts.mensagem, true);
+  return 'login';
+}
+
+async function mpAuthTentarNovamente() {
+  const btn = document.getElementById('mpBtnRetryAuth');
+  if (btn) { btn.disabled = true; btn.__mpTexto = btn.textContent; btn.textContent = 'Verificando…'; }
+  try {
+    await mpAvaliarAcesso();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Tentar novamente'; }
+  }
+}
+
+function mpExportarBackupEmergencia() {
+  try {
+    if (typeof exportJSONBackup === 'function') { exportJSONBackup(); return; }
+    mpSetLoginStatus('Exportação indisponível neste contexto.', true);
+  } catch (e) {
+    logEvent('error', 'Falha ao exportar backup de emergência', { message: e && e.message });
+    mpSetLoginStatus('Não foi possível exportar agora. Tente novamente.', true);
+  }
+}
+
 // ---------- inicialização do cliente ----------
 function mpInitSupabase() {
   if (typeof window.supabase === 'undefined' || !window.MP_SUPABASE_URL || !window.MP_SUPABASE_ANON_KEY) {
@@ -108,12 +447,12 @@ function mpInitSupabase() {
     return null;
   }
 
-  // Sessão existente (arranque / refresh)
-  mpSupabase.auth.getSession().then(({ data }) => {
-    mpSession = data.session || null;
-    mpApplySessionUI();
-    if (mpSession) mpReconcile();
-  }).catch(e => logEvent('warn', 'getSession falhou', { message: e.message }));
+  // Arranque: o portão decide se abre, se pede login ou se espera conexão.
+  mpAvaliarAcesso().catch(e => {
+    logEvent('error', 'Falha ao avaliar acesso no arranque', { message: e && e.message });
+    mpMostrarAcesso('login');
+    mpSetLoginStatus('Não foi possível verificar sua sessão. Tente entrar novamente.', true);
+  });
 
   // Mudanças de sessão (login, logout, token refresh)
   mpSupabase.auth.onAuthStateChange((event, session) => {
@@ -121,26 +460,49 @@ function mpInitSupabase() {
     // O link de recuperação abre uma sessão. Sem distinguir o evento, o
     // utilizador cairia no app "já dentro" sem nunca poder definir a senha.
     if (event === 'PASSWORD_RECOVERY') {
+      mpAcessoSemValidacao = false;
+      mpAplicarPortao(true);
+      mpShowLoginScreen(true);
       mpAuthTratarRecuperacao();
-      mpApplySessionUI();
+      mpUpdateAccountUI();
       return;
     }
     if (event === 'SIGNED_IN') {
-      localStorage.removeItem(MP_OFFLINE_KEY);
       mpSetLoginStatus('');
+      // Aparelho de outra conta: a sessão existe mas o acesso fica fechado.
+      const uid = mpSession && mpSession.user && mpSession.user.id;
+      const dono = mpVerificarDono(uid);
+      if (!dono.ok) { mpBloquearPorContaDiferente(); return; }
+      mpMarcarValidacao(uid);
+      mpAcessoSemValidacao = false;
+      if (mpEstadoEhDemo()) mpDescartarDemo();
+      mpMostrarAcesso('liberado');
       if (mpAuthLerIntencao() === 'recovery') {
         mpAuthTratarRecuperacao();
       } else {
         mpNotify('Conectado! Sincronizando dados…');
       }
+      mpReconcileSePuder();
+      return;
+    }
+    if (event === 'SIGNED_OUT') {
+      mpSession = null;
+      mpAcessoSemValidacao = false;
+      mpMostrarAcesso('login');
+      return;
     }
     mpApplySessionUI();
-    if (event === 'SIGNED_IN' && mpSession) mpReconcile();
   });
 
   mpRegisterDeepLink();
   mpAuthLigarEventos();
-  window.addEventListener('online', () => { if (mpSession) mpReconcile(); });
+  window.addEventListener('online', () => {
+    // Sem internet nunca é logout: ao voltar a rede revalidamos e, se a sessão
+    // estiver boa, reconciliamos.
+    mpAvaliarAcesso({ silencioso: mpAcesso === 'liberado' }).then((estado) => {
+      if (estado === 'liberado') mpReconcileSePuder();
+    });
+  });
   return mpSupabase;
 }
 
@@ -472,16 +834,21 @@ function mpRegisterDeepLink() {
 
 function mpApplySessionUI() {
   const hasSession = !!mpSession;
-  // Login nunca bloqueia a abertura: o app abre sempre direto (como antes).
-  // O login Google é opcional e faz-se em Configurações → Conta & Nuvem.
-  //
-  // EXCEÇÃO: se a janela de autenticação estiver aberta (entrar, criar conta,
-  // recuperar ou redefinir senha), uma mudança de sessão não pode fechá-la por
-  // baixo do utilizador — era o que acontecia ao definir a nova senha, porque
-  // o evento de sessão chegava antes de a ação terminar.
+  // Fase 3: o acesso é obrigatório. Se o portão ainda não liberou, a janela
+  // de autenticação mantém-se e a área financeira continua oculta.
   const tela = document.getElementById('mpLoginScreen');
   const aberta = !!tela && tela.style.display === 'flex';
-  if (!aberta) mpShowLoginScreen(false);
+
+  if (mpAcesso !== 'liberado') {
+    mpShowLoginScreen(true);
+    mpUpdateAccountUI();
+    mpSetSyncStatus('anon');
+    return;
+  }
+  // Já liberado: não fechar a janela por baixo de quem está a usá-la
+  // (entrar, criar conta, recuperar ou redefinir senha).
+  if (aberta) { mpUpdateAccountUI(); return; }
+  mpShowLoginScreen(false);
   mpUpdateAccountUI();
   if (hasSession) mpSetSyncStatus('synced');
   else mpSetSyncStatus('anon');
@@ -721,6 +1088,13 @@ function mpAuthAbrir(vista) {
 }
 
 function mpAuthFechar() {
+  // Fase 3: a janela é o portão. Sem sessão validada não se fecha — fechá-la
+  // deixaria o utilizador à frente de um ecrã vazio (a área principal está
+  // escondida por data-mp-locked).
+  if (mpAcesso !== 'liberado') {
+    mpSetLoginStatus('Entre com sua conta para usar o app.', true);
+    return;
+  }
   mpAuthLimparCampos();
   mpSetLoginStatus('');
   mpShowLoginScreen(false);
@@ -730,8 +1104,12 @@ function mpAuthVistaEl(nome) {
   return document.getElementById('mpAuthView' + nome.charAt(0).toUpperCase() + nome.slice(1));
 }
 
-function mpAuthMostrarVista(vista) {
-  const vistas = ['login', 'signup', 'forgot', 'reset'];
+// `manterStatus` existe para o portão de acesso: a verificação de sessão em
+// segundo plano não pode apagar uma mensagem que o utilizador está a ler
+// (ex.: "Digite seu e-mail.") quando o arranque termina depois do clique.
+function mpAuthMostrarVista(vista, manterStatus) {
+  // 'checking', 'offline' e 'blocked' são vistas de sistema do portão de acesso.
+  const vistas = ['login', 'signup', 'forgot', 'reset', 'checking', 'offline', 'blocked'];
   const alvo = vistas.indexOf(vista) !== -1 ? vista : 'login';
   mpAuthVistaAtual = alvo;
   vistas.forEach((v) => {
@@ -740,10 +1118,12 @@ function mpAuthMostrarVista(vista) {
   });
   // Trocar de vista não pode arrastar senhas digitadas na vista anterior.
   mpAuthLimparCampos();
-  mpSetLoginStatus('');
+  if (!manterStatus) mpSetLoginStatus('');
   const nota = document.getElementById('mpAuthNote');
-  if (nota) nota.style.display = (alvo === 'reset') ? 'none' : 'block';
+  const semNota = alvo === 'reset' || alvo === 'checking' || alvo === 'offline' || alvo === 'blocked';
+  if (nota) nota.style.display = semNota ? 'none' : 'block';
   const foco = { login: 'mpAuthEmail', signup: 'mpSignupNome', forgot: 'mpForgotEmail', reset: 'mpResetSenha' }[alvo];
+  if (!foco) return; // vistas de sistema não têm campo para focar
   setTimeout(() => {
     const el = document.getElementById(foco);
     if (el && typeof el.focus === 'function') { try { el.focus(); } catch (_) { /* WebView sem foco */ } }
@@ -848,7 +1228,7 @@ async function mpLoginWithEmail() {
     mpApplySessionUI();
     mpAuthFechar();
     mpNotify('Conectado! Sincronizando…');
-    await mpReconcile();
+    await mpReconcileSePuder();
   } catch (e) {
     logEvent('warn', 'Login por e-mail falhou', { message: String((e && e.message) || e) });
     mpSetLoginStatus(mpAuthMensagemErro(e), true);
@@ -907,7 +1287,7 @@ async function mpSignupWithEmail() {
       mpAuthFechar();
       mpNotify('Conta criada e conectada ☁️');
       mpApplySessionUI();
-      await mpReconcile();
+      await mpReconcileSePuder();
       return;
     }
     // Volta para o ecrã de entrada com o e-mail já preenchido. A mensagem é
@@ -1002,7 +1382,7 @@ async function mpUpdatePassword() {
     mpAuthFechar();
     mpNotify('Senha alterada com sucesso 🔒');
     mpApplySessionUI();
-    await mpReconcile();
+    await mpReconcileSePuder();
   } catch (e) {
     logEvent('warn', 'Redefinição de senha falhou', { message: String((e && e.message) || e) });
     mpSetLoginStatus(mpAuthMensagemErro(e), true);
@@ -1025,19 +1405,28 @@ async function mpLogout() {
     logEvent('warn', 'signOut falhou', { message: e.message });
   }
   mpSession = null;
-  localStorage.setItem(MP_OFFLINE_KEY, '1'); // não volta a forçar login
-  mpApplySessionUI();
+  mpAcessoSemValidacao = false;
+  // Logout encerra a sessão e volta ao login. Os dados financeiros do aparelho
+  // NÃO são tocados: nenhuma chave mp_html_state_v8 / mp_backup_v8_* é removida.
+  // Também não fica nenhum "atalho" de acesso sem conta: a próxima abertura
+  // volta a pedir credenciais.
+  mpMostrarAcesso('login');
+  mpUpdateAccountUI();
+  mpSetSyncStatus('offline');
   mpNotify('Desconectado. Seus dados continuam neste aparelho.');
 }
 
+// Removido na Fase 3: o acesso exige conta. Mantido como no-op para que um
+// index.html antigo em cache (service worker) não provoque erro de função.
 function mpContinueOffline() {
-  localStorage.setItem(MP_OFFLINE_KEY, '1');
-  mpAuthFechar();
-  mpSetSyncStatus('offline');
+  mpSetLoginStatus('O acesso agora exige uma conta. Entre com e-mail/senha ou Google.', true);
 }
 
 // ---------- sincronização (last-write-wins) ----------
 function scheduleCloudSync(delay) {
+  // Fase 3: sem acesso liberado não se agenda sincronização nenhuma.
+  if (!mpSupabase || mpAcesso !== 'liberado' || mpAcessoSemValidacao) return;
+  if (mpEstadoEhDemo()) return; // demonstração nunca sobe
   // Sem sessão mas com cliente e sem sync prévia: pode ser um aparelho que
   // recebeu um backup manual. Tenta uma vez (o pull decidirá sem risco).
   if (!mpSupabase) return;
@@ -1064,6 +1453,14 @@ async function mpRunGuarded(fn) {
 }
 
 async function mpPushCore() {
+  // Fase 3: nenhum envio para a nuvem sem sessão validada, sem dono correto e
+  // nunca com dados de demonstração. É a guarda única de saída de dados.
+  if (!mpPodeSincronizar()) {
+    logEvent('info', 'Envio para a nuvem bloqueado pelo portão de acesso', {
+      acesso: mpAcesso, semValidacao: mpAcessoSemValidacao, demo: mpEstadoEhDemo()
+    });
+    return;
+  }
   // updated_at é carimbado pelo TRIGGER no servidor (ver migration
   // 20261108_01): o relógio do telemóvel não decide quem ganha o conflito.
   // O valor devolvido é o do servidor, e é esse que guardamos como referência.
@@ -1282,6 +1679,8 @@ async function mpForceUpdate() {
 // guardada, o supabase-js devolve null e nada acontece.
 async function mpTrySilentPull() {
   if (!mpSupabase || mpSession) return;
+  // Sem portão liberado não se busca nada da nuvem (nem para "adivinhar" dono).
+  if (mpAcesso !== 'liberado' || mpAcessoSemValidacao) return;
   try {
     const { data } = await mpSupabase.auth.getSession();
     const s = data && data.session;
@@ -1291,7 +1690,7 @@ async function mpTrySilentPull() {
     }
     mpSession = s;
     mpApplySessionUI();
-    await mpReconcile();
+    await mpReconcileSePuder();
   } catch (e) {
     logEvent('warn', 'Pull silencioso falhou', { message: e.message });
   }

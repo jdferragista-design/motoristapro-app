@@ -12,7 +12,16 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" type="image/png" href="icon-192.png" />
   <title>MotoristaPro v1.18 - Controle de Ganhos, Gastos & Backup</title>
-  <link rel="stylesheet" href="css/style.css?v=29" />
+  <link rel="stylesheet" href="css/style.css?v=30" />
+  <script>
+    /* PORTÃO DE ACESSO — Fase 3.
+       Roda de forma síncrona antes de o <body> ser desenhado: enquanto este
+       atributo existir, nenhuma tela financeira é exibida nem recebe foco
+       (ver css/style.css). Só o auth.js o remove, e só depois de uma sessão
+       ser validada. Sem este script o app apareceria por um instante com os
+       dados abertos antes de o Supabase responder. */
+    document.documentElement.setAttribute('data-mp-locked', '1');
+  </script>
 </head>
 <body>
 
@@ -63,7 +72,9 @@
           <span>Não tem conta?</span>
           <button type="button" class="mp-auth-link" onclick="mpAuthMostrarVista('signup')">Criar conta</button>
         </div>
-        <button type="button" class="mp-login-offline" onclick="mpContinueOffline()">Continuar sem conta (só neste aparelho)</button>
+        <div class="mp-auth-foot mp-auth-foot--nota">
+          <span>Este aparelho pode estar sem internet, mas o acesso exige sua conta.</span>
+        </div>
       </div>
 
       <!-- ============ VISTA: CRIAR CONTA ============ -->
@@ -146,6 +157,51 @@
 
         <div class="mp-auth-foot">
           <button type="button" class="mp-auth-link" onclick="mpAuthMostrarVista('login')">← Voltar para entrar</button>
+        </div>
+      </div>
+
+      <!-- ============ VISTA: A VERIFICAR A SESSÃO ============ -->
+      <div id="mpAuthViewChecking" class="mp-auth-view" data-view="checking" style="display:none">
+        <p class="mp-login-sub">Verificando sua sessão…</p>
+        <div class="mp-auth-spinner" aria-hidden="true"></div>
+        <div class="mp-auth-foot mp-auth-foot--nota">
+          <span>Isso leva um instante. Seus lançamentos continuam salvos neste aparelho.</span>
+        </div>
+      </div>
+
+      <!-- ============ VISTA: SEM CONEXÃO PARA VALIDAR ============ -->
+      <div id="mpAuthViewOffline" class="mp-auth-view" data-view="offline" style="display:none">
+        <p class="mp-login-sub">Precisamos de internet para confirmar sua sessão neste aparelho.</p>
+        <div class="mp-auth-aviso">
+          Você está sem conexão e sua sessão expirou. <strong>Nada foi apagado</strong>:
+          seus turnos, despesas e manutenções continuam salvos no aparelho.
+        </div>
+        <button type="button" class="btn btn-primary mp-auth-submit" id="mpBtnRetryAuth"
+                onclick="mpAuthTentarNovamente()">Tentar novamente</button>
+        <div class="mp-auth-foot">
+          <button type="button" class="mp-auth-link" onclick="mpAuthMostrarVista('login')">Entrar com e-mail e senha</button>
+        </div>
+        <div class="mp-auth-foot mp-auth-foot--nota">
+          <span>Esta não é uma saída da conta: assim que a conexão voltar, o app valida sozinho.</span>
+        </div>
+      </div>
+
+      <!-- ============ VISTA: DADOS DE OUTRA CONTA ============ -->
+      <div id="mpAuthViewBlocked" class="mp-auth-view" data-view="blocked" style="display:none">
+        <p class="mp-login-sub">Este aparelho já tem dados financeiros de outra conta.</p>
+        <div class="mp-auth-aviso mp-auth-aviso--alerta">
+          Para proteger esses lançamentos, o app <strong>não vai juntar, enviar nem apagar nada</strong>
+          automaticamente. Exporte um backup antes de continuar e entre com a conta dona dos dados.
+        </div>
+        <div class="mp-auth-blocked-dados" id="mpBlockedResumo"></div>
+        <button type="button" class="btn btn-primary mp-auth-submit" onclick="mpExportarBackupEmergencia()">
+          Exportar backup agora
+        </button>
+        <button type="button" class="btn btn-secondary mp-auth-submit mp-auth-submit--secundario" onclick="mpLogout()">
+          Sair desta conta
+        </button>
+        <div class="mp-auth-foot mp-auth-foot--nota">
+          <span>Nada foi enviado para a nuvem e nada foi apagado do aparelho.</span>
         </div>
       </div>
 
@@ -1404,18 +1460,18 @@
     </div>
   </div>
 
-  <script src="js/vendor/supabase.js?v=29"></script>
-  <script src="js/config.js?v=29"></script>
-  <script src="js/capacitor.js?v=29"></script>
-  <script src="js/utils.js?v=29"></script>
-  <script src="js/charts.js?v=29"></script>
-  <script src="js/data.js?v=29"></script>
-  <script src="js/backup.js?v=29"></script>
-  <script src="js/domain.js?v=29"></script>
-  <script src="js/ui.js?v=29"></script>
-  <script src="js/render.js?v=29"></script>
-  <script src="js/init.js?v=29"></script>
-  <script src="js/auth.js?v=29"></script>
+  <script src="js/vendor/supabase.js?v=30"></script>
+  <script src="js/config.js?v=30"></script>
+  <script src="js/capacitor.js?v=30"></script>
+  <script src="js/utils.js?v=30"></script>
+  <script src="js/charts.js?v=30"></script>
+  <script src="js/data.js?v=30"></script>
+  <script src="js/backup.js?v=30"></script>
+  <script src="js/domain.js?v=30"></script>
+  <script src="js/ui.js?v=30"></script>
+  <script src="js/render.js?v=30"></script>
+  <script src="js/init.js?v=30"></script>
+  <script src="js/auth.js?v=30"></script>
 
   <!-- No preview (sandbox), o servidor estático responde 304 ao sw.js e o
        browser reutiliza o SW antigo indefinidamente. Aqui forçamos a

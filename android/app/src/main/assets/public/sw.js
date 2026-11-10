@@ -3,7 +3,7 @@
 // Se não subir, o browser continua a servir a versão antiga do cache e o
 // utilizador fica preso a um build anterior (foi o que aconteceu com o
 // config.js a apontar para um projeto Supabase que já não existe).
-const CACHE = 'motoristapro-v33';
+const CACHE = 'motoristapro-v34';
 
 // Código NUNCA pode vir do cache primeiro: uma correção publicada tem de
 // chegar ao utilizador na visita seguinte. Antes era cache-first para tudo,

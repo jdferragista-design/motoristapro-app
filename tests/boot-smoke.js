@@ -71,7 +71,11 @@ server.listen(0, '127.0.0.1', () => {
       const g = id => d.getElementById(id);
 
       check('boot concluído', w.__MP_BOOTED === true);
-      check('login NÃO bloqueia abertura', g('mpLoginScreen').style.display !== 'flex');
+      // Fase 3: sem sessão guardada o arranque NÃO libera a área financeira.
+      check('login bloqueia abertura sem sessão', g('mpLoginScreen').style.display === 'flex');
+      check('área financeira fica fechada no arranque',
+        d.documentElement.getAttribute('data-mp-locked') === '1' &&
+        !!d.querySelector('main.container[inert]'));
       check('primeiro uso visível sem dados', g('mpFirstUseScreen').style.display === 'flex');
       check('rótulo dinâmico da reserva', /Fundo de Reserva \(R\$ [\d,]+\/km\)/.test(txt(d, 'healthReserveLabel')), txt(d, 'healthReserveLabel'));
 
@@ -1341,8 +1345,9 @@ server.listen(0, '127.0.0.1', () => {
                        s.vehicle.odometer === 54321;
               } catch (_) { return false; }
             })());
-          check('T6 logout: modo offline fica registado (não força novo login)',
-            wLocal.localStorage.getItem('mp_offline_mode_v8') === '1');
+          // Fase 3: o logout NÃO deixa atalho para entrar sem conta.
+          check('T6 logout: não deixa atalho de acesso sem conta',
+            wLocal.localStorage.getItem('mp_offline_mode_v8') === null);
           check('T6 logout: nada é enviado ao servidor para apagar dados',
             !(wLocal.__pedidos || []).some(p => /DELETE|\/rest\/v1\/user_states/.test(p.url + ' ' + (p.body || ''))));
 
@@ -1439,8 +1444,14 @@ server.listen(0, '127.0.0.1', () => {
           }
 
           // --- A02 — fechar limpa senha e status ---------------------------
+          // A janela só se fecha com o acesso liberado (Fase 3): a janela usada
+          // aqui arranca já com sessão válida guardada.
           {
-            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            const wA = authFx.criarJanelaPortao({
+              respostas: authPadrao(),
+              local: { mp_sb_auth_v1: authFx.sessaoGuardada('u-A', 3600) }
+            });
+            await new Promise(r => setTimeout(r, 600));
             wA.eval(`
               mpAuthAbrir('login');
               document.getElementById('mpAuthSenha').value = 'segredo-digitado';
@@ -1907,6 +1918,267 @@ server.listen(0, '127.0.0.1', () => {
                 const wB = authFx.criarJanelaAuth({ respostas: authPadrao() });
                 return wB.document.getElementById('mpSignupSenha').type === 'password';
               })());
+          }
+
+          // ============================================================
+          // FASE 3 — PORTÃO DE ACESSO (A24 a A32)
+          // Nenhuma tela financeira antes da autenticação; dados locais
+          // preservados; nada enviado para a nuvem sem sessão validada.
+          // ============================================================
+          const portao = authFx.criarJanelaPortao;
+          const sessaoGuardada = authFx.sessaoGuardada;
+          const diaMs = 86400000;
+          const pedidosRest = (w) => (w.__pedidos || []).filter(p => /\/rest\/v1\//.test(p.url));
+          const escritasRest = (w) => pedidosRest(w).filter(p => p.method !== 'GET');
+          const travado = (w) => w.document.documentElement.getAttribute('data-mp-locked') === '1';
+          const podeSincronizar = (w) => w.eval(`mpPodeSincronizar()`);
+
+          // --- A24 — arranque sem sessão: portão fechado ------------------
+          {
+            const w = portao({});
+            await new Promise(r => setTimeout(r, 400));
+            check('A24: sem sessão a área principal fica invisível (data-mp-locked)',
+              travado(w));
+            check('A24: sem sessão o conteúdo principal fica inerte (fora da tabulação)',
+              !!w.document.querySelector('main.container[inert]') &&
+              !!w.document.querySelector('header[inert]'));
+            check('A24: sem sessão a janela de autenticação abre na vista de entrar',
+              w.document.getElementById('mpLoginScreen').style.display === 'flex' &&
+              authFx.visivel(w, 'mpAuthViewLogin'));
+            check('A24: sem sessão nada pode ser sincronizado', podeSincronizar(w) === false);
+            await w.eval(`mpPushCore()`);
+            check('A24: o envio para a nuvem é recusado mesmo chamado à força',
+              escritasRest(w).length === 0 && pedidosRest(w).length === 0,
+              pedidosRest(w).length + ' pedido(s) à API de dados');
+            check('A24: o botão \"continuar sem conta\" já não existe',
+              !w.document.getElementById('mpBtnOffline') &&
+              !/continuar sem conta/i.test(w.document.body.textContent || ''));
+          }
+
+          // --- A25 — sessão válida libera o app ---------------------------
+          {
+            const w = portao({
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', 3600),
+                mp_html_state_v8: '{"shifts":[{"id":"s-1"}]}'
+              }
+            });
+            await new Promise(r => setTimeout(r, 600));
+            check('A25: sessão válida abre a área financeira', travado(w) === false &&
+              !w.document.querySelector('main.container[inert]'));
+            check('A25: sessão válida fecha a janela de autenticação',
+              w.document.getElementById('mpLoginScreen').style.display === 'none');
+            check('A25: sessão validada passa a permitir sincronização', podeSincronizar(w) === true);
+            check('A25: o aparelho fica associado à conta que entrou',
+              w.localStorage.getItem('mp_device_owner_v1') === 'u-A',
+              String(w.localStorage.getItem('mp_device_owner_v1')));
+            check('A25: a validação fica datada para a tolerância offline',
+              !!w.localStorage.getItem('mp_auth_last_ok_v1') &&
+              w.localStorage.getItem('mp_auth_last_user_v1') === 'u-A');
+            check('A25: sem demo marcada, os dados locais não são substituídos',
+              w.eval('state.shifts.length') === 1);
+            // Com acesso liberado o "✕" volta a poder fechar a janela.
+            w.eval(`mpAuthAbrir('login')`);
+            w.eval(`mpAuthFechar()`);
+            check('A25: com acesso liberado o "✕" fecha a janela',
+              w.document.getElementById('mpLoginScreen').style.display === 'none');
+          }
+
+          // --- A24b — o "✕" não deixa o utilizador num ecrã vazio ---------
+          {
+            const w = portao({});
+            await new Promise(r => setTimeout(r, 400));
+            w.eval(`mpAuthFechar()`);
+            check('A24b: com o portão fechado o "✕" não fecha a janela',
+              w.document.getElementById('mpLoginScreen').style.display === 'flex');
+            check('A24b: fechar à força recebe explicação em vez de silêncio',
+              /Entre com sua conta/i.test(authFx.statusDe(w, 'mpLoginStatus')),
+              authFx.statusDe(w, 'mpLoginStatus'));
+          }
+
+          // --- A26 — sessão expirada + offline, validada há 2 dias --------
+          {
+            const w = portao({
+              offline: true,
+              falharRede: true,
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', -3600),
+                mp_auth_last_ok_v1: new Date(Date.now() - 2 * diaMs).toISOString(),
+                mp_device_owner_v1: 'u-A'
+              }
+            });
+            await new Promise(r => setTimeout(r, 700));
+            check('A26: offline dentro da tolerância abre com os dados locais', travado(w) === false);
+            check('A26: acesso por tolerância NÃO é sessão validada (nada sincroniza)',
+              podeSincronizar(w) === false && pedidosRest(w).length === 0);
+            check('A26: o utilizador é avisado de que a sessão não foi confirmada',
+              /Sem conexão: sessão não validada/i.test(w.document.getElementById('mpNotify').textContent || ''),
+              (w.document.getElementById('mpNotify').textContent || '').slice(0, 90));
+            check('A26: nenhum dado local é apagado por falta de internet',
+              w.eval('state.shifts.length') === 1 &&
+              !!w.localStorage.getItem('mp_sb_auth_v1'));
+            check('A26: ficar offline não é tratado como logout (nada removido)',
+              w.localStorage.getItem('mp_device_owner_v1') === 'u-A' &&
+              w.localStorage.getItem('mp_offline_mode_v8') === null);
+          }
+
+          // --- A27 — sessão expirada + offline, última validação há 8 dias -
+          {
+            const w = portao({
+              offline: true,
+              falharRede: true,
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', -3600),
+                mp_auth_last_ok_v1: new Date(Date.now() - 8 * diaMs).toISOString(),
+                mp_device_owner_v1: 'u-A'
+              }
+            });
+            await new Promise(r => setTimeout(r, 700));
+            check('A27: tolerância vencida mantém o portão fechado', travado(w));
+            check('A27: aparece a vista de falta de conexão com botão de tentar de novo',
+              authFx.visivel(w, 'mpAuthViewOffline') &&
+              !!w.document.getElementById('mpBtnRetryAuth'));
+            check('A27: a mensagem explica que falta internet para validar',
+              /internet/i.test(w.document.getElementById('mpAuthViewOffline').textContent || ''));
+            check('A27: mesmo bloqueado, os dados locais continuam intactos',
+              w.eval('state.shifts.length') === 1 && podeSincronizar(w) === false);
+          }
+
+          // --- A28 — reconectar e tentar novamente libera a sessão --------
+          {
+            const w = portao({
+              offline: true,
+              falharRede: true,
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', -3600),
+                mp_auth_last_ok_v1: new Date(Date.now() - 8 * diaMs).toISOString(),
+                mp_device_owner_v1: 'u-A'
+              }
+            });
+            await new Promise(r => setTimeout(r, 700));
+            Object.defineProperty(w.navigator, 'onLine', { value: true, configurable: true });
+            w.eval(`window.__falharRede = false;
+              window.__respostas['grant_type=refresh_token'] = ${JSON.stringify(authFx.respostaRefresh('u-A', 3600))};`);
+            await w.eval(`mpAuthTentarNovamente()`);
+            await new Promise(r => setTimeout(r, 300));
+            check('A28: depois de voltar a rede, renovar a sessão libera o app', travado(w) === false);
+            check('A28: a sessão renovada volta a permitir sincronização', podeSincronizar(w) === true);
+            check('A28: a fila de espera não perde a janela de autenticação',
+              w.document.getElementById('mpLoginScreen').style.display === 'none');
+          }
+
+          // --- A29 — conta diferente: bloqueia sem apagar nem enviar ------
+          {
+            const w = portao({
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-B', 3600),
+                mp_device_owner_v1: 'u-A',
+                mp_html_state_v8: '{"shifts":[{"id":"s-1"}],"expenses":[{"id":"e-1"}]}'
+              }
+            });
+            await new Promise(r => setTimeout(r, 600));
+            check('A29: conta diferente da dona do aparelho fica bloqueada', travado(w));
+            check('A29: o bloqueio explica o motivo e mostra o que está em risco',
+              authFx.visivel(w, 'mpAuthViewBlocked') &&
+              /1 turnos · 1 despesas/.test(w.document.getElementById('mpBlockedResumo').textContent || ''),
+              (w.document.getElementById('mpBlockedResumo').textContent || '').trim());
+            check('A29: conta diferente não sincroniza nada', podeSincronizar(w) === false &&
+              escritasRest(w).length === 0);
+            check('A29: conta diferente não apaga nem reescreve os dados locais',
+              w.eval('state.shifts.length') === 1 &&
+              /s-1/.test(w.localStorage.getItem('mp_html_state_v8') || ''));
+            check('A29: o bloqueio não associa o aparelho à conta intrusa',
+              w.localStorage.getItem('mp_device_owner_v1') === 'u-A');
+          }
+
+          // --- A30 — demonstração nunca sobe para a nuvem -----------------
+          {
+            const w = portao({
+              local: { mp_sb_auth_v1: sessaoGuardada('u-A', 3600), mp_demo_data_v1: '1' }
+            });
+            await new Promise(r => setTimeout(r, 600));
+            check('A30: entrar com demo marcada descarta a demonstração',
+              w.eval('mpEstadoEhDemo()') === false && w.eval('state.shifts.length') === 0);
+            check('A30: a demonstração não gera nenhum envio para a nuvem',
+              escritasRest(w).length === 0, escritasRest(w).length + ' escrita(s)');
+            check('A30: a conta que entrou fica registada como dona', 
+              w.localStorage.getItem('mp_device_owner_v1') === 'u-A');
+          }
+
+          // --- A30b — demonstração já editada é preservada -----------------
+          {
+            const editado = JSON.stringify({ shifts: [{ id: 's-1' }, { id: 's-2' }],
+              expenses: [{ id: 'e-1' }], maintenance: [] });
+            const w = portao({
+              estado: { vehicle: {}, shifts: [{ id: 's-1' }, { id: 's-2' }],
+                expenses: [{ id: 'e-1' }], maintenance: [] },
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', 3600),
+                mp_demo_data_v1: '1',
+                // cópia do exemplo original ≠ estado atual → foi o utilizador que editou
+                mp_demo_snapshot_v1: JSON.stringify({ shifts: [], expenses: [], maintenance: [] }),
+                mp_html_state_v8: editado
+              }
+            });
+            await new Promise(r => setTimeout(r, 600));
+            check('A30b: demonstração editada não é apagada ao entrar',
+              w.eval('state.shifts.length') === 2,
+              w.eval('state.shifts.length') + ' turno(s)');
+            check('A30b: o histórico editado continua gravado no aparelho',
+              /s-2/.test(w.localStorage.getItem('mp_html_state_v8') || ''));
+            check('A30b: a marca de demonstração cai (passa a ser histórico do dono)',
+              w.eval('mpEstadoEhDemo()') === false);
+            check('A30b: nada é enviado só por causa da demonstração antiga',
+              escritasRest(w).length === 0);
+          }
+
+          // --- A31 — logout volta ao login sem apagar finanças ------------
+          {
+            const w = portao({
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', 3600),
+                mp_device_owner_v1: 'u-A',
+                mp_html_state_v8: '{"shifts":[{"id":"s-1"}],"expenses":[{"id":"e-1"}]}'
+              }
+            });
+            await new Promise(r => setTimeout(r, 600));
+            await w.eval(`mpLogout()`);
+            await new Promise(r => setTimeout(r, 200));
+            check('A31: o logout volta a fechar a área financeira', travado(w) &&
+              w.document.getElementById('mpLoginScreen').style.display === 'flex');
+            check('A31: o logout encerra a sessão guardada',
+              w.localStorage.getItem('mp_sb_auth_v1') === null);
+            check('A31: o logout preserva o histórico financeiro local',
+              /s-1/.test(w.localStorage.getItem('mp_html_state_v8') || '') &&
+              w.eval('state.shifts.length') === 1);
+            check('A31: o logout não pede ao servidor para apagar dados',
+              w.__pedidos.filter(p => p.method === 'DELETE').length === 0);
+            check('A31: o logout não deixa atalho para entrar sem conta',
+              w.localStorage.getItem('mp_offline_mode_v8') === null &&
+              podeSincronizar(w) === false);
+          }
+
+          // --- A32 — rede pendurada: o arranque não fica preso ------------
+          {
+            // navigator.onLine diz \"online\", mas os pedidos morrem. O cliente
+            // do Supabase repetiria a renovação por ~26 s; o prazo do portão
+            // tem de decidir antes disso.
+            const inicio = Date.now();
+            const w = portao({
+              falharRede: true,
+              local: {
+                mp_sb_auth_v1: sessaoGuardada('u-A', -3600),
+                mp_auth_last_ok_v1: new Date(Date.now() - 1 * diaMs).toISOString(),
+                mp_device_owner_v1: 'u-A'
+              }
+            });
+            await new Promise(r => setTimeout(r, 8000));
+            const decorrido = Date.now() - inicio;
+            check('A32: com a rede pendurada o portão decide em segundos (não 26 s)',
+              decorrido < 12000 && travado(w) === false, decorrido + ' ms');
+            check('A32: decidiu pela tolerância offline e não ficou em \"Verificando…\"',
+              podeSincronizar(w) === false &&
+              w.document.getElementById('mpLoginScreen').style.display === 'none');
           }
 
           // ============================================================
