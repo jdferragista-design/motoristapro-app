@@ -560,14 +560,16 @@ server.listen(0, '127.0.0.1', () => {
 
           // ============================================================
           // FASE 2 — M-06: todos os <label> de formulário apontam para o campo
+          // (57 originais + 9 da janela de autenticação: entrar, criar conta,
+          //  esqueci e redefinir senha)
           // ============================================================
-          check('M-06: 57 labels associados a um campo existente', w2.eval(`
+          check('M-06: 66 labels associados a um campo existente', w2.eval(`
             (() => {
               const labels = Array.from(document.querySelectorAll('label'));
               const semFor = labels.filter(l => !l.getAttribute('for'));
               const orfaos = labels.filter(l => l.getAttribute('for') && !document.getElementById(l.getAttribute('for')));
               return { total: labels.length, semFor: semFor.length, orfaos: orfaos.length };
-            })()`).total === 57);
+            })()`).total === 66);
           check('M-06: nenhum label sem for= nem a apontar para id inexistente', w2.eval(`
             (() => {
               const labels = Array.from(document.querySelectorAll('label'));
@@ -1346,14 +1348,14 @@ server.listen(0, '127.0.0.1', () => {
 
           // T7 — login por email/senha continua a funcionar e usar o fluxo de senha
           wLocal.document.body.innerHTML =
-            '<input id="mpEmailInput" value="e@mail"><input id="mpPasswordInput" value="segredo">' +
+            '<input id="mpEmailInput" value="e@mail.com"><input id="mpPasswordInput" value="segredo">' +
             '<button id="mpBtnEmail"></button><div id="mpLoginStatus"></div><div id="mpNotify"></div>';
           const antesEmail = (wLocal.__pedidos || []).length;
           await wLocal.eval(`mpLoginWithEmail()`);
           const pedidoSenha = (wLocal.__pedidos || []).slice(antesEmail).find(p => p.url.includes('grant_type=password'));
           check('T7 email/senha: envia grant_type=password com email e senha',
             !!pedidoSenha && (() => {
-              try { const b = JSON.parse(pedidoSenha.body); return b.email === 'e@mail' && b.password === 'segredo'; }
+              try { const b = JSON.parse(pedidoSenha.body); return b.email === 'e@mail.com' && b.password === 'segredo'; }
               catch (_) { return false; }
             })());
           check('T7 email/senha: sessão criada e persistida', (() => {
@@ -1364,6 +1366,548 @@ server.listen(0, '127.0.0.1', () => {
             wLocal.document.getElementById('mpPasswordInput').value === '');
           check('T7 email/senha: nenhum pedido OAuth foi disparado',
             !(wLocal.__pedidos || []).some(p => /grant_type=pkce|\/authorize/.test(p.url)));
+
+          // ============================================================
+          // JANELA DE AUTENTICAÇÃO — 23 cenários
+          // ------------------------------------------------------------
+          // O que estes testes provam (e o que NÃO provam):
+          //  - markup real de www/index.html (campos, vistas, ids);
+          //  - vendor supabase-js verdadeiro + fetch simulado → o pedido HTTP
+          //    que o app produz (grant_type, redirect_to, corpo) é real;
+          //  - mensagens em pt-BR e ausência de pedido quando a validação local
+          //    reprova.
+          // NÃO provam: entrega de e-mail (SMTP), deep link no Android físico,
+          // nem o Google no Google Cloud. Isso está separado no relatório.
+          // ============================================================
+          const authFx = require('./lib/auth-fixtures.js');
+          const SENHA_OK = 'Motorista1';
+          const SENHA_FRACA = 'motorista1'; // sem maiúscula
+
+          const authPadrao = () => ({
+            '/auth/v1/token?grant_type=password': {
+              status: 200,
+              json: { access_token: 'AT-1', refresh_token: 'RT-1', token_type: 'bearer',
+                expires_in: 3600, user: { id: 'u-login', email: 'motorista@exemplo.com' } }
+            },
+            '/auth/v1/signup': {
+              status: 200,
+              json: { id: 'u-novo', email: 'novo@exemplo.com', role: 'authenticated',
+                aud: 'authenticated', identities: [{ id: 'id-1', provider: 'email' }],
+                app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: {} }
+            },
+            '/auth/v1/recover': { status: 200, json: {} },
+            '/auth/v1/user': {
+              status: 200,
+              json: { id: 'u-login', email: 'motorista@exemplo.com', aud: 'authenticated' }
+            }
+          });
+
+          // --- A01 — a janela tem as quatro vistas e abre em "entrar" ------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            ['login', 'signup', 'forgot', 'reset'].forEach((v) => {
+              const id = 'mpAuthView' + v.charAt(0).toUpperCase() + v.slice(1);
+              check('A01: a vista "' + v + '" existe no markup',
+                !!wA.document.getElementById(id));
+            });
+            wA.eval(`mpAuthAbrir('login')`);
+            check('A01: abrir mostra a janela de autenticação',
+              wA.document.getElementById('mpLoginScreen').style.display === 'flex');
+            check('A01: só a vista de entrar fica visível',
+              authFx.visivel(wA, 'mpAuthViewLogin') &&
+              !authFx.visivel(wA, 'mpAuthViewSignup') &&
+              !authFx.visivel(wA, 'mpAuthViewForgot') &&
+              !authFx.visivel(wA, 'mpAuthViewReset'));
+            wA.eval(`mpAuthMostrarVista('signup')`);
+            check('A01: trocar para "criar conta" esconde as outras vistas',
+              authFx.visivel(wA, 'mpAuthViewSignup') && !authFx.visivel(wA, 'mpAuthViewLogin'));
+            check('A01: os campos de e-mail e senha existem na vista de entrar',
+              !!wA.document.getElementById('mpAuthEmail') &&
+              !!wA.document.getElementById('mpAuthSenha') &&
+              !!wA.document.getElementById('mpBtnGoogle') &&
+              !!wA.document.getElementById('mpBtnEmail'));
+            // Configurações → Conta & Nuvem é a porta de entrada da janela.
+            wA.eval(`mpAuthFechar(); mpUpdateAccountUI();`);
+            const botaoConta = wA.document.getElementById('mpBtnAbrirAuth');
+            check('A01: sem sessão, Conta & Nuvem oferece "Entrar ou criar conta"',
+              !!botaoConta && /Entrar ou criar conta/.test(botaoConta.textContent));
+            if (botaoConta) botaoConta.dispatchEvent(new wA.Event('click'));
+            wA.eval(`mpAuthAbrir('login')`);
+            check('A01: a partir de Conta & Nuvem a janela abre na vista de entrar',
+              wA.document.getElementById('mpLoginScreen').style.display === 'flex' &&
+              authFx.visivel(wA, 'mpAuthViewLogin'));
+          }
+
+          // --- A02 — fechar limpa senha e status ---------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthSenha').value = 'segredo-digitado';
+              mpSetLoginStatus('mensagem qualquer', true);
+            `);
+            wA.eval(`mpAuthFechar()`);
+            check('A02: fechar limpa a senha digitada',
+              wA.document.getElementById('mpAuthSenha').value === '');
+            check('A02: fechar limpa a mensagem de estado',
+              authFx.statusDe(wA, 'mpLoginStatus') === '' &&
+              wA.document.getElementById('mpLoginStatus').style.display === 'none');
+            check('A02: fechar esconde a janela',
+              wA.document.getElementById('mpLoginScreen').style.display === 'none');
+          }
+
+          // --- A03/A04/A05 — validação local do login ----------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`mpAuthAbrir('login')`);
+            wA.eval(`mpLoginWithEmail()`);
+            await new Promise(r => setTimeout(r, 30));
+            check('A03: login sem e-mail mostra mensagem',
+              /e-mail/i.test(authFx.statusDe(wA, 'mpLoginStatus')), authFx.statusDe(wA, 'mpLoginStatus'));
+            check('A03: login sem e-mail não faz pedido',
+              authFx.pedidosCom(wA, '/auth/v1/token').length === 0);
+
+            wA.eval(`document.getElementById('mpAuthEmail').value = 'sem-arroba';`);
+            wA.eval(`mpLoginWithEmail()`);
+            await new Promise(r => setTimeout(r, 30));
+            check('A04: e-mail com formato inválido é recusado antes da rede',
+              /E-mail inválido/i.test(authFx.statusDe(wA, 'mpLoginStatus')) &&
+              authFx.pedidosCom(wA, '/auth/v1/token').length === 0,
+              authFx.statusDe(wA, 'mpLoginStatus'));
+
+            wA.eval(`
+              document.getElementById('mpAuthEmail').value = 'motorista@exemplo.com';
+              document.getElementById('mpAuthSenha').value = '';
+            `);
+            wA.eval(`mpLoginWithEmail()`);
+            await new Promise(r => setTimeout(r, 30));
+            check('A05: login sem senha mostra mensagem e não pede ao servidor',
+              /senha/i.test(authFx.statusDe(wA, 'mpLoginStatus')) &&
+              authFx.pedidosCom(wA, '/auth/v1/token').length === 0,
+              authFx.statusDe(wA, 'mpLoginStatus'));
+          }
+
+          // --- A06 — login com sucesso ------------------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthEmail').value = 'motorista@exemplo.com';
+              document.getElementById('mpAuthSenha').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpLoginWithEmail()`);
+            const ped = authFx.ultimoPedido(wA, '/auth/v1/token');
+            const corpo = ped && authFx.jsonDoCorpo(ped);
+            check('A06: o login envia grant_type=password com e-mail e senha',
+              !!ped && ped.url.indexOf('grant_type=password') !== -1 &&
+              !!corpo && corpo.email === 'motorista@exemplo.com' && corpo.password === SENHA_OK);
+            check('A06: a sessão fica guardada no aparelho', (() => {
+              try {
+                const s = JSON.parse(wA.localStorage.getItem('mp_sb_auth_v1'));
+                return s && s.user && s.user.id === 'u-login';
+              } catch (_) { return false; }
+            })());
+            check('A06: ao entrar a janela fecha e a senha não fica no campo',
+              wA.document.getElementById('mpLoginScreen').style.display === 'none' &&
+              wA.document.getElementById('mpAuthSenha').value === '');
+            check('A06: nenhum pedido OAuth é disparado no login por senha',
+              authFx.pedidosCom(wA, 'grant_type=pkce').length === 0 &&
+              authFx.pedidosCom(wA, '/authorize').length === 0);
+          }
+
+          // --- A07/A08 — erros de login traduzidos -------------------------
+          {
+            const wA = authFx.criarJanelaAuth({
+              respostas: {
+                '/auth/v1/token?grant_type=password': {
+                  status: 400,
+                  json: { error: 'invalid_grant', error_code: 'invalid_credentials',
+                    error_description: 'Invalid login credentials', msg: 'Invalid login credentials' }
+                }
+              }
+            });
+            wA.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthEmail').value = 'naoexiste@exemplo.com';
+              document.getElementById('mpAuthSenha').value = 'SenhaErrada1';
+            `);
+            await wA.eval(`mpLoginWithEmail()`);
+            const msg = authFx.statusDe(wA, 'mpLoginStatus');
+            check('A07: credenciais inválidas → mensagem em pt-BR',
+              /E-mail ou senha incorretos/i.test(msg), msg);
+            check('A07: a mensagem não revela se o e-mail existe',
+              !/não existe|não cadastrado|not found/i.test(msg), msg);
+            check('A07: a sessão não é criada com credenciais inválidas',
+              !wA.localStorage.getItem('mp_sb_auth_v1'));
+
+            const wB = authFx.criarJanelaAuth({
+              respostas: {
+                '/auth/v1/token?grant_type=password': {
+                  status: 400,
+                  json: { error: 'invalid_grant', error_code: 'email_not_confirmed',
+                    error_description: 'Email not confirmed', msg: 'Email not confirmed' }
+                }
+              }
+            });
+            wB.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthEmail').value = 'pendente@exemplo.com';
+              document.getElementById('mpAuthSenha').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wB.eval(`mpLoginWithEmail()`);
+            check('A08: e-mail não confirmado → pede confirmação em pt-BR',
+              /Confirme seu e-mail/i.test(authFx.statusDe(wB, 'mpLoginStatus')),
+              authFx.statusDe(wB, 'mpLoginStatus'));
+          }
+
+          // --- A09 — clique repetido no login gera um único pedido ---------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthEmail').value = 'motorista@exemplo.com';
+              document.getElementById('mpAuthSenha').value = ${JSON.stringify(SENHA_OK)};
+              mpLoginWithEmail(); mpLoginWithEmail(); mpLoginWithEmail();
+            `);
+            await new Promise(r => setTimeout(r, 300));
+            check('A09: três toques em "Entrar" geram um único pedido',
+              authFx.pedidosCom(wA, '/auth/v1/token').length === 1,
+              authFx.pedidosCom(wA, '/auth/v1/token').length + ' pedido(s)');
+          }
+
+          // --- A10/A11/A12 — validação do cadastro ------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('signup');
+              document.getElementById('mpSignupEmail').value = 'novo@exemplo.com';
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_FRACA)};
+              document.getElementById('mpSignupSenha2').value = ${JSON.stringify(SENHA_FRACA)};
+            `);
+            await wA.eval(`mpSignupWithEmail()`);
+            const msg = authFx.statusDe(wA, 'mpLoginStatus');
+            check('A10: senha sem maiúscula é recusada citando a regra',
+              /MAIÚSCULA/i.test(msg), msg);
+            check('A10: senha fraca não chega a criar conta no servidor',
+              authFx.pedidosCom(wA, '/auth/v1/signup').length === 0);
+
+            wA.eval(`
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpSignupSenha2').value = 'Motorista2';
+            `);
+            await wA.eval(`mpSignupWithEmail()`);
+            check('A11: confirmação diferente é recusada antes da rede',
+              /não são iguais/i.test(authFx.statusDe(wA, 'mpLoginStatus')) &&
+              authFx.pedidosCom(wA, '/auth/v1/signup').length === 0,
+              authFx.statusDe(wA, 'mpLoginStatus'));
+
+            wA.eval(`
+              document.getElementById('mpSignupEmail').value = 'invalido@';
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpSignupSenha2').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpSignupWithEmail()`);
+            check('A12: e-mail inválido no cadastro é recusado antes da rede',
+              /E-mail inválido/i.test(authFx.statusDe(wA, 'mpLoginStatus')) &&
+              authFx.pedidosCom(wA, '/auth/v1/signup').length === 0,
+              authFx.statusDe(wA, 'mpLoginStatus'));
+          }
+
+          // --- A13 — cadastro com confirmação de e-mail obrigatória -------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('signup');
+              document.getElementById('mpSignupNome').value = 'João';
+              document.getElementById('mpSignupEmail').value = 'novo@exemplo.com';
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpSignupSenha2').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpSignupWithEmail()`);
+            const ped = authFx.ultimoPedido(wA, '/auth/v1/signup');
+            const corpo = ped && authFx.jsonDoCorpo(ped);
+            check('A13: o cadastro envia e-mail, senha e nome',
+              !!corpo && corpo.email === 'novo@exemplo.com' && corpo.password === SENHA_OK &&
+              !!corpo.data && corpo.data.nome === 'João',
+              JSON.stringify(corpo && { email: corpo.email, data: corpo.data }));
+            check('A13: o cadastro pede retorno explícito para o app (sem confiar no site_url)',
+              /redirect_to=com\.pro\.driver%3A%2F%2Foauth-callback|redirect_to=com\.pro\.driver:\/\/oauth-callback/.test(ped.url),
+              ped.url);
+            check('A13: sem confirmação, nenhuma sessão é criada',
+              !wA.localStorage.getItem('mp_sb_auth_v1'));
+            check('A13: a mensagem pede confirmação por e-mail',
+              /link de confirmação/i.test(authFx.statusDe(wA, 'mpLoginStatus')),
+              authFx.statusDe(wA, 'mpLoginStatus'));
+            check('A13: depois de criar conta volta ao ecrã de entrar com o e-mail preenchido',
+              authFx.visivel(wA, 'mpAuthViewLogin') &&
+              wA.document.getElementById('mpAuthEmail').value === 'novo@exemplo.com');
+            check('A13: as senhas digitadas não ficam nos campos',
+              wA.document.getElementById('mpSignupSenha').value === '' &&
+              wA.document.getElementById('mpSignupSenha2').value === '');
+          }
+
+          // --- A14 — e-mail que já tem conta (sem enumeração) --------------
+          {
+            const wA = authFx.criarJanelaAuth({
+              respostas: {
+                '/auth/v1/signup': {
+                  status: 200,
+                  json: { id: 'u-existente', email: 'ja@exemplo.com', identities: [] }
+                }
+              }
+            });
+            wA.eval(`
+              mpAuthAbrir('signup');
+              document.getElementById('mpSignupEmail').value = 'ja@exemplo.com';
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpSignupSenha2').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpSignupWithEmail()`);
+            const msg = authFx.statusDe(wA, 'mpLoginStatus');
+            check('A14: e-mail já registado recebe mensagem neutra (sem confirmar existência)',
+              /Se este e-mail já tiver conta/i.test(msg), msg);
+            check('A14: não afirma que criou a conta quando não criou',
+              !/Conta criada/i.test(msg), msg);
+          }
+
+          // --- A15 — limite de e-mails do Supabase ------------------------
+          {
+            const wA = authFx.criarJanelaAuth({
+              respostas: {
+                '/auth/v1/signup': {
+                  status: 429,
+                  json: { code: 429, error_code: 'over_email_send_rate_limit',
+                    msg: 'email rate limit exceeded' }
+                }
+              }
+            });
+            wA.eval(`
+              mpAuthAbrir('signup');
+              document.getElementById('mpSignupEmail').value = 'novo@exemplo.com';
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpSignupSenha2').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpSignupWithEmail()`);
+            const msg = authFx.statusDe(wA, 'mpLoginStatus');
+            check('A15: limite de envio → mensagem compreensível, não erro técnico',
+              /Muitas tentativas/i.test(msg), msg);
+            check('A15: o botão de criar conta é reativado depois do erro',
+              wA.document.getElementById('mpBtnSignup').disabled === false);
+          }
+
+          // --- A16 — clique repetido no cadastro --------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('signup');
+              document.getElementById('mpSignupEmail').value = 'novo@exemplo.com';
+              document.getElementById('mpSignupSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpSignupSenha2').value = ${JSON.stringify(SENHA_OK)};
+              mpSignupWithEmail(); mpSignupWithEmail();
+            `);
+            await new Promise(r => setTimeout(r, 300));
+            check('A16: dois toques em "Criar conta" geram um único pedido',
+              authFx.pedidosCom(wA, '/auth/v1/signup').length === 1,
+              authFx.pedidosCom(wA, '/auth/v1/signup').length + ' pedido(s)');
+          }
+
+          // --- A17/A18 — recuperação de senha -----------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('forgot');
+              document.getElementById('mpForgotEmail').value = 'motorista@exemplo.com';
+            `);
+            await wA.eval(`mpRequestPasswordReset()`);
+            const ped = authFx.ultimoPedido(wA, '/auth/v1/recover');
+            check('A17: a recuperação pede o link ao Supabase com o e-mail',
+              !!ped && !!authFx.jsonDoCorpo(ped) &&
+              authFx.jsonDoCorpo(ped).email === 'motorista@exemplo.com');
+            check('A17: a recuperação usa redirectTo explícito (não o site_url localhost)',
+              !!ped && /redirect_to=com\.pro\.driver%3A%2F%2Foauth-callback|redirect_to=com\.pro\.driver:\/\/oauth-callback/.test(ped.url),
+              ped ? ped.url : 'sem pedido');
+            check('A17: a intenção "recovery" fica registada para o retorno do link',
+              wA.localStorage.getItem('mp_auth_intent_v1') === 'recovery',
+              String(wA.localStorage.getItem('mp_auth_intent_v1')));
+            check('A17: a mensagem de recuperação não revela se o e-mail tem conta',
+              /Se este e-mail tiver conta/i.test(authFx.statusDe(wA, 'mpLoginStatus')),
+              authFx.statusDe(wA, 'mpLoginStatus'));
+
+            const wB = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wB.eval(`
+              mpAuthAbrir('forgot');
+              document.getElementById('mpForgotEmail').value = 'ninguem@exemplo.com';
+              mpRequestPasswordReset(); mpRequestPasswordReset();
+            `);
+            await new Promise(r => setTimeout(r, 300));
+            check('A18: dois toques em "Enviar link" geram um único pedido',
+              authFx.pedidosCom(wB, '/auth/v1/recover').length === 1,
+              authFx.pedidosCom(wB, '/auth/v1/recover').length + ' pedido(s)');
+          }
+
+          // --- A19 — redefinição sem sessão válida ------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`
+              mpAuthAbrir('reset');
+              document.getElementById('mpResetSenha').value = 'SemSessao1';
+              document.getElementById('mpResetSenha2').value = 'SemSessao1';
+            `);
+            await wA.eval(`mpUpdatePassword()`);
+            check('A19: redefinir sem sessão de recuperação pede novo link',
+              /expirou|solicite um novo link/i.test(authFx.statusDe(wA, 'mpLoginStatus')),
+              authFx.statusDe(wA, 'mpLoginStatus'));
+            check('A19: sem sessão nenhum pedido é enviado ao servidor',
+              authFx.pedidosCom(wA, '/auth/v1/user').length === 0);
+
+            // Com sessão, mas senha fora da política
+            wA.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthEmail').value = 'motorista@exemplo.com';
+              document.getElementById('mpAuthSenha').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpLoginWithEmail()`);
+            wA.eval(`
+              mpAuthAbrir('reset');
+              document.getElementById('mpResetSenha').value = 'curta1';
+              document.getElementById('mpResetSenha2').value = 'curta1';
+            `);
+            await wA.eval(`mpUpdatePassword()`);
+            check('A19: senha fora da política é recusada antes da rede',
+              /precisa de/i.test(authFx.statusDe(wA, 'mpLoginStatus')) &&
+              authFx.pedidosCom(wA, '/auth/v1/user').length === 0,
+              authFx.statusDe(wA, 'mpLoginStatus'));
+
+            wA.eval(`
+              document.getElementById('mpResetSenha').value = ${JSON.stringify(SENHA_OK)};
+              document.getElementById('mpResetSenha2').value = 'OutraSenha9';
+            `);
+            await wA.eval(`mpUpdatePassword()`);
+            check('A19: confirmação diferente na redefinição é recusada',
+              /não são iguais/i.test(authFx.statusDe(wA, 'mpLoginStatus')) &&
+              authFx.pedidosCom(wA, '/auth/v1/user').length === 0,
+              authFx.statusDe(wA, 'mpLoginStatus'));
+          }
+
+          // --- A20 — redefinição concluída --------------------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            // Sessão real obtida por login (o estado interno do app não é
+            // forçado de fora: a sessão nasce do fluxo verdadeiro).
+            wA.eval(`
+              mpAuthAbrir('login');
+              document.getElementById('mpAuthEmail').value = 'motorista@exemplo.com';
+              document.getElementById('mpAuthSenha').value = ${JSON.stringify(SENHA_OK)};
+            `);
+            await wA.eval(`mpLoginWithEmail()`);
+            wA.eval(`
+              localStorage.setItem('mp_auth_intent_v1', 'recovery');
+              mpAuthAbrir('reset');
+              document.getElementById('mpResetSenha').value = 'NovaSenha9';
+              document.getElementById('mpResetSenha2').value = 'NovaSenha9';
+            `);
+            await wA.eval(`mpUpdatePassword()`);
+            const ped = authFx.ultimoPedido(wA, '/auth/v1/user');
+            const corpo = ped && authFx.jsonDoCorpo(ped);
+            check('A20: a nova senha é enviada ao Supabase',
+              !!corpo && corpo.password === 'NovaSenha9', JSON.stringify(corpo && { password: corpo.password }));
+            check('A20: a intenção de recuperação é consumida ao concluir',
+              wA.localStorage.getItem('mp_auth_intent_v1') === null);
+            check('A20: ao concluir a janela fecha e os campos de senha são limpos',
+              wA.document.getElementById('mpLoginScreen').style.display === 'none' &&
+              wA.document.getElementById('mpResetSenha').value === '' &&
+              wA.document.getElementById('mpResetSenha2').value === '');
+            check('A20: o utilizador é avisado de que a senha mudou',
+              (wA.__avisos || []).some(a => /Senha alterada/i.test(a)),
+              JSON.stringify(wA.__avisos || []));
+          }
+
+          // --- A21 — retorno do link de recuperação abre o ecrã certo -----
+          {
+            const wA = authFx.criarJanelaAuth({
+              respostas: Object.assign(authPadrao(), {
+                '/auth/v1/token?grant_type=pkce': {
+                  status: 200,
+                  json: { access_token: 'AT-R', refresh_token: 'RT-R', token_type: 'bearer',
+                    expires_in: 3600, user: { id: 'u-rec', email: 'motorista@exemplo.com' } }
+                }
+              })
+            });
+            // Fluxo real: iniciar o login gera o verificador PKCE no aparelho,
+            // como acontece quando o utilizador toca em "Entrar com Google".
+            wA.eval(`mpAuthAbrir('login')`);
+            await wA.eval(`mpLoginWithGoogle()`);
+            const temVerificador = wA.eval(`mpTemVerificadorPkce()`);
+            wA.eval(`localStorage.setItem('mp_auth_intent_v1', 'recovery')`);
+            const rel = await wA.eval(`mpTratarRetornoOAuth('com.pro.driver://oauth-callback?code=CODIGO-RECUPERACAO')`);
+            check('A21: o login deixa o verificador PKCE guardado no aparelho', temVerificador === true);
+            check('A21: o código do link de recuperação é trocado por sessão (PKCE)',
+              !!(rel && rel.ok === true), JSON.stringify(rel));
+            check('A21: o retorno de recuperação abre a vista de nova senha',
+              authFx.visivel(wA, 'mpAuthViewReset') &&
+              wA.document.getElementById('mpLoginScreen').style.display === 'flex');
+            check('A21: a intenção é consumida (não reabre o ecrã num novo arranque)',
+              wA.localStorage.getItem('mp_auth_intent_v1') === null);
+            check('A21: a mensagem pede a nova senha',
+              /nova senha/i.test(authFx.statusDe(wA, 'mpLoginStatus')),
+              authFx.statusDe(wA, 'mpLoginStatus'));
+            // Regressão real detetada na revisão: o evento de sessão chegava
+            // DEPOIS de abrir o ecrã de nova senha e fechava a janela.
+            wA.eval(`mpApplySessionUI()`);
+            check('A21: uma mudança de sessão não fecha a janela aberta',
+              wA.document.getElementById('mpLoginScreen').style.display === 'flex' &&
+              authFx.visivel(wA, 'mpAuthViewReset'));
+          }
+
+          // --- A22 — em web o retorno é a própria página ------------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao(), nativo: false });
+            wA.eval(`
+              mpAuthAbrir('forgot');
+              document.getElementById('mpForgotEmail').value = 'motorista@exemplo.com';
+            `);
+            await wA.eval(`mpRequestPasswordReset()`);
+            const ped = authFx.ultimoPedido(wA, '/auth/v1/recover');
+            check('A22: em web o redirectTo é a página atual (não o deep link)',
+              !!ped && /redirect_to=https%3A%2F%2Flocalhost%2Findex\.html|redirect_to=https:\/\/localhost\/index\.html/.test(ped.url),
+              ped ? ped.url : 'sem pedido');
+          }
+
+          // --- A23 — mostrar senha e checklist dos requisitos -------------
+          {
+            const wA = authFx.criarJanelaAuth({ respostas: authPadrao() });
+            wA.eval(`mpAuthAbrir('signup')`);
+            const campo = wA.document.getElementById('mpSignupSenha');
+            const olho = wA.document.querySelector('#mpAuthViewSignup .mp-auth-eye');
+            wA.eval(`mpAuthVerSenha(document.querySelector('#mpAuthViewSignup .mp-auth-eye'))`);
+            check('A23: o botão do olho revela a senha digitada',
+              campo.type === 'text', campo.type);
+            wA.eval(`mpAuthVerSenha(document.querySelector('#mpAuthViewSignup .mp-auth-eye'))`);
+            check('A23: o mesmo botão volta a ocultar', campo.type === 'password', campo.type);
+
+            wA.eval(`
+              const i = document.getElementById('mpSignupSenha');
+              i.value = 'abc';
+              i.dispatchEvent(new Event('input'));
+            `);
+            const marcados3 = wA.document.querySelectorAll('#mpSignupReq li.ok').length;
+            wA.eval(`
+              const i = document.getElementById('mpSignupSenha');
+              i.value = ${JSON.stringify(SENHA_OK)};
+              i.dispatchEvent(new Event('input'));
+            `);
+            const marcadosOk = wA.document.querySelectorAll('#mpSignupReq li.ok').length;
+            check('A23: o checklist marca apenas o que a senha cumpre',
+              marcados3 === 1 && marcadosOk === 4,
+              'fraca=' + marcados3 + '/4, válida=' + marcadosOk + '/4');
+            check('A23: existem quatro requisitos visíveis na política',
+              wA.document.querySelectorAll('#mpSignupReq li[data-req]').length === 4);
+            check('A23: o campo de senha usa input de senha por padrão',
+              (() => {
+                const wB = authFx.criarJanelaAuth({ respostas: authPadrao() });
+                return wB.document.getElementById('mpSignupSenha').type === 'password';
+              })());
+          }
 
           // ============================================================
           // ANDROID — consistência dos assets e do APK (verificação estática)

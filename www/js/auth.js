@@ -43,18 +43,20 @@ function mpNotify(message, type) {
   el._t = setTimeout(() => { el.className = 'mp-notify'; }, 3200);
 }
 
-function mpSetLoginStatus(msg, isError) {
+function mpSetLoginStatus(msg, isError, tipo) {
   const el = document.getElementById('mpLoginStatus');
+  const classe = 'mp-login-status' +
+    (tipo === 'ok' ? ' mp-login-status--ok' : (isError ? ' mp-login-status--error' : ''));
   if (el) {
     el.textContent = msg || '';
-    el.className = 'mp-login-status' + (isError ? ' mp-login-status--error' : '');
+    el.className = classe;
     // O status nasceu no ecrã de login, que já não aparece no arranque.
     // Sem isto, um erro de login ficava invisível e parecia "não fazer nada".
     el.style.display = msg ? 'block' : 'none';
     const box = document.getElementById('mpAccountBoxStatus');
     if (box) {
       box.textContent = msg || '';
-      box.className = 'mp-login-status' + (isError ? ' mp-login-status--error' : '');
+      box.className = classe;
       box.style.display = msg ? 'block' : 'none';
     }
   }
@@ -116,16 +118,28 @@ function mpInitSupabase() {
   // Mudanças de sessão (login, logout, token refresh)
   mpSupabase.auth.onAuthStateChange((event, session) => {
     mpSession = session;
+    // O link de recuperação abre uma sessão. Sem distinguir o evento, o
+    // utilizador cairia no app "já dentro" sem nunca poder definir a senha.
+    if (event === 'PASSWORD_RECOVERY') {
+      mpAuthTratarRecuperacao();
+      mpApplySessionUI();
+      return;
+    }
     if (event === 'SIGNED_IN') {
       localStorage.removeItem(MP_OFFLINE_KEY);
       mpSetLoginStatus('');
-      mpNotify('Conectado! Sincronizando dados…');
+      if (mpAuthLerIntencao() === 'recovery') {
+        mpAuthTratarRecuperacao();
+      } else {
+        mpNotify('Conectado! Sincronizando dados…');
+      }
     }
     mpApplySessionUI();
     if (event === 'SIGNED_IN' && mpSession) mpReconcile();
   });
 
   mpRegisterDeepLink();
+  mpAuthLigarEventos();
   window.addEventListener('online', () => { if (mpSession) mpReconcile(); });
   return mpSupabase;
 }
@@ -329,6 +343,12 @@ async function mpExecutarRetornoOAuth(url) {
     mpSetGoogleBusy(false, 'Entrar com Google');
     if (typeof mpApplySessionUI === 'function') mpApplySessionUI();
     mpUpdateAccountUI();
+    // Retorno de um link de recuperação de senha: a sessão existe, mas o que
+    // o utilizador pediu foi definir uma senha nova — não entrar.
+    if (mpAuthConsumirIntencao() === 'recovery') {
+      mpAuthTratarRecuperacao();
+      return r;
+    }
     mpNotify('Login com Google concluído ☁️');
   } else if (r.duplicado) {
     // Entrega repetida do mesmo link: não é erro para o utilizador.
@@ -408,6 +428,36 @@ function mpConsultarLaunchUrl(App) {
   return true;
 }
 
+// Botão "voltar" do Android. Sem isto, com a janela de autenticação aberta o
+// toque em voltar fecharia o APP (comportamento antigo) em vez de fechar a
+// janela. O comportamento fora da janela mantém-se: sai do app.
+let mpBotaoVoltarLigado = false;
+function mpLigarBotaoVoltar() {
+  if (mpBotaoVoltarLigado) return;
+  const App = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App;
+  if (!App || typeof App.addListener !== 'function') return;
+  mpBotaoVoltarLigado = true;
+  try {
+    const chamada = App.addListener('backButton', () => {
+      const tela = document.getElementById('mpLoginScreen');
+      const aberta = !!tela && tela.style.display === 'flex';
+      if (aberta) {
+        // Vista interna → volta para "entrar"; já em "entrar" → fecha.
+        if (mpAuthVistaAtual !== 'login') mpAuthMostrarVista('login');
+        else mpAuthFechar();
+        return;
+      }
+      if (typeof App.exitApp === 'function') App.exitApp();
+    });
+    if (chamada && typeof chamada.catch === 'function') {
+      chamada.catch(() => { mpBotaoVoltarLigado = false; });
+    }
+  } catch (e) {
+    mpBotaoVoltarLigado = false;
+    logEvent('warn', 'Não foi possível ligar o botão voltar', { message: e.message });
+  }
+}
+
 // Ponto de entrada seguro para chamar em qualquer altura (arranque, antes de
 // abrir o browser). Ligar o listener e consultar o arranque são operações
 // distintas, cada uma com a sua guarda.
@@ -424,7 +474,14 @@ function mpApplySessionUI() {
   const hasSession = !!mpSession;
   // Login nunca bloqueia a abertura: o app abre sempre direto (como antes).
   // O login Google é opcional e faz-se em Configurações → Conta & Nuvem.
-  mpShowLoginScreen(false);
+  //
+  // EXCEÇÃO: se a janela de autenticação estiver aberta (entrar, criar conta,
+  // recuperar ou redefinir senha), uma mudança de sessão não pode fechá-la por
+  // baixo do utilizador — era o que acontecia ao definir a nova senha, porque
+  // o evento de sessão chegava antes de a ação terminar.
+  const tela = document.getElementById('mpLoginScreen');
+  const aberta = !!tela && tela.style.display === 'flex';
+  if (!aberta) mpShowLoginScreen(false);
   mpUpdateAccountUI();
   if (hasSession) mpSetSyncStatus('synced');
   else mpSetSyncStatus('anon');
@@ -437,21 +494,24 @@ function mpUpdateAccountUI() {
   if (mpSession && mpSession.user) {
     emailEl.textContent = mpSession.user.email || 'Conectado';
     actionsEl.innerHTML = '<button type="button" class="btn btn-danger btn-sm" onclick="mpLogout()">Sair da conta</button>' +
+      '<button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="mpAuthAbrirTrocaSenha()">Alterar senha</button>' +
       '<button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="mpRestorePrePullBackup()">Restaurar cópia anterior</button>';
   } else {
     emailEl.textContent = 'Não conectado';
-    // O botão Google tem de existir também aqui: antes o estado de carregamento
-    // procurava #mpBtnGoogle (que só existe no ecrã de login, oculto neste
-    // fluxo), pelo que nunca havia feedback ao tocar em Configurações.
+    // A entrada de conta passou a ser a janela de autenticação completa
+    // (entrar por e-mail/senha, Google, criar conta e recuperar senha). Antes
+    // eram dois campos soltos aqui, sem cadastro nem recuperação possíveis.
     actionsEl.innerHTML =
-      '<button type="button" class="btn btn-primary btn-sm" id="mpBtnGoogle" onclick="mpLoginWithGoogle()">Entrar com Google</button>' +
-      '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-sub);">' +
-        '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">ou entrar com email</div>' +
-        '<input type="email" id="mpEmailInput" class="form-control" placeholder="seu@email.com" autocomplete="email" style="margin-bottom:6px;" />' +
-        '<input type="password" id="mpPasswordInput" class="form-control" placeholder="Senha" autocomplete="current-password" style="margin-bottom:6px;" />' +
-        '<button type="button" class="btn btn-secondary btn-sm" id="mpBtnEmail" onclick="mpLoginWithEmail()">Entrar</button>' +
-      '</div>';
+      '<button type="button" class="btn btn-primary btn-sm" id="mpBtnAbrirAuth" onclick="mpAuthAbrir(\'login\')">Entrar ou criar conta</button>';
   }
+}
+
+// Mesmo depois de autenticado, o utilizador precisa de poder trocar a senha
+// sem sair do app (Configurações → Conta & Nuvem).
+function mpAuthAbrirTrocaSenha() {
+  if (!mpSession) { mpAuthAbrir('login'); return; }
+  mpAuthAbrir('reset');
+  mpSetLoginStatus('Defina a nova senha da sua conta ' + ((mpSession.user && mpSession.user.email) || '') + '.', false, 'ok');
 }
 
 // Estado visual do botão Google — funciona nos dois pontos de entrada
@@ -533,24 +593,251 @@ async function mpLoginWithGoogle() {
   }
 }
 
-// ---------- login por email (alternativa ao Google) ----------
-// Existe porque o Google OAuth exige um client no Google Cloud que o
-// utilizador ainda não configurou. Com isto o sync pode ser testado hoje.
+// ============================================================
+// Janela de autenticação (entrar, criar conta, esqueci, redefinir)
+// ============================================================
+//
+// Modelo: local-first continua igual — a janela é opcional e não bloqueia a
+// abertura do app. Ela existe para o utilizador poder entrar com e-mail/senha,
+// criar conta, recuperar e redefinir a senha sem sair do app.
+//
+// Regras que valem para TODAS as ações abaixo:
+//  - um clique repetido não dispara um segundo pedido (trava mpAuthEmCurso);
+//  - as mensagens são em pt-BR e não revelam dados sensíveis;
+//  - nunca se registra em log a senha, o código ou os tokens;
+//  - o destino do retorno é SEMPRE explícito (redirectTo), porque o site_url do
+//    projeto é http://localhost:8080 e o GoTrue usaria esse valor por padrão.
+
+const MP_AUTH_INTENT_KEY = 'mp_auth_intent_v1';
+const MP_SENHA_MIN = 8;
+// Mesma composição exigida pelo projeto Supabase:
+// minúscula + MAIÚSCULA + dígito, mínimo de 8 caracteres.
+const MP_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+let mpAuthEmCurso = null;          // ação em curso (trava de cliques repetidos)
+let mpAuthVistaAtual = 'login';    // vista visível
+
+function mpAuthEmailValido(email) {
+  const e = String(email || '').trim();
+  if (!e || e.length > 254) return false;
+  if (/\s/.test(e)) return false;
+  return MP_EMAIL_RE.test(e);
+}
+
+// Devolve o estado da política de senha e, quando reprova, o que falta — para
+// a mensagem poder ser específica em vez de "senha inválida".
+function mpAuthPoliticaSenha(senha) {
+  const s = String(senha == null ? '' : senha);
+  const regras = {
+    len: s.length >= MP_SENHA_MIN,
+    lower: /[a-z]/.test(s),
+    upper: /[A-Z]/.test(s),
+    digit: /[0-9]/.test(s)
+  };
+  const faltas = [];
+  if (!regras.len) faltas.push('pelo menos ' + MP_SENHA_MIN + ' caracteres');
+  if (!regras.lower) faltas.push('uma letra minúscula');
+  if (!regras.upper) faltas.push('uma letra MAIÚSCULA');
+  if (!regras.digit) faltas.push('um número');
+  return { ok: faltas.length === 0, regras, faltas };
+}
+
+function mpAuthMensagemFaltaSenha(politica) {
+  if (!politica || politica.ok) return '';
+  if (politica.faltas.length === 1) return 'A senha precisa de ' + politica.faltas[0] + '.';
+  const ultima = politica.faltas[politica.faltas.length - 1];
+  const resto = politica.faltas.slice(0, -1).join(', ');
+  return 'A senha precisa de ' + resto + ' e ' + ultima + '.';
+}
+
+// Mensagens de erro do GoTrue traduzidas. A ordem importa: os casos mais
+// específicos vêm primeiro.
+function mpAuthMensagemErro(e) {
+  const msg = String((e && (e.message || e.error_description)) || e || '');
+  const status = e && (e.status || e.statusCode);
+  const t = msg.toLowerCase();
+
+  if (/email not confirmed|not confirmed/.test(t)) {
+    return 'Confirme seu e-mail antes de entrar. Procure o link de confirmação na sua caixa de entrada.';
+  }
+  if (/invalid login credentials|invalid credentials|invalid_grant/.test(t)) {
+    return 'E-mail ou senha incorretos.';
+  }
+  if (/user already registered|already been registered|email already in use/.test(t)) {
+    return 'Este e-mail já tem conta. Use "Entrar" ou "Esqueci minha senha".';
+  }
+  if (/signups? not allowed|signup is disabled/.test(t)) {
+    return 'A criação de contas está temporariamente indisponível. Tente mais tarde.';
+  }
+  if (/email rate limit|over_email_send_rate_limit|rate limit/.test(t) || status === 429) {
+    return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.';
+  }
+  if (/password should be at least|password is too weak|weak_password|password.*characters/.test(t)) {
+    return 'A senha não atende à política: mínimo de 8 caracteres, com letra minúscula, letra maiúscula e número.';
+  }
+  if (/unable to validate email|invalid email|email address .* is invalid/.test(t)) {
+    return 'E-mail inválido. Verifique e tente novamente.';
+  }
+  if (/auth session missing|session.*missing|jwt expired|invalid.*token|token.*expired/.test(t)) {
+    return 'O link expirou ou já foi usado. Solicite um novo link de recuperação.';
+  }
+  if (/failed to fetch|networkerror|network request failed|load failed/.test(t)) {
+    return 'Sem conexão com o servidor. Verifique sua internet e tente novamente.';
+  }
+  return msg || 'Não foi possível concluir. Tente novamente.';
+}
+
+// Destino do retorno (confirmação de e-mail / recuperação de senha).
+// Explícito por regra: o site_url do projeto aponta para localhost.
+function mpAuthRedirectTo() {
+  if (mpIsNative()) return window.MP_OAUTH_REDIRECT_NATIVE;
+  return window.location.origin + window.location.pathname;
+}
+
+function mpAuthMarcarIntencao(intencao) {
+  try {
+    if (intencao) localStorage.setItem(MP_AUTH_INTENT_KEY, intencao);
+    else localStorage.removeItem(MP_AUTH_INTENT_KEY);
+  } catch (_) { /* storage indisponível: o fluxo segue, só perde a dica */ }
+}
+
+function mpAuthLerIntencao() {
+  try { return localStorage.getItem(MP_AUTH_INTENT_KEY); } catch (_) { return null; }
+}
+
+function mpAuthConsumirIntencao() {
+  const i = mpAuthLerIntencao();
+  if (i) mpAuthMarcarIntencao(null);
+  return i;
+}
+
+// ---------- controlo da janela ----------
+function mpAuthAbrir(vista) {
+  // O "voltar" do Android só é ligado quando a janela é usada, para não alterar
+  // nada no arranque (o boot não acrescenta listeners nativos).
+  mpLigarBotaoVoltar();
+  mpShowLoginScreen(true);
+  mpAuthMostrarVista(vista || 'login');
+}
+
+function mpAuthFechar() {
+  mpAuthLimparCampos();
+  mpSetLoginStatus('');
+  mpShowLoginScreen(false);
+}
+
+function mpAuthVistaEl(nome) {
+  return document.getElementById('mpAuthView' + nome.charAt(0).toUpperCase() + nome.slice(1));
+}
+
+function mpAuthMostrarVista(vista) {
+  const vistas = ['login', 'signup', 'forgot', 'reset'];
+  const alvo = vistas.indexOf(vista) !== -1 ? vista : 'login';
+  mpAuthVistaAtual = alvo;
+  vistas.forEach((v) => {
+    const el = mpAuthVistaEl(v);
+    if (el) el.style.display = (v === alvo) ? 'block' : 'none';
+  });
+  // Trocar de vista não pode arrastar senhas digitadas na vista anterior.
+  mpAuthLimparCampos();
+  mpSetLoginStatus('');
+  const nota = document.getElementById('mpAuthNote');
+  if (nota) nota.style.display = (alvo === 'reset') ? 'none' : 'block';
+  const foco = { login: 'mpAuthEmail', signup: 'mpSignupNome', forgot: 'mpForgotEmail', reset: 'mpResetSenha' }[alvo];
+  setTimeout(() => {
+    const el = document.getElementById(foco);
+    if (el && typeof el.focus === 'function') { try { el.focus(); } catch (_) { /* WebView sem foco */ } }
+  }, 60);
+}
+
+function mpAuthLimparCampos() {
+  ['mpAuthSenha', 'mpSignupSenha', 'mpSignupSenha2', 'mpResetSenha', 'mpResetSenha2'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['mpSignupReq', 'mpResetReq'].forEach((id) => mpAuthPintarRequisitos(id, mpAuthPoliticaSenha('')));
+}
+
+// Mostrar/ocultar senha (essencial no telemóvel, onde errar é frequente).
+function mpAuthVerSenha(btn) {
+  const id = btn && btn.getAttribute('data-alvo');
+  const input = id && document.getElementById(id);
+  if (!input) return;
+  const mostrar = input.type === 'password';
+  input.type = mostrar ? 'text' : 'password';
+  btn.textContent = mostrar ? '🙈' : '👁';
+  btn.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha');
+}
+
+function mpAuthPintarRequisitos(listaId, politica) {
+  const lista = document.getElementById(listaId);
+  if (!lista || !lista.querySelectorAll) return;
+  lista.querySelectorAll('li[data-req]').forEach((li) => {
+    const chave = li.getAttribute('data-req');
+    const cumpre = !!(politica && politica.regras && politica.regras[chave]);
+    li.classList.toggle('ok', cumpre);
+  });
+}
+
+// Atualiza a lista de requisitos enquanto o utilizador digita.
+function mpAuthLigarRequisitos(inputId, listaId) {
+  const input = document.getElementById(inputId);
+  if (!input || input.__mpReqLigado) return;
+  input.__mpReqLigado = true;
+  const atualizar = () => mpAuthPintarRequisitos(listaId, mpAuthPoliticaSenha(input.value));
+  input.addEventListener('input', atualizar);
+  atualizar();
+}
+
+function mpAuthBotao(id, ocupado, textoOcupado, textoNormal) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = !!ocupado;
+  if (ocupado && textoOcupado) {
+    if (!btn.__mpTexto) btn.__mpTexto = btn.textContent;
+    btn.textContent = textoOcupado;
+  } else if (textoNormal) {
+    btn.textContent = textoNormal;
+  } else if (btn.__mpTexto) {
+    btn.textContent = btn.__mpTexto;
+  }
+}
+
+function mpAuthCampo(id) {
+  const el = document.getElementById(id);
+  return (el && el.value) || '';
+}
+
+// Liga os eventos de validação uma única vez (idempotente).
+function mpAuthLigarEventos() {
+  mpAuthLigarRequisitos('mpSignupSenha', 'mpSignupReq');
+  mpAuthLigarRequisitos('mpResetSenha', 'mpResetReq');
+}
+
+// ---------- entrar com e-mail e senha ----------
 async function mpLoginWithEmail() {
   if (!mpSupabase) {
     mpSetLoginStatus('Serviço indisponível — verifique a configuração.', true);
     return;
   }
-  const emailEl = document.getElementById('mpEmailInput');
-  const passEl = document.getElementById('mpPasswordInput');
-  const email = (emailEl && emailEl.value || '').trim();
+  // Aceita os campos da janela atual e, por compatibilidade, os campos que
+  // existiam dentro de Configurações → Conta & Nuvem.
+  const emailEl = document.getElementById('mpAuthEmail') || document.getElementById('mpEmailInput');
+  const passEl = document.getElementById('mpAuthSenha') || document.getElementById('mpPasswordInput');
+  const email = ((emailEl && emailEl.value) || '').trim();
   const senha = (passEl && passEl.value) || '';
-  if (!email || !senha) {
-    mpSetLoginStatus('Preencha email e senha.', true);
-    return;
-  }
+
+  if (!email) { mpSetLoginStatus('Digite seu e-mail.', true); if (emailEl) emailEl.focus(); return; }
+  if (!mpAuthEmailValido(email)) { mpSetLoginStatus('E-mail inválido. Verifique e tente novamente.', true); if (emailEl) emailEl.focus(); return; }
+  if (!senha) { mpSetLoginStatus('Digite sua senha.', true); if (passEl) passEl.focus(); return; }
+
+  // Trava de cliques repetidos: um segundo toque não abre outro pedido.
+  if (mpAuthEmCurso) { logEvent('info', 'Clique repetido ignorado durante autenticação', { acao: mpAuthEmCurso }); return; }
+  mpAuthEmCurso = 'login';
   const btn = document.getElementById('mpBtnEmail');
-  if (btn) btn.disabled = true;
+  mpAuthBotao('mpBtnEmail', true, 'Entrando…');
+  if (emailEl) emailEl.disabled = true;
+  if (passEl) passEl.disabled = true;
   mpSetLoginStatus('Entrando…');
   try {
     const { data, error } = await mpSupabase.auth.signInWithPassword({ email, password: senha });
@@ -559,20 +846,176 @@ async function mpLoginWithEmail() {
     if (passEl) passEl.value = '';
     mpSetLoginStatus('');
     mpApplySessionUI();
+    mpAuthFechar();
     mpNotify('Conectado! Sincronizando…');
     await mpReconcile();
   } catch (e) {
-    const msg = String(e.message || e);
-    const amigavel = /invalid login credentials/i.test(msg)
-      ? 'Email ou senha incorretos.'
-      : (/email not confirmed/i.test(msg)
-        ? 'Confirme o email antes de entrar.'
-        : msg);
-    logEvent('warn', 'Login por email falhou', { message: msg });
-    mpSetLoginStatus(amigavel, true);
+    logEvent('warn', 'Login por e-mail falhou', { message: String((e && e.message) || e) });
+    mpSetLoginStatus(mpAuthMensagemErro(e), true);
   } finally {
+    mpAuthEmCurso = null;
+    mpAuthBotao('mpBtnEmail', false, null, 'Entrar');
     if (btn) btn.disabled = false;
+    if (emailEl) emailEl.disabled = false;
+    if (passEl) passEl.disabled = false;
   }
+}
+
+// ---------- criar conta ----------
+async function mpSignupWithEmail() {
+  if (!mpSupabase) {
+    mpSetLoginStatus('Serviço indisponível — verifique a configuração.', true);
+    return;
+  }
+  const nome = mpAuthCampo('mpSignupNome').trim();
+  const email = mpAuthCampo('mpSignupEmail').trim();
+  const senha = mpAuthCampo('mpSignupSenha');
+  const senha2 = mpAuthCampo('mpSignupSenha2');
+
+  if (!email) { mpSetLoginStatus('Digite seu e-mail.', true); return; }
+  if (!mpAuthEmailValido(email)) { mpSetLoginStatus('E-mail inválido. Verifique e tente novamente.', true); return; }
+  const politica = mpAuthPoliticaSenha(senha);
+  if (!politica.ok) { mpSetLoginStatus(mpAuthMensagemFaltaSenha(politica), true); return; }
+  if (senha !== senha2) { mpSetLoginStatus('As senhas não são iguais. Digite a mesma senha nos dois campos.', true); return; }
+  if (nome.length > 80) { mpSetLoginStatus('O nome pode ter no máximo 80 caracteres.', true); return; }
+
+  if (mpAuthEmCurso) { logEvent('info', 'Clique repetido ignorado durante autenticação', { acao: mpAuthEmCurso }); return; }
+  mpAuthEmCurso = 'signup';
+  mpAuthBotao('mpBtnSignup', true, 'Criando conta…');
+  mpSetLoginStatus('Criando conta…');
+  try {
+    const opcoes = { emailRedirectTo: mpAuthRedirectTo() };
+    if (nome) opcoes.data = { nome: nome };
+    const { data, error } = await mpSupabase.auth.signUp({ email, password: senha, options: opcoes });
+    if (error) throw error;
+
+    const user = data && data.user;
+    // O GoTrue (com confirmação de e-mail ativa) não diz se o e-mail já existe:
+    // devolve um utilizador com a lista de identidades vazia. Não afirmar que a
+    // conta foi criada nesse caso — informar o caminho sem enumerar contas.
+    const jaExistia = !!(user && Array.isArray(user.identities) && user.identities.length === 0);
+
+    ['mpSignupSenha', 'mpSignupSenha2'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    mpAuthPintarRequisitos('mpSignupReq', mpAuthPoliticaSenha(''));
+
+    if (data && data.session && !jaExistia) {
+      // Confirmação automática (não é o caso deste projeto, mas o fluxo cobre).
+      mpSession = data.session;
+      mpAuthFechar();
+      mpNotify('Conta criada e conectada ☁️');
+      mpApplySessionUI();
+      await mpReconcile();
+      return;
+    }
+    // Volta para o ecrã de entrada com o e-mail já preenchido. A mensagem é
+    // escrita DEPOIS da troca de vista (que limpa o status).
+    mpAuthMostrarVista('login');
+    const emailLogin = document.getElementById('mpAuthEmail');
+    if (emailLogin) emailLogin.value = email;
+    if (jaExistia) {
+      mpSetLoginStatus('Se este e-mail já tiver conta, use "Entrar" ou "Esqueci minha senha". ' +
+        'Caso contrário, confira sua caixa de entrada para confirmar o cadastro.', false, 'ok');
+    } else {
+      mpSetLoginStatus('Conta criada! Enviamos um link de confirmação para ' + email +
+        '. Abra o link para ativar sua conta e depois entre.', false, 'ok');
+    }
+  } catch (e) {
+    logEvent('warn', 'Criação de conta falhou', { message: String((e && e.message) || e) });
+    mpSetLoginStatus(mpAuthMensagemErro(e), true);
+  } finally {
+    mpAuthEmCurso = null;
+    mpAuthBotao('mpBtnSignup', false, null, 'Criar conta');
+  }
+}
+
+// ---------- esqueci a senha ----------
+async function mpRequestPasswordReset() {
+  if (!mpSupabase) {
+    mpSetLoginStatus('Serviço indisponível — verifique a configuração.', true);
+    return;
+  }
+  const email = mpAuthCampo('mpForgotEmail').trim();
+  if (!email) { mpSetLoginStatus('Digite seu e-mail.', true); return; }
+  if (!mpAuthEmailValido(email)) { mpSetLoginStatus('E-mail inválido. Verifique e tente novamente.', true); return; }
+
+  if (mpAuthEmCurso) { logEvent('info', 'Clique repetido ignorado durante autenticação', { acao: mpAuthEmCurso }); return; }
+  mpAuthEmCurso = 'forgot';
+  mpAuthBotao('mpBtnForgot', true, 'Enviando…');
+  mpSetLoginStatus('Enviando link…');
+  try {
+    // A intenção permite reconhecer, no retorno do link, que a sessão criada
+    // é de recuperação e deve abrir o ecrã de nova senha (e não só entrar).
+    mpAuthMarcarIntencao('recovery');
+    const { error } = await mpSupabase.auth.resetPasswordForEmail(email, { redirectTo: mpAuthRedirectTo() });
+    if (error) throw error;
+    // Mensagem sempre igual: não revela se o e-mail tem conta.
+    mpSetLoginStatus('Se este e-mail tiver conta, o link de recuperação chegará em instantes. ' +
+      'Confira também a caixa de spam.', false, 'ok');
+    const campo = document.getElementById('mpForgotEmail');
+    if (campo) campo.value = '';
+  } catch (e) {
+    mpAuthMarcarIntencao(null);
+    logEvent('warn', 'Pedido de recuperação falhou', { message: String((e && e.message) || e) });
+    mpSetLoginStatus(mpAuthMensagemErro(e), true);
+  } finally {
+    mpAuthEmCurso = null;
+    mpAuthBotao('mpBtnForgot', false, null, 'Enviar link de recuperação');
+  }
+}
+
+// ---------- definir nova senha (sessão de recuperação) ----------
+async function mpUpdatePassword() {
+  if (!mpSupabase) {
+    mpSetLoginStatus('Serviço indisponível — verifique a configuração.', true);
+    return;
+  }
+  const senha = mpAuthCampo('mpResetSenha');
+  const senha2 = mpAuthCampo('mpResetSenha2');
+  const politica = mpAuthPoliticaSenha(senha);
+  if (!politica.ok) { mpSetLoginStatus(mpAuthMensagemFaltaSenha(politica), true); return; }
+  if (senha !== senha2) { mpSetLoginStatus('As senhas não são iguais. Digite a mesma senha nos dois campos.', true); return; }
+
+  // O updateUser exige sessão. Sem ela o pedido é recusado pelo servidor, mas
+  // aqui a mensagem certa só pode ser dada sabendo o estado local.
+  if (!mpSession) {
+    mpSetLoginStatus('O link de recuperação expirou ou já foi usado. Volte e solicite um novo link.', true);
+    return;
+  }
+
+  if (mpAuthEmCurso) { logEvent('info', 'Clique repetido ignorado durante autenticação', { acao: mpAuthEmCurso }); return; }
+  mpAuthEmCurso = 'reset';
+  mpAuthBotao('mpBtnReset', true, 'Salvando…');
+  mpSetLoginStatus('Salvando nova senha…');
+  try {
+    const { error } = await mpSupabase.auth.updateUser({ password: senha });
+    if (error) throw error;
+    mpAuthConsumirIntencao();
+    ['mpResetSenha', 'mpResetSenha2'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    mpAuthPintarRequisitos('mpResetReq', mpAuthPoliticaSenha(''));
+    mpSetLoginStatus('');
+    mpAuthFechar();
+    mpNotify('Senha alterada com sucesso 🔒');
+    mpApplySessionUI();
+    await mpReconcile();
+  } catch (e) {
+    logEvent('warn', 'Redefinição de senha falhou', { message: String((e && e.message) || e) });
+    mpSetLoginStatus(mpAuthMensagemErro(e), true);
+  } finally {
+    mpAuthEmCurso = null;
+    mpAuthBotao('mpBtnReset', false, null, 'Salvar nova senha');
+  }
+}
+
+// Abre o ecrã de nova senha quando o retorno do link é de recuperação.
+function mpAuthTratarRecuperacao() {
+  mpAuthAbrir('reset');
+  mpSetLoginStatus('Escolha uma nova senha para concluir a recuperação.', false, 'ok');
 }
 
 async function mpLogout() {
@@ -589,7 +1032,7 @@ async function mpLogout() {
 
 function mpContinueOffline() {
   localStorage.setItem(MP_OFFLINE_KEY, '1');
-  mpShowLoginScreen(false);
+  mpAuthFechar();
   mpSetSyncStatus('offline');
 }
 
@@ -856,3 +1299,7 @@ async function mpTrySilentPull() {
 
 // ---------- boot ----------
 mpInitSupabase();
+// Liga a validação em tempo real da política de senha. O script é carregado no
+// fim do <body>, por isso os campos já existem; se não existirem (testes com
+// DOM mínimo), as funções simplesmente não encontram os elementos.
+mpAuthLigarEventos();
